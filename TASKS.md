@@ -38,31 +38,31 @@
 ## Phase 1 — Live Data Foundation
 
 ### Backend
-- [ ] Create `MockMarketDataService`:
+- [x] Create `MockMarketDataService`:
   - Realistic NIFTY OHLCV 15-min candles, 90 days history, price range 23000-25000
   - BANKNIFTY candles, price range 50000-53000
   - Price simulation: random walk with mean reversion, realistic volatility
   - VIX: 11-18 range, PCR: 0.8-1.6 range, FII flow: random +/- 500-2000 Cr
-- [ ] Create `MarketDataWorker` (BackgroundService):
+- [x] Create `MarketDataWorker` (BackgroundService):
   - Every 30s during market hours only (use MarketHoursHelper)
   - Gets latest snapshot, broadcasts via SignalR
   - Outside hours: broadcasts MarketStatus "Closed"
-- [ ] Create `MarketHub` (SignalR Hub):
+- [x] Create `MarketHub` (SignalR Hub):
   - Groups: NIFTY, BANKNIFTY, alerts:{userId}
   - Server-to-client: PriceUpdate, MarketStatus
-- [ ] Create `MarketHoursHelper`: IST timezone, 9:15-15:30, Mon-Fri
-- [ ] Implement GET /api/v1/market/snapshot, /candles/{symbol}, /status
-- [ ] Wire CORS for http://localhost:5173
-- [ ] Verify SignalR connection from frontend works
+- [x] Create `MarketHoursHelper`: IST timezone, 9:15-15:30, Mon-Fri
+- [x] Implement GET /api/v1/market/snapshot, /candles/{symbol}, /status
+- [x] Wire CORS for http://localhost:5173
+- [x] Verify SignalR connection from frontend works
 
 ### Frontend
-- [ ] Create `useSignalR.ts`: connects, handles reconnect with exponential backoff
-- [ ] Create `useMarketData.ts`: REST fetch on mount + SignalR updates merged
-- [ ] Create `IndexCard.tsx`: price, change, change%, IV — responsive sizing
-- [ ] Create `MarketStatusBanner.tsx`: Open/Closed/Pre-market, countdown to next event
-- [ ] Create `MarketPulse.tsx`: VIX, PCR gauge, FII/DII flow — 2-col mobile, 3-col desktop
-- [ ] Wire Dashboard page: all components showing live data
-- [ ] Verify real-time updates work in browser and at 375px mobile width
+- [x] Create `useSignalR.ts`: connects, handles reconnect with exponential backoff
+- [x] Create `useMarketData.ts`: REST fetch on mount + SignalR updates merged
+- [x] Create `IndexCard.tsx`: price, change, change%, IV — responsive sizing
+- [x] Create `MarketStatusBanner.tsx`: Open/Closed/Pre-market, countdown to next event
+- [x] Create `MarketPulse.tsx`: VIX, PCR gauge, FII/DII flow — 2-col mobile, 3-col desktop
+- [x] Wire Dashboard page: all components showing live data
+- [x] Verify real-time updates work in browser and at 375px mobile width
 
 ---
 

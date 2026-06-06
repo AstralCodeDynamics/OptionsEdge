@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using OptionsEdge.API.Features.Market;
+using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Infrastructure.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +29,12 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials()));
 
+// Feature services
+builder.Services.AddMarketServices();
+
+// Background workers
+builder.Services.AddHostedService<MarketDataWorker>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -40,5 +49,11 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow }))
    .WithName("Health");
+
+// Feature endpoints
+app.MapMarketEndpoints();
+
+// SignalR hubs
+app.MapHub<MarketHub>("/hubs/market");
 
 app.Run();
