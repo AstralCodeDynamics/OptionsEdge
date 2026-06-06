@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert } from '../types'
 
 let authToken: string | null = null
 
@@ -74,6 +74,48 @@ export const signalsApi = {
   },
   getById: (id: string) =>
     api.get<Signal>(`/signals/${id}`).then((r) => r.data),
+}
+
+export const positionsApi = {
+  getAll: () =>
+    api.get<Position[]>('/positions').then((r) => r.data),
+  create: (data: {
+    symbol: string
+    strike: number
+    optionType: string
+    expiry: string
+    entryPrice: number
+    quantity: number
+    stopLoss: number
+    target1: number
+    target2?: number
+    signalId?: string
+  }) => api.post<Position>('/positions', data).then((r) => r.data),
+  update: (id: string, data: {
+    stopLoss?: number
+    target1?: number
+    target2?: number
+    status?: string
+    exitPrice?: number
+    exitReason?: string
+  }) => api.put<Position>(`/positions/${id}`, data).then((r) => r.data),
+  close: (id: string) =>
+    api.delete(`/positions/${id}`),
+  getPnL: (id: string) =>
+    api.get(`/positions/${id}/pnl`).then((r) => r.data),
+}
+
+export const alertsApi = {
+  getAlerts: (params?: { unread?: boolean; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.unread != null) q.set('unread', String(params.unread))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    return api.get<Alert[]>(`/alerts?${q}`).then((r) => r.data)
+  },
+  markRead: (id: string) =>
+    api.put<Alert>(`/alerts/${id}/read`).then((r) => r.data),
+  markAllRead: () =>
+    api.put('/alerts/read-all'),
 }
 
 export default api

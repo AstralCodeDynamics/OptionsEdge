@@ -2,10 +2,17 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import Header from './Header'
+import AlertBanner from '../positions/AlertBanner'
+import { useAlerts } from '../../hooks/useAlerts'
+
+const HUB_URL = `${import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') ?? ''}/hubs/market`
 
 export default function AppShell() {
+  useAlerts(HUB_URL)
+
   return (
     <div className="min-h-screen bg-gray-950 text-white flex">
+      <AlertBanner />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />

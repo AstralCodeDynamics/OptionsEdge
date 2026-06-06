@@ -151,14 +151,14 @@
 ## Phase 4 — Position Tracker & Alerts (MOST CRITICAL)
 
 ### Backend
-- [ ] Implement full Position CRUD: GET/POST/PUT/DELETE /api/v1/positions
-- [ ] Create `PositionService`:
+- [x] Implement full Position CRUD: GET/POST/PUT/DELETE /api/v1/positions
+- [x] Create `PositionService`:
   - CalculatePnL: (currentLtp - entryPrice) * qty * lotSize, also in %
   - CalculateDistanceToSL: % and Rs. from SL
   - CalculateDistanceToTarget: % and Rs. from T1 and T2
   - GetThetaDecayPercent: estimate daily theta eaten of original premium
   - CheckAlertConditions: returns List<AlertTrigger> for all conditions met
-- [ ] Alert conditions (ALL must be checked):
+- [x] Alert conditions (ALL must be checked):
   1. ltp <= sl * 1.10 AND not already alerted -> WARNING: "SL Approaching — ₹X away"
   2. ltp <= sl -> DANGER: "EXIT NOW — Stop Loss Hit on {contract}"
   3. ltp >= target1 AND not alerted -> INFO: "Target 1 Reached — Book partial profits"
@@ -166,40 +166,39 @@
   5. ivChange > 20% in last 30 min -> WARNING: "IV Spike detected — Premium inflating"
   6. indexMoved > 0.5% against trade in 15 min -> DANGER: "Sharp adverse move — Review position"
   7. thetaDecayPercent > 50 -> WARNING: "50% premium eroded by time decay"
-- [ ] Create `AlertService`: SaveAlert, BroadcastAlert via SignalR
-- [ ] Create `PositionMonitorWorker` (BackgroundService):
+- [x] Create `AlertService`: SaveAlert, BroadcastAlert via SignalR
+- [x] Create `PositionMonitorWorker` (BackgroundService):
   - Runs every 60s during market hours
   - For each active position: get LTP, check conditions, fire alerts
   - Deduplicates: don't re-fire same alert type for same position within 15 min
-- [ ] Implement GET/PUT /api/v1/alerts endpoints
-- [ ] Implement GET /api/v1/positions/{id}/pnl
+- [x] Implement GET/PUT /api/v1/alerts endpoints
+- [x] Implement GET /api/v1/positions/{id}/pnl
 
 ### Frontend
-- [ ] Create `AlertBanner.tsx`:
+- [x] Create `AlertBanner.tsx`:
   - DANGER: red full-width banner pinned top, cannot dismiss, pulses
   - WARNING: orange slide-in from top, auto-dismiss after 30s or on tap
   - INFO: green toast bottom-right, auto-dismiss 5s
   - Sound: use Web Audio API for DANGER alert (beep)
   - Badge count on BottomNav bell icon
-- [ ] Create `PositionCard.tsx`:
+- [x] Create `PositionCard.tsx`:
   - Header: symbol + strike + CE/PE + expiry + status
   - P&L: current Rs. and % — green if positive, red if negative (live update)
   - SL Bar: colored progress bar (green > yellow > red as LTP approaches SL)
   - Target Bar: progress toward target
-  - Greeks row: Theta/day, current IV
   - Alerts section: last 3 alerts for this position
   - Actions: Edit SL/Target, Close Position
-- [ ] Create `AddPositionModal.tsx`:
+- [x] Create `AddPositionModal.tsx`:
   - If opened from SignalCard: pre-fills all fields
   - Manual: symbol, strike, CE/PE, expiry, entry price, lots, SL, target
   - Bottom sheet on mobile, modal on desktop
   - Validates: SL < entry for CE buy, target > entry for CE buy etc.
-- [ ] Create `useAlerts.ts`: SignalR alerts:{userId} group + polling fallback every 30s
-- [ ] Create `pushNotification.ts`: requestPermission, sendNotification
+- [x] Create `useAlerts.ts`: SignalR alerts:{userId} group + polling fallback every 30s
+- [x] Create `pushNotification.ts`: requestPermission, sendNotification
   - Request permission on first DANGER alert
   - Fire browser push for DANGER and WARNING when app is in background
-- [ ] Positions page: card grid (1-col mobile, 2-col tablet, 3-col desktop)
-- [ ] Position summary bar: total P&L, # positions, margin used
+- [x] Positions page: card grid (1-col mobile, 2-col tablet, 3-col desktop)
+- [x] Position summary bar: total P&L, # positions, margin used
 
 ---
 

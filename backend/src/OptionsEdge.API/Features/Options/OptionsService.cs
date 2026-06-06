@@ -116,6 +116,26 @@ public class OptionsService(MockMarketDataService mockData)
         return new MaxPainResponse(chain.MaxPain, chain.Spot, expiry);
     }
 
+    public decimal GetOptionLtp(string symbol, int strike, string optionType, string expiry)
+    {
+        var key      = symbol.ToUpper();
+        var snapshot = mockData.GetSnapshot(key);
+        double spot  = (double)snapshot.Ltp;
+
+        if (!DateOnly.TryParse(expiry, out var expiryDate))
+            expiryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7));
+
+        double T         = DaysToExpiry(expiryDate) / 365.0;
+        double baseIv    = (double)snapshot.Vix / 100.0;
+        double moneyness = Math.Abs((spot - strike) / spot);
+        double iv        = baseIv + moneyness * 0.15 + (T < 0.03 ? 0.05 : 0);
+        iv = Math.Max(0.05, iv);
+
+        bool isCall = optionType.ToUpper() == "CE";
+        var (_, price) = BlackScholes(spot, strike, RiskFreeRate, T, iv, isCall);
+        return Math.Round((decimal)price, 2);
+    }
+
     // ------------------------------------------------------------------
     private static ((double delta, double gamma, double theta, double vega) greeks, double price)
         BlackScholes(double S, double K, double r, double T, double sigma, bool isCall)
