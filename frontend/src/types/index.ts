@@ -119,9 +119,8 @@ export interface OptionLeg {
 
 export interface Signal {
   id: string
-  userId: string
   symbol: string
-  signalType: 'Entry' | 'Exit' | 'Hold' | 'Watch'
+  signalType: 'ENTRY' | 'EXIT' | 'HOLD' | 'WATCH'
   optionType: 'CE' | 'PE'
   strike: number
   expiry: string
@@ -129,16 +128,17 @@ export interface Signal {
   entryHigh: number
   stopLoss: number
   target1: number
-  target2: number
+  target2?: number
   confidence: number
   riskReward: number
-  rationale: string
+  rationale: string[]
   modelUsed: string
   inputTokens: number
   outputTokens: number
   costUsd: number
   validUntil: string
   createdAt: string
+  fromCache?: boolean
 }
 
 export interface Position {

@@ -3,7 +3,7 @@ import api from '../services/api'
 import { indicatorsApi } from '../services/api'
 import { useAppStore } from '../store/appStore'
 import { useSignalR } from './useSignalR'
-import type { MarketSnapshot, MarketStatus, RsiIndicator, MacdIndicator } from '../types'
+import type { MarketSnapshot, MarketStatus, RsiIndicator, MacdIndicator, Signal } from '../types'
 
 interface PriceUpdateEvent {
   symbol: string
@@ -33,6 +33,7 @@ export function useMarketData() {
   const setSnapshot = useAppStore((s) => s.setSnapshot)
   const setMarketStatus = useAppStore((s) => s.setMarketStatus)
   const setIndicators = useAppStore((s) => s.setIndicators)
+  const prependSignal = useAppStore((s) => s.prependSignal)
   const { connectionState, connectionRef } = useSignalR(HUB_URL)
 
   // Initial REST fetch for both symbols
@@ -89,14 +90,20 @@ export function useMarketData() {
         .catch(() => {})
     }
 
+    const handleNewSignal = (signal: Signal) => {
+      prependSignal(signal)
+    }
+
     conn.on('PriceUpdate', handlePriceUpdate)
     conn.on('MarketStatus', handleMarketStatus)
     conn.on('IndicatorUpdate', handleIndicatorUpdate)
+    conn.on('NewSignal', handleNewSignal)
 
     return () => {
       conn.off('PriceUpdate', handlePriceUpdate)
       conn.off('MarketStatus', handleMarketStatus)
       conn.off('IndicatorUpdate', handleIndicatorUpdate)
+      conn.off('NewSignal', handleNewSignal)
     }
   }, [connectionState])
 

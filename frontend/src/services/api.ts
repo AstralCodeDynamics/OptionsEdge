@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal } from '../types'
 
 let authToken: string | null = null
 
@@ -61,6 +61,19 @@ export const optionsApi = {
       `/options/maxpain/${symbol}${params}`
     ).then((r) => r.data)
   },
+}
+
+export const signalsApi = {
+  generate: (symbol: string) =>
+    api.post<Signal>('/signals/generate', { symbol }).then((r) => r.data),
+  getHistory: (symbol?: string, limit = 20) => {
+    const params = new URLSearchParams()
+    if (symbol) params.set('symbol', symbol)
+    params.set('limit', String(limit))
+    return api.get<Signal[]>(`/signals/history?${params}`).then((r) => r.data)
+  },
+  getById: (id: string) =>
+    api.get<Signal>(`/signals/${id}`).then((r) => r.data),
 }
 
 export default api

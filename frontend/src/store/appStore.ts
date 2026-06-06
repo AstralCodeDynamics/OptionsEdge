@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MarketSnapshot, Position, Alert, User, MarketStatus, IndicatorsResponse } from '../types'
+import type { MarketSnapshot, Position, Alert, User, MarketStatus, IndicatorsResponse, Signal } from '../types'
 
 interface MarketSlice {
   snapshots: Record<string, MarketSnapshot>
@@ -8,6 +8,12 @@ interface MarketSlice {
   setSnapshot: (snapshot: MarketSnapshot) => void
   setMarketStatus: (status: MarketStatus) => void
   setIndicators: (symbol: string, indicators: IndicatorsResponse) => void
+}
+
+interface SignalsSlice {
+  signals: Signal[]
+  setSignals: (signals: Signal[]) => void
+  prependSignal: (signal: Signal) => void
 }
 
 interface PositionsSlice {
@@ -37,7 +43,7 @@ interface UiSlice {
   setSidebarOpen: (open: boolean) => void
 }
 
-type AppStore = MarketSlice & PositionsSlice & AlertsSlice & UserSlice & UiSlice
+type AppStore = MarketSlice & SignalsSlice & PositionsSlice & AlertsSlice & UserSlice & UiSlice
 
 export const useAppStore = create<AppStore>((set) => ({
   // Market
@@ -49,6 +55,12 @@ export const useAppStore = create<AppStore>((set) => ({
   setMarketStatus: (marketStatus) => set({ marketStatus }),
   setIndicators: (symbol, indicators) =>
     set((s) => ({ indicators: { ...s.indicators, [symbol]: indicators } })),
+
+  // Signals
+  signals: [],
+  setSignals: (signals) => set({ signals }),
+  prependSignal: (signal) =>
+    set((s) => ({ signals: [signal, ...s.signals.filter((x) => x.id !== signal.id)] })),
 
   // Positions
   positions: [],

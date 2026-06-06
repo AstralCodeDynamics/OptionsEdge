@@ -109,42 +109,42 @@
 ## Phase 3 — AI Signal Engine
 
 ### Backend
-- [ ] Create `ClaudeApiClient`:
+- [x] Create `ClaudeApiClient`:
   - POST to https://api.anthropic.com/v1/messages
   - Configurable model, max_tokens from appsettings
   - Deserialises response, extracts text content
   - Retries twice on 5xx, throws on 4xx
   - Calculates and returns token counts
-- [ ] Create `SignalCacheService`:
+- [x] Create `SignalCacheService`:
   - Hash = SHA256(symbol + rsi_bucket + macd_signal + pcr_bucket + spot_bucket)
   - spot_bucket = round to nearest 50. rsi_bucket = round to nearest 5. pcr_bucket = round to nearest 0.1
   - IMemoryCache with 5-min sliding TTL
-- [ ] Create `AISignalService`:
+- [x] Create `AISignalService`:
   - GenerateEntrySignal(symbol): calls Sonnet, returns SignalResponse as JSON
   - RunPositionRiskCheck(position, snapshot): calls Haiku, returns severity + message
   - System prompt: persona as NIFTY options expert, instructs JSON output
   - Signal JSON schema: { signalType, symbol, strike, optionType, expiry, entryLow, entryHigh, stopLoss, target1, target2, confidence, riskReward, rationale[], validUntil }
   - Risk check JSON schema: { severity, alertType, message, recommendedAction }
   - Enforces: no calls outside market hours, respects rate limit, checks cache first
-- [ ] Implement POST /api/v1/signals/generate, GET /api/v1/signals/history, GET /api/v1/signals/{id}
-- [ ] Save signal to DB with full market_snapshot JSONB
-- [ ] Log AI usage to AIUsageLog table on every call
-- [ ] Broadcast NewSignal via SignalR
+- [x] Implement POST /api/v1/signals/generate, GET /api/v1/signals/history, GET /api/v1/signals/{id}
+- [x] Save signal to DB with full market_snapshot JSONB
+- [x] Log AI usage to AIUsageLog table on every call
+- [x] Broadcast NewSignal via SignalR
 
 ### Frontend
-- [ ] Create `SignalCard.tsx`:
+- [x] Create `SignalCard.tsx`:
   - Header: signal type badge (STRONG BUY/BUY/SELL/WATCH) + confidence %
   - Contract: symbol + strike + CE/PE + expiry
   - Three boxes: Entry | Target | Stop Loss
   - Footer: R:R badge, IV badge, expiry badge, validity countdown
   - "Add to Position" button
   - Full-width on mobile, card on desktop
-- [ ] Create Signals section on Dashboard and standalone AI Analysis page:
+- [x] Create Signals section on Dashboard and standalone AI Analysis page:
   - "Generate Signal" button (Sonnet) with cost estimate shown
   - Quick check buttons (Haiku): Trend Check, OI Check
   - Loading state showing elapsed seconds
   - Signal history below
-- [ ] Show AI usage info (model used, approximate cost per call)
+- [x] Show AI usage info (model used, approximate cost per call)
 
 ---
 
