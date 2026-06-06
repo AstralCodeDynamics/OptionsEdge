@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { MarketSnapshot, MarketStatus, Candle } from '../types'
 
 let authToken: string | null = null
 
@@ -11,7 +12,7 @@ export function clearAuthToken(): void {
 }
 
 const api = axios.create({
-  baseURL: 'https://localhost:5001/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -32,5 +33,14 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+export const marketApi = {
+  getSnapshots: () => api.get<MarketSnapshot[]>('/market/snapshot').then((r) => r.data),
+  getSnapshot: (symbol: string) =>
+    api.get<MarketSnapshot>(`/market/snapshot/${symbol}`).then((r) => r.data),
+  getCandles: (symbol: string) =>
+    api.get<Candle[]>(`/market/candles/${symbol}`).then((r) => r.data),
+  getStatus: () => api.get<MarketStatus>('/market/status').then((r) => r.data),
+}
 
 export default api

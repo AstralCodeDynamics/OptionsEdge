@@ -10,4 +10,13 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        // Suppress INVALID_ANNOTATION warnings from @microsoft/signalr's ESM bundle
+        if (warning.code === 'INVALID_ANNOTATION') return
+        defaultHandler(warning)
+      },
+    },
+  },
 })

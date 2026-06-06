@@ -18,7 +18,7 @@ interface MarketStatusEvent {
   nextEvent: string
 }
 
-const HUB_URL = 'https://localhost:5001/hubs/market'
+const HUB_URL = import.meta.env.VITE_HUB_URL as string
 
 export function useMarketData() {
   const setSnapshot = useAppStore((s) => s.setSnapshot)
