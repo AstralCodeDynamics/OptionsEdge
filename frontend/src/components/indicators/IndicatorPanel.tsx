@@ -46,7 +46,7 @@ export function IndicatorPanel({ indicators }: Props) {
     ? 'sell'
     : 'neutral'
 
-  const bbBadge: BadgeVariant = bollingerBands.isSqueeze ? 'neutral' : 'neutral'
+  const bbBadge: BadgeVariant = bollingerBands.isSqueeze ? 'buy' : 'neutral'
 
   const adxBadge: BadgeVariant =
     adx.strength === 'Strong' ? 'buy' : adx.strength === 'Moderate' ? 'neutral' : 'neutral'
@@ -88,7 +88,7 @@ export function IndicatorPanel({ indicators }: Props) {
 
       <Card
         title="Bollinger Bands"
-        badge={<Badge variant={bbBadge} label={bollingerBands.isSqueeze ? 'SQUEEZE' : 'NORMAL'} />}
+        badge={<Badge variant={bbBadge} label={bollingerBands.isSqueeze ? 'BREAKOUT' : 'NORMAL'} />}
       >
         <p className="text-xs text-gray-300">
           U: <span className="text-white font-medium">{bollingerBands.upper.toFixed(0)}</span>

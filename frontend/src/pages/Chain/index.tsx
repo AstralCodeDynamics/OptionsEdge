@@ -83,7 +83,7 @@ export default function Chain() {
               </span>
             </span>
             <span className="text-gray-400">
-              PCR: <span className={`font-semibold ${chain.pcr > 1 ? 'text-green-400' : 'text-red-400'}`}>
+              PCR: <span className={`font-semibold ${chain.pcr > 1.2 ? 'text-red-400' : chain.pcr < 0.9 ? 'text-green-400' : 'text-yellow-400'}`}>
                 {chain.pcr.toFixed(2)}
               </span>
             </span>
