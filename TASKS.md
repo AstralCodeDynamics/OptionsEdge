@@ -8,30 +8,30 @@
 ## Phase 0 — Project Scaffold
 
 ### Backend
-- [ ] Create solution: `dotnet new sln -n OptionsEdge`
-- [ ] Create API project: `dotnet new webapi -n OptionsEdge.API --use-minimal-apis`
-- [ ] Add NuGet packages: Npgsql.EntityFrameworkCore.PostgreSQL, EF Core Design, Skender.Stock.Indicators, SignalR, JwtBearer, FluentValidation.AspNetCore, BCrypt.Net-Next
-- [ ] Create folder structure per ARCHITECTURE.md
-- [ ] Create all Domain/Entities (User, Position, Signal, Alert, ChatMessage, AIUsageLog, BacktestResult)
-- [ ] Create all Domain/Enums (AlertSeverity, SignalType, OptionType)
-- [ ] Create AppDbContext with all DbSets and proper EF Core configuration
-- [ ] Add AppConstants.cs (market hours 9:15-15:30 IST, rate limits, model names)
-- [ ] Add appsettings.json (structure only, no secrets)
-- [ ] Add appsettings.Development.json to .gitignore
-- [ ] Create initial EF Core migration
-- [ ] Verify: `dotnet build` passes with zero warnings
+- [x] Create solution: `dotnet new sln -n OptionsEdge`
+- [x] Create API project: `dotnet new webapi -n OptionsEdge.API --use-minimal-apis`
+- [x] Add NuGet packages: Npgsql.EntityFrameworkCore.PostgreSQL, EF Core Design, Skender.Stock.Indicators, SignalR, JwtBearer, FluentValidation.AspNetCore, BCrypt.Net-Next
+- [x] Create folder structure per ARCHITECTURE.md
+- [x] Create all Domain/Entities (User, Position, Signal, Alert, ChatMessage, AIUsageLog, BacktestResult)
+- [x] Create all Domain/Enums (AlertSeverity, SignalType, OptionType)
+- [x] Create AppDbContext with all DbSets and proper EF Core configuration
+- [x] Add AppConstants.cs (market hours 9:15-15:30 IST, rate limits, model names)
+- [x] Add appsettings.json (structure only, no secrets)
+- [x] Add appsettings.Development.json to .gitignore
+- [x] Create initial EF Core migration
+- [x] Verify: `dotnet build` passes with zero warnings
 
 ### Frontend
-- [ ] Scaffold: `npm create vite@latest frontend -- --template react-ts`
-- [ ] Install: tailwindcss @tailwindcss/vite, axios, zustand, @microsoft/signalr, lightweight-charts, react-router-dom, recharts
-- [ ] Configure Tailwind with custom breakpoints (mobile first: default < 768px < 1200px)
-- [ ] Create folder structure per ARCHITECTURE.md
-- [ ] Create all TypeScript interfaces in `src/types/index.ts` (MarketSnapshot, Signal, Position, Alert, ChatMessage, User, IndicatorsResponse, OptionsChain types)
-- [ ] Create `src/services/api.ts` with Axios instance pointing to localhost:5001
-- [ ] Create `src/store/appStore.ts` with Zustand (market, positions, alerts, user, ui slices)
-- [ ] Create `src/App.tsx` with React Router (all pages stubbed with placeholder content)
-- [ ] Create responsive AppShell: Sidebar on lg+, BottomNav on mobile
-- [ ] Verify: `npm run dev` runs without errors
+- [x] Scaffold: `npm create vite@latest frontend -- --template react-ts`
+- [x] Install: tailwindcss @tailwindcss/vite, axios, zustand, @microsoft/signalr, lightweight-charts, react-router-dom, recharts
+- [x] Configure Tailwind with custom breakpoints (mobile first: default < 768px < 1200px)
+- [x] Create folder structure per ARCHITECTURE.md
+- [x] Create all TypeScript interfaces in `src/types/index.ts` (MarketSnapshot, Signal, Position, Alert, ChatMessage, User, IndicatorsResponse, OptionsChain types)
+- [x] Create `src/services/api.ts` with Axios instance pointing to localhost:5001
+- [x] Create `src/store/appStore.ts` with Zustand (market, positions, alerts, user, ui slices)
+- [x] Create `src/App.tsx` with React Router (all pages stubbed with placeholder content)
+- [x] Create responsive AppShell: Sidebar on lg+, BottomNav on mobile
+- [x] Verify: `npm run dev` runs without errors
 
 ---
 

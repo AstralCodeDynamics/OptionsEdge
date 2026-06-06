@@ -1,0 +1,32 @@
+# Secrets — never commit
+**/appsettings.Development.json
+**/.env
+**/.env.local
+**/.env.*.local
+
+# .NET
+**/bin/
+**/obj/
+# EF Core tools create BuildHost dirs with backslash paths on macOS
+**/bin\*/
+**/BuildHost*/
+*.user
+.vs/
+*.suo
+*.ncrunchproject
+TestResults/
+publish/
+
+# Frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

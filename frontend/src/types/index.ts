@@ -1,0 +1,204 @@
+export interface MarketSnapshot {
+  symbol: string
+  ltp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  change: number
+  changePct: number
+  vix: number
+  pcr: number
+  fiiFlow: number
+  diiFlow: number
+  timestamp: string
+}
+
+export interface Candle {
+  time: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export interface MarketStatus {
+  isOpen: boolean
+  message: string
+  nextEvent: string
+}
+
+export interface IndicatorsResponse {
+  symbol: string
+  rsi: RsiIndicator
+  macd: MacdIndicator
+  bollingerBands: BollingerBandsIndicator
+  adx: AdxIndicator
+  ema: EmaIndicator
+  supertrend: SupertrendIndicator
+  pivots: PivotLevels
+  timestamp: string
+}
+
+export interface RsiIndicator {
+  value: number
+  signal: 'Overbought' | 'Oversold' | 'Neutral'
+}
+
+export interface MacdIndicator {
+  value: number
+  signal: number
+  histogram: number
+  isBullishCross: boolean
+}
+
+export interface BollingerBandsIndicator {
+  upper: number
+  middle: number
+  lower: number
+  isSqueeze: boolean
+}
+
+export interface AdxIndicator {
+  value: number
+  strength: 'Weak' | 'Moderate' | 'Strong'
+}
+
+export interface EmaIndicator {
+  ema9: number
+  ema20: number
+  ema50: number
+  ema200: number
+  priceAboveEma20: boolean
+  priceAboveEma50: boolean
+}
+
+export interface SupertrendIndicator {
+  value: number
+  isBullish: boolean
+}
+
+export interface PivotLevels {
+  r3: number
+  r2: number
+  r1: number
+  pivot: number
+  s1: number
+  s2: number
+  s3: number
+}
+
+export interface OptionsChain {
+  symbol: string
+  expiry: string
+  spot: number
+  pcr: number
+  maxPain: number
+  rows: OptionsChainRow[]
+}
+
+export interface OptionsChainRow {
+  strike: number
+  isAtm: boolean
+  ce: OptionLeg
+  pe: OptionLeg
+}
+
+export interface OptionLeg {
+  ltp: number
+  oi: number
+  oiChange: number
+  volume: number
+  iv: number
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+}
+
+export interface Signal {
+  id: string
+  userId: string
+  symbol: string
+  signalType: 'Entry' | 'Exit' | 'Hold' | 'Watch'
+  optionType: 'CE' | 'PE'
+  strike: number
+  expiry: string
+  entryLow: number
+  entryHigh: number
+  stopLoss: number
+  target1: number
+  target2: number
+  confidence: number
+  riskReward: number
+  rationale: string
+  modelUsed: string
+  inputTokens: number
+  outputTokens: number
+  costUsd: number
+  validUntil: string
+  createdAt: string
+}
+
+export interface Position {
+  id: string
+  userId: string
+  symbol: string
+  strike: number
+  optionType: 'CE' | 'PE'
+  expiry: string
+  entryPrice: number
+  quantity: number
+  stopLoss: number
+  target1: number
+  target2?: number
+  signalId?: string
+  status: 'active' | 'closed' | 'expired'
+  exitPrice?: number
+  exitReason?: string
+  closedAt?: string
+  createdAt: string
+  currentLtp?: number
+  pnl?: number
+  pnlPct?: number
+}
+
+export interface Alert {
+  id: string
+  userId: string
+  positionId: string
+  severity: 'Info' | 'Warning' | 'Danger'
+  alertType: string
+  message: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface ChatMessage {
+  id: string
+  userId: string
+  sessionId: string
+  role: 'user' | 'assistant'
+  content: string
+  modelUsed?: string
+  inputTokens?: number
+  outputTokens?: number
+  costUsd?: number
+  createdAt: string
+}
+
+export interface User {
+  id: string
+  email: string
+  displayName: string
+  subscriptionPlan: string
+  walletBalance: number
+  aiCallsToday: number
+}
+
+export interface AuthTokens {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+}

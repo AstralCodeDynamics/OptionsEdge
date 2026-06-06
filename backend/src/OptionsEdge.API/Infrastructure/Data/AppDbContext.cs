@@ -1,0 +1,121 @@
+using Microsoft.EntityFrameworkCore;
+using OptionsEdge.API.Domain.Entities;
+
+namespace OptionsEdge.API.Infrastructure.Data;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+{
+    public DbSet<User> Users { get; set; }
+    public DbSet<Position> Positions { get; set; }
+    public DbSet<Signal> Signals { get; set; }
+    public DbSet<Alert> Alerts { get; set; }
+    public DbSet<ChatMessage> ChatMessages { get; set; }
+    public DbSet<AIUsageLog> AIUsageLogs { get; set; }
+    public DbSet<BacktestResult> BacktestResults { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<User>(e =>
+        {
+            e.HasKey(u => u.Id);
+            e.Property(u => u.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Email).HasMaxLength(255).IsRequired();
+            e.Property(u => u.PasswordHash).HasMaxLength(255).IsRequired();
+            e.Property(u => u.DisplayName).HasMaxLength(100);
+            e.Property(u => u.SubscriptionPlan).HasMaxLength(20);
+            e.Property(u => u.WalletBalance).HasColumnType("decimal(10,4)");
+            e.Property(u => u.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<Position>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(p => p.Symbol).HasMaxLength(20).IsRequired();
+            e.Property(p => p.OptionType).HasMaxLength(2).IsRequired();
+            e.Property(p => p.Status).HasMaxLength(20);
+            e.Property(p => p.ExitReason).HasMaxLength(50);
+            e.Property(p => p.EntryPrice).HasColumnType("decimal(10,2)");
+            e.Property(p => p.StopLoss).HasColumnType("decimal(10,2)");
+            e.Property(p => p.Target1).HasColumnType("decimal(10,2)");
+            e.Property(p => p.Target2).HasColumnType("decimal(10,2)");
+            e.Property(p => p.ExitPrice).HasColumnType("decimal(10,2)");
+            e.Property(p => p.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(p => p.User).WithMany(u => u.Positions).HasForeignKey(p => p.UserId);
+        });
+
+        modelBuilder.Entity<Signal>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(s => s.Symbol).HasMaxLength(20).IsRequired();
+            e.Property(s => s.SignalType).HasMaxLength(20);
+            e.Property(s => s.OptionType).HasMaxLength(2);
+            e.Property(s => s.ModelUsed).HasMaxLength(50);
+            e.Property(s => s.EntryLow).HasColumnType("decimal(10,2)");
+            e.Property(s => s.EntryHigh).HasColumnType("decimal(10,2)");
+            e.Property(s => s.StopLoss).HasColumnType("decimal(10,2)");
+            e.Property(s => s.Target1).HasColumnType("decimal(10,2)");
+            e.Property(s => s.Target2).HasColumnType("decimal(10,2)");
+            e.Property(s => s.RiskReward).HasColumnType("decimal(5,2)");
+            e.Property(s => s.CostUsd).HasColumnType("decimal(10,6)");
+            e.Property(s => s.MarketSnapshot).HasColumnType("jsonb");
+            e.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(s => s.User).WithMany(u => u.Signals).HasForeignKey(s => s.UserId);
+        });
+
+        modelBuilder.Entity<Alert>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(a => a.Severity).HasMaxLength(10);
+            e.Property(a => a.AlertType).HasMaxLength(50);
+            e.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(a => a.User).WithMany(u => u.Alerts).HasForeignKey(a => a.UserId);
+            e.HasOne(a => a.Position).WithMany(p => p.Alerts).HasForeignKey(a => a.PositionId);
+        });
+
+        modelBuilder.Entity<ChatMessage>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(c => c.Role).HasMaxLength(10);
+            e.Property(c => c.ModelUsed).HasMaxLength(50);
+            e.Property(c => c.CostUsd).HasColumnType("decimal(10,6)");
+            e.Property(c => c.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(c => c.User).WithMany(u => u.ChatMessages).HasForeignKey(c => c.UserId);
+        });
+
+        modelBuilder.Entity<AIUsageLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(a => a.Feature).HasMaxLength(50);
+            e.Property(a => a.ModelUsed).HasMaxLength(50);
+            e.Property(a => a.CostUsd).HasColumnType("decimal(10,6)");
+            e.Property(a => a.WalletBefore).HasColumnType("decimal(10,4)");
+            e.Property(a => a.WalletAfter).HasColumnType("decimal(10,4)");
+            e.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(a => a.User).WithMany(u => u.AIUsageLogs).HasForeignKey(a => a.UserId);
+        });
+
+        modelBuilder.Entity<BacktestResult>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.Property(b => b.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(b => b.Strategy).HasMaxLength(50);
+            e.Property(b => b.Parameters).HasColumnType("jsonb");
+            e.Property(b => b.TradeLog).HasColumnType("jsonb");
+            e.Property(b => b.WinRate).HasColumnType("decimal(5,2)");
+            e.Property(b => b.NetPnl).HasColumnType("decimal(12,2)");
+            e.Property(b => b.MaxDrawdown).HasColumnType("decimal(12,2)");
+            e.Property(b => b.SharpeRatio).HasColumnType("decimal(5,2)");
+            e.Property(b => b.ProfitFactor).HasColumnType("decimal(5,2)");
+            e.Property(b => b.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(b => b.User).WithMany(u => u.BacktestResults).HasForeignKey(b => b.UserId);
+        });
+    }
+}
