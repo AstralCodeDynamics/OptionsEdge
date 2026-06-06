@@ -36,7 +36,8 @@ public class AISignalService(
     {
         var key = symbol.ToUpper();
 
-        if (!MarketHoursHelper.IsMarketOpen())
+        bool bypass = config.GetValue<bool>("Claude:BypassMarketHours");
+        if (!bypass && !MarketHoursHelper.IsMarketOpen())
             return (null!, "Market is closed. Signals can only be generated during market hours (9:15–15:30 IST).");
 
         // Rate limit check
@@ -139,7 +140,7 @@ public class AISignalService(
                     Target2        = aiOutput.Target2,
                     Confidence     = aiOutput.Confidence,
                     RiskReward     = aiOutput.RiskReward,
-                    Rationale      = string.Join("\n", aiOutput.Rationale),
+                    Rationale      = aiOutput.Rationale,
                     MarketSnapshot = snapshotDoc,
                     ModelUsed      = model,
                     InputTokens    = claudeResp.InputTokens,

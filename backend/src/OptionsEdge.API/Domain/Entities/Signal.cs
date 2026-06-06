@@ -18,7 +18,7 @@ public class Signal
     public decimal? Target2 { get; set; }
     public int Confidence { get; set; }
     public decimal RiskReward { get; set; }
-    public string Rationale { get; set; } = string.Empty;
+    public string[] Rationale { get; set; } = [];
     public JsonDocument? MarketSnapshot { get; set; }
     public string ModelUsed { get; set; } = string.Empty;
     public int InputTokens { get; set; }

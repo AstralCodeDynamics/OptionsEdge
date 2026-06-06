@@ -12,7 +12,7 @@ public class SignalCacheService(IMemoryCache cache)
         cache.TryGetValue(key, out signal);
 
     public void Set(string key, SignalResponse signal) =>
-        cache.Set(key, signal, new MemoryCacheEntryOptions { SlidingExpiration = Ttl });
+        cache.Set(key, signal, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = Ttl });
 
     public string BuildKey(string symbol, double rsi, string macdSignal, double pcr, decimal spot)
     {

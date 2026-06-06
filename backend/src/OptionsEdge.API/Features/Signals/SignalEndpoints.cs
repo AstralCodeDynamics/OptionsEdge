@@ -65,7 +65,7 @@ public static class SignalEndpoints
                 s.Target2,
                 s.Confidence,
                 s.RiskReward,
-                s.Rationale.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+                s.Rationale,
                 s.ModelUsed,
                 s.InputTokens,
                 s.OutputTokens,
@@ -97,7 +97,7 @@ public static class SignalEndpoints
                 s.Target2,
                 s.Confidence,
                 s.RiskReward,
-                s.Rationale.Split('\n', StringSplitOptions.RemoveEmptyEntries),
+                s.Rationale,
                 s.ModelUsed,
                 s.InputTokens,
                 s.OutputTokens,
@@ -110,11 +110,12 @@ public static class SignalEndpoints
     public static void AddSignalServices(this IServiceCollection services)
     {
         services.AddHttpClient("claude");
+        services.AddSingleton<Infrastructure.Claude.ClaudeApiClient>();
         services.AddSingleton<SignalCacheService>();
         services.AddScoped<AISignalService>();
     }
 
     // Phase 3 dev user; replaced by JWT claim in Phase 8
     private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["DevUserId"], out var id) ? id : DevDataSeeder.DevUserId;
+        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 }

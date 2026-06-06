@@ -64,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.Target2).HasColumnType("decimal(10,2)");
             e.Property(s => s.RiskReward).HasColumnType("decimal(5,2)");
             e.Property(s => s.CostUsd).HasColumnType("decimal(10,6)");
+            e.Property(s => s.Rationale).HasColumnType("text[]");
             e.Property(s => s.MarketSnapshot).HasColumnType("jsonb");
             e.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(s => s.User).WithMany(u => u.Signals).HasForeignKey(s => s.UserId);
