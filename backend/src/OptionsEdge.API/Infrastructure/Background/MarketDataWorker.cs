@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Market;
 using OptionsEdge.API.Infrastructure.MockData;
 using OptionsEdge.API.Infrastructure.SignalR;
@@ -8,6 +9,7 @@ namespace OptionsEdge.API.Infrastructure.Background;
 public class MarketDataWorker(
     IHubContext<MarketHub> hubContext,
     MockMarketDataService mockData,
+    IndicatorService indicatorService,
     ILogger<MarketDataWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
@@ -41,7 +43,7 @@ public class MarketDataWorker(
 
             foreach (var snapshot in mockData.GetSnapshots())
             {
-                var @event = new PriceUpdateEvent(
+                var priceEvent = new PriceUpdateEvent(
                     snapshot.Symbol,
                     snapshot.Ltp,
                     snapshot.Change,
@@ -50,7 +52,19 @@ public class MarketDataWorker(
 
                 await hubContext.Clients
                     .Group(snapshot.Symbol)
-                    .SendAsync("PriceUpdate", @event);
+                    .SendAsync("PriceUpdate", priceEvent);
+
+                var indicators = indicatorService.GetIndicators(snapshot.Symbol);
+                var indicatorEvent = new IndicatorUpdateEvent(
+                    snapshot.Symbol,
+                    indicators.Rsi,
+                    indicators.Macd,
+                    indicators.Supertrend.IsBullish ? "BUY" : "SELL",
+                    DateTimeOffset.UtcNow);
+
+                await hubContext.Clients
+                    .Group(snapshot.Symbol)
+                    .SendAsync("IndicatorUpdate", indicatorEvent);
             }
         }
 

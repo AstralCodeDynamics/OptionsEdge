@@ -69,7 +69,7 @@
 ## Phase 2 — Indicators & Options Chain
 
 ### Backend
-- [ ] Create `IndicatorService` using Skender.Stock.Indicators:
+- [x] Create `IndicatorService` using Skender.Stock.Indicators:
   - RSI(14): value, signal enum (Overbought/Oversold/Neutral)
   - MACD(12,26,9): value, signal line, histogram, crossover bool
   - BollingerBands(20,2): upper, middle, lower, squeeze bool (bandwidth < threshold)
@@ -77,32 +77,32 @@
   - EMA: 9, 20, 50, 200 — values + price above/below bool
   - Supertrend(10,3): value, isBullish bool
   - Pivots (Classic): S3/S2/S1/Pivot/R1/R2/R3
-- [ ] Implement GET /api/v1/indicators/{symbol}
-- [ ] Create `OptionsService`:
+- [x] Implement GET /api/v1/indicators/{symbol}
+- [x] Create `OptionsService`:
   - Chain: 5 strikes below ATM + ATM + 5 above, CE and PE
   - OI realistic values with heavier OI at round numbers (24000, 24200 etc.)
   - IV via simplified formula, Greeks (Delta/Gamma/Theta/Vega) from Black-Scholes
   - PCR = sum(PE OI) / sum(CE OI)
   - Max Pain = strike where total option loss is minimum
-- [ ] Implement GET /api/v1/options/chain/{symbol}, /expiries/{symbol}, /maxpain/{symbol}
-- [ ] Add IndicatorUpdate to SignalR broadcast
+- [x] Implement GET /api/v1/options/chain/{symbol}, /expiries/{symbol}, /maxpain/{symbol}
+- [x] Add IndicatorUpdate to SignalR broadcast
 
 ### Frontend
-- [ ] Create `IndicatorPanel.tsx`:
+- [x] Create `IndicatorPanel.tsx`:
   - 6 cards: RSI, MACD, BB, ADX, EMA, Supertrend
   - Signal badge: BUY (green), SELL (red), NEUTRAL (blue)
   - 2-col mobile, 3-col desktop grid
-- [ ] Create `PivotLevels.tsx`: vertical ladder R3→R2→R1→Spot→S1→S2→S3
-- [ ] Create `PriceChart.tsx` (TradingView Lightweight Charts):
+- [x] Create `PivotLevels.tsx`: vertical ladder R3→R2→R1→Spot→S1→S2→S3
+- [x] Create `PriceChart.tsx` (TradingView Lightweight Charts):
   - Candlestick + volume bars + EMA20 + EMA50 lines
   - Full width, height: 240px mobile / 320px desktop
   - Handles resize correctly
-- [ ] Create `OIChart.tsx` (Recharts bar): CE vs PE OI by strike
-- [ ] Create `ChainTable.tsx`:
+- [x] Create `OIChart.tsx` (Recharts bar): CE vs PE OI by strike
+- [x] Create `ChainTable.tsx`:
   - All columns, ATM highlighted, ITM colored
   - OI mini bar in cell
   - Sticky header, horizontal scroll on mobile
-- [ ] Wire all to live data from API + SignalR
+- [x] Wire all to live data from API + SignalR
 
 ---
 

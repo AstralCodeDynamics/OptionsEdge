@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain } from '../types'
 
 let authToken: string | null = null
 
@@ -41,6 +41,26 @@ export const marketApi = {
   getCandles: (symbol: string) =>
     api.get<Candle[]>(`/market/candles/${symbol}`).then((r) => r.data),
   getStatus: () => api.get<MarketStatus>('/market/status').then((r) => r.data),
+}
+
+export const indicatorsApi = {
+  getIndicators: (symbol: string) =>
+    api.get<IndicatorsResponse>(`/indicators/${symbol}`).then((r) => r.data),
+}
+
+export const optionsApi = {
+  getChain: (symbol: string, expiry?: string) => {
+    const params = expiry ? `?expiry=${expiry}` : ''
+    return api.get<OptionsChain>(`/options/chain/${symbol}${params}`).then((r) => r.data)
+  },
+  getExpiries: (symbol: string) =>
+    api.get<string[]>(`/options/expiries/${symbol}`).then((r) => r.data),
+  getMaxPain: (symbol: string, expiry?: string) => {
+    const params = expiry ? `?expiry=${expiry}` : ''
+    return api.get<{ maxPain: number; spot: number; expiry: string }>(
+      `/options/maxpain/${symbol}${params}`
+    ).then((r) => r.data)
+  },
 }
 
 export default api

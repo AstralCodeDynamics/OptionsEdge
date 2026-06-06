@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 import api from '../services/api'
+import { indicatorsApi } from '../services/api'
 import { useAppStore } from '../store/appStore'
 import { useSignalR } from './useSignalR'
-import type { MarketSnapshot, MarketStatus } from '../types'
+import type { MarketSnapshot, MarketStatus, RsiIndicator, MacdIndicator } from '../types'
 
 interface PriceUpdateEvent {
   symbol: string
@@ -18,11 +19,20 @@ interface MarketStatusEvent {
   nextEvent: string
 }
 
+interface IndicatorUpdateEvent {
+  symbol: string
+  rsi: RsiIndicator
+  macd: MacdIndicator
+  supertrendSignal: string
+  timestamp: string
+}
+
 const HUB_URL = import.meta.env.VITE_HUB_URL as string
 
 export function useMarketData() {
   const setSnapshot = useAppStore((s) => s.setSnapshot)
   const setMarketStatus = useAppStore((s) => s.setMarketStatus)
+  const setIndicators = useAppStore((s) => s.setIndicators)
   const { connectionState, connectionRef } = useSignalR(HUB_URL)
 
   // Initial REST fetch for both symbols
@@ -36,6 +46,12 @@ export function useMarketData() {
       .get<MarketStatus>('/market/status')
       .then((res) => setMarketStatus(res.data))
       .catch(() => {})
+
+    for (const symbol of ['NIFTY', 'BANKNIFTY']) {
+      indicatorsApi.getIndicators(symbol)
+        .then((data) => setIndicators(symbol, data))
+        .catch(() => {})
+    }
   }, [])
 
   // Subscribe to SignalR groups and register event handlers
@@ -66,12 +82,21 @@ export function useMarketData() {
       setMarketStatus(event)
     }
 
+    const handleIndicatorUpdate = (event: IndicatorUpdateEvent) => {
+      // On tick, re-fetch full indicators (SignalR event signals freshness)
+      indicatorsApi.getIndicators(event.symbol)
+        .then((data) => setIndicators(event.symbol, data))
+        .catch(() => {})
+    }
+
     conn.on('PriceUpdate', handlePriceUpdate)
     conn.on('MarketStatus', handleMarketStatus)
+    conn.on('IndicatorUpdate', handleIndicatorUpdate)
 
     return () => {
       conn.off('PriceUpdate', handlePriceUpdate)
       conn.off('MarketStatus', handleMarketStatus)
+      conn.off('IndicatorUpdate', handleIndicatorUpdate)
     }
   }, [connectionState])
 
