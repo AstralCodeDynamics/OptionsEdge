@@ -28,6 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(u => u.SubscriptionPlan).HasMaxLength(20);
             e.Property(u => u.WalletBalance).HasColumnType("decimal(10,4)");
             e.Property(u => u.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(u => u.UpdatedAt).HasDefaultValueSql("now()");
         });
 
         modelBuilder.Entity<Position>(e =>
@@ -45,6 +46,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.ExitPrice).HasColumnType("decimal(10,2)");
             e.Property(p => p.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(p => p.User).WithMany(u => u.Positions).HasForeignKey(p => p.UserId);
+            e.HasIndex(p => new { p.UserId, p.Status });
         });
 
         modelBuilder.Entity<Signal>(e =>
@@ -65,6 +67,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.MarketSnapshot).HasColumnType("jsonb");
             e.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(s => s.User).WithMany(u => u.Signals).HasForeignKey(s => s.UserId);
+            e.HasIndex(s => new { s.UserId, s.CreatedAt }).IsDescending(false, true);
         });
 
         modelBuilder.Entity<Alert>(e =>
@@ -76,6 +79,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(a => a.User).WithMany(u => u.Alerts).HasForeignKey(a => a.UserId);
             e.HasOne(a => a.Position).WithMany(p => p.Alerts).HasForeignKey(a => a.PositionId);
+            e.HasIndex(a => new { a.UserId, a.IsRead });
         });
 
         modelBuilder.Entity<ChatMessage>(e =>
@@ -87,6 +91,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(c => c.CostUsd).HasColumnType("decimal(10,6)");
             e.Property(c => c.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(c => c.User).WithMany(u => u.ChatMessages).HasForeignKey(c => c.UserId);
+            e.HasIndex(c => new { c.SessionId, c.CreatedAt });
         });
 
         modelBuilder.Entity<AIUsageLog>(e =>
@@ -100,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(a => a.WalletAfter).HasColumnType("decimal(10,4)");
             e.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(a => a.User).WithMany(u => u.AIUsageLogs).HasForeignKey(a => a.UserId);
+            e.HasIndex(a => new { a.UserId, a.CreatedAt });
         });
 
         modelBuilder.Entity<BacktestResult>(e =>

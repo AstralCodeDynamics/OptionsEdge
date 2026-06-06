@@ -15,7 +15,7 @@ public class Signal
     public decimal EntryHigh { get; set; }
     public decimal StopLoss { get; set; }
     public decimal Target1 { get; set; }
-    public decimal Target2 { get; set; }
+    public decimal? Target2 { get; set; }
     public int Confidence { get; set; }
     public decimal RiskReward { get; set; }
     public string Rationale { get; set; } = string.Empty;

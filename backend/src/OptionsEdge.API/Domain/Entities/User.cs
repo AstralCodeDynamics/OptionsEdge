@@ -12,6 +12,7 @@ public class User
     public DateTimeOffset AiCallsResetAt { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 
     public ICollection<Position> Positions { get; set; } = [];
     public ICollection<Signal> Signals { get; set; } = [];
