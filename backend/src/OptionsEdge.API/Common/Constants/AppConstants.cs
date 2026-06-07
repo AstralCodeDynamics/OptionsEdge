@@ -43,6 +43,6 @@ public static class AppConstants
     public static class LotSizes
     {
         public const int Nifty = 75;
-        public const int BankNifty = 15;
+        public const int BankNifty = 35;
     }
 }
