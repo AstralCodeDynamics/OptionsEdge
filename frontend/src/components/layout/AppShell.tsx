@@ -5,7 +5,7 @@ import Header from './Header'
 import AlertBanner from '../positions/AlertBanner'
 import { useAlerts } from '../../hooks/useAlerts'
 
-const HUB_URL = `${import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') ?? ''}/hubs/market`
+const HUB_URL = import.meta.env.VITE_HUB_URL
 
 export default function AppShell() {
   useAlerts(HUB_URL)

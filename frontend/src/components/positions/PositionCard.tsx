@@ -5,6 +5,9 @@ interface Props {
   alerts?: Alert[]
   onEdit: (position: Position) => void
   onClose: (id: string) => void
+  confirmingClose?: boolean
+  onConfirmClose?: (id: string) => void
+  onCancelClose?: () => void
 }
 
 function PnLColor(value: number | undefined): string {
@@ -62,7 +65,15 @@ const SEVERITY_CLS: Record<string, string> = {
   Info:    'text-green-400',
 }
 
-export default function PositionCard({ position: p, alerts = [], onEdit, onClose }: Props) {
+export default function PositionCard({
+  position: p,
+  alerts = [],
+  onEdit,
+  onClose,
+  confirmingClose = false,
+  onConfirmClose,
+  onCancelClose,
+}: Props) {
   const lastAlerts = alerts.slice(0, 3)
   const statusColor =
     p.status === 'active' ? 'text-green-400' : p.status === 'closed' ? 'text-gray-400' : 'text-yellow-400'
@@ -138,20 +149,38 @@ export default function PositionCard({ position: p, alerts = [], onEdit, onClose
 
       {/* Actions */}
       {p.status === 'active' && (
-        <div className="flex gap-2 mt-1">
-          <button
-            onClick={() => onEdit(p)}
-            className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg py-2 transition-colors"
-          >
-            Edit SL/Target
-          </button>
-          <button
-            onClick={() => onClose(p.id)}
-            className="flex-1 bg-red-900/40 hover:bg-red-900/70 text-red-300 text-xs font-medium rounded-lg py-2 transition-colors"
-          >
-            Close Position
-          </button>
-        </div>
+        confirmingClose ? (
+          <div className="flex items-center gap-2 mt-1">
+            <span className="flex-1 text-xs text-gray-300">Confirm close?</span>
+            <button
+              onClick={() => onConfirmClose?.(p.id)}
+              className="bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition-colors"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => onCancelClose?.()}
+              className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg px-4 py-2 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={() => onEdit(p)}
+              className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg py-2 transition-colors"
+            >
+              Edit SL/Target
+            </button>
+            <button
+              onClick={() => onClose(p.id)}
+              className="flex-1 bg-red-900/40 hover:bg-red-900/70 text-red-300 text-xs font-medium rounded-lg py-2 transition-colors"
+            >
+              Close Position
+            </button>
+          </div>
+        )
       )}
     </div>
   )

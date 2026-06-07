@@ -16,6 +16,7 @@ export default function Positions() {
   const [editTarget, setEditTarget] = useState<Position | null>(null)
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
+  const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null)
 
   useEffect(() => {
     positionsApi
@@ -41,8 +42,12 @@ export default function Positions() {
     upsertPosition(created)
   }
 
-  const handleClose = async (id: string) => {
-    if (!confirm('Close this position?')) return
+  const handleClose = (id: string) => {
+    setConfirmCloseId(id)
+  }
+
+  const handleConfirmClose = async (id: string) => {
+    setConfirmCloseId(null)
     await positionsApi.close(id)
     removePosition(id)
   }
@@ -132,6 +137,9 @@ export default function Positions() {
                 alerts={alertsByPosition[p.id]}
                 onEdit={(pos) => setEditTarget(pos)}
                 onClose={handleClose}
+                confirmingClose={confirmCloseId === p.id}
+                onConfirmClose={handleConfirmClose}
+                onCancelClose={() => setConfirmCloseId(null)}
               />
             ))}
           </div>

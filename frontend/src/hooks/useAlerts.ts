@@ -4,7 +4,8 @@ import { useAppStore } from '../store/appStore'
 import { alertsApi } from '../services/api'
 import type { Alert } from '../types'
 
-const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
+const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID
+  ?? '00000000-0000-0000-0000-000000000001'
 
 export function useAlerts(hubUrl: string) {
   const addAlert  = useAppStore((s) => s.addAlert)
