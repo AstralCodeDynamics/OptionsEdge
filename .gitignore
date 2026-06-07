@@ -5,6 +5,8 @@
 **/.env.*.local
 **/.env.development
 **/.env.production
+.codex/
+AGENTS.md
 
 # .NET
 **/bin/
