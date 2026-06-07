@@ -26,11 +26,14 @@ public class ChatService(
             return "Market is closed. Chat is available during market hours (9:15–15:30 IST).";
 
         var user = await db.Users.FindAsync([userId], ct);
-        if (user is not null
-            && DateTimeOffset.UtcNow - user.AiCallsResetAt < TimeSpan.FromHours(1)
-            && user.AiCallsToday >= AppConstants.RateLimits.AiCallsPerUserPerHour)
+        if (user is not null)
         {
-            return $"Rate limit reached. You can make {AppConstants.RateLimits.AiCallsPerUserPerHour} AI calls per hour.";
+            var callLimit = AppConstants.RateLimits.GetCallLimitForPlan(user.SubscriptionPlan);
+            if (DateTimeOffset.UtcNow - user.AiCallsResetAt < TimeSpan.FromHours(1)
+                && user.AiCallsToday >= callLimit)
+            {
+                return $"Rate limit reached. You can make {callLimit} AI calls per hour.";
+            }
         }
 
         return null;

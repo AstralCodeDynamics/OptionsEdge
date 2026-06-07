@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.Auth;
 using OptionsEdge.API.Features.Backtest;
+using OptionsEdge.API.Features.Billing;
 using OptionsEdge.API.Features.Chat;
 using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Features.Indicators;
@@ -13,6 +14,7 @@ using OptionsEdge.API.Features.Market;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Features.Positions;
 using OptionsEdge.API.Features.Signals;
+using OptionsEdge.API.Features.Usage;
 using OptionsEdge.API.Infrastructure.Auth;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
@@ -122,6 +124,7 @@ builder.Services.AddPositionServices();
 builder.Services.AddChatServices();
 builder.Services.AddGrowwServices();
 builder.Services.AddBacktestServices();
+builder.Services.AddUsageServices();
 
 // Background workers
 builder.Services.AddHostedService<MarketDataWorker>();
@@ -153,6 +156,8 @@ app.MapPositionEndpoints();
 app.MapChatEndpoints();
 app.MapGrowwEndpoints();
 app.MapBacktestEndpoints();
+app.MapUsageEndpoints();
+app.MapBillingEndpoints();
 
 // SignalR hubs
 app.MapHub<MarketHub>("/hubs/market");

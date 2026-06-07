@@ -12,6 +12,15 @@ public static class AppConstants
     public static class RateLimits
     {
         public const int AiCallsPerUserPerHour = 10;
+
+        private static readonly Dictionary<string, int> PlanCallLimits = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["free"] = AiCallsPerUserPerHour,
+            ["pro"]  = 50,
+        };
+
+        public static int GetCallLimitForPlan(string plan) =>
+            PlanCallLimits.TryGetValue(plan, out var limit) ? limit : AiCallsPerUserPerHour;
     }
 
     public static class Models

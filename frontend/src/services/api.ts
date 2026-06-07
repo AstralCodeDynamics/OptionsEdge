@@ -4,6 +4,7 @@ import type {
   ChatMessage, BacktestResult, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
+  UsageStats,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -399,6 +400,11 @@ export const authApi = {
 
   changePassword: (data: ChangePasswordRequest) =>
     api.post('/auth/change-password', data),
+}
+
+export const usageApi = {
+  getStats: () =>
+    api.get<UsageStats>('/usage/stats').then((r) => r.data),
 }
 
 export default api

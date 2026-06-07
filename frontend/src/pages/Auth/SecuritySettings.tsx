@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/appStore'
 import { authApi } from '../../services/api'
 import { AuthError, AuthSuccess, authInputCls, authButtonCls, extractErrorMessage } from '../../components/common/AuthLayout'
 import PasswordStrength, { isPasswordValid } from '../../components/common/PasswordStrength'
+import UsageDashboard from '../../components/usage/UsageDashboard'
 import type { EnableTwoFactorResponse } from '../../types'
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -330,6 +331,7 @@ export default function SecuritySettings() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
       <h1 className="text-xl font-bold text-white">Security Settings</h1>
+      <UsageDashboard />
       <TwoFactorSection />
       <ChangePasswordSection />
       <AccountInfoSection />

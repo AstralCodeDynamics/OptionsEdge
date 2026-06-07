@@ -294,6 +294,13 @@ export interface TwoFactorRequiredResponse {
   email: string
 }
 
+export interface UsageStats {
+  callsToday: number
+  callsLimit: number
+  costToday: number
+  walletBalance: number
+}
+
 export interface MeResponse {
   id: string
   email: string

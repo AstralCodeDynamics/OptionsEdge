@@ -40,14 +40,15 @@ public class AISignalService(
         if (!bypass && !MarketHoursHelper.IsMarketOpen())
             return (null!, "Market is closed. Signals can only be generated during market hours (9:15–15:30 IST).");
 
-        // Rate limit check
+        // Rate limit check (plan-based)
         var user = await db.Users.FindAsync([userId], ct);
         if (user is not null)
         {
+            var callLimit = AppConstants.RateLimits.GetCallLimitForPlan(user.SubscriptionPlan);
             if (DateTimeOffset.UtcNow - user.AiCallsResetAt < TimeSpan.FromHours(1)
-                && user.AiCallsToday >= AppConstants.RateLimits.AiCallsPerUserPerHour)
+                && user.AiCallsToday >= callLimit)
             {
-                return (null!, $"Rate limit reached. You can make {AppConstants.RateLimits.AiCallsPerUserPerHour} AI calls per hour.");
+                return (null!, $"Rate limit reached. You can make {callLimit} AI calls per hour.");
             }
 
             if (DateTimeOffset.UtcNow - user.AiCallsResetAt >= TimeSpan.FromHours(1))

@@ -340,16 +340,16 @@
 ## Phase 9 — Multi-User Billing Prep
 
 ### Backend (future-proof now, activate later)
-- [ ] Verify all DB writes include userId from JWT claim
-- [ ] Verify AIUsageLog populated on every AI call
-- [ ] Create GET /api/v1/usage/stats → { callsToday, callsLimit, costToday, walletBalance }
-- [ ] Add plan-based limit check before every AI call
-- [ ] Stub POST /api/v1/billing/topup (placeholder, no Razorpay yet)
+- [x] Verify all DB writes include userId from JWT claim
+- [x] Verify AIUsageLog populated on every AI call
+- [x] Create GET /api/v1/usage/stats → { callsToday, callsLimit, costToday, walletBalance }
+- [x] Add plan-based limit check before every AI call
+- [x] Stub POST /api/v1/billing/topup (placeholder, no Razorpay yet)
 
 ### Frontend
-- [ ] Create UsageDashboard component: calls today / limit, cost today, wallet balance
-- [ ] Show on profile/settings page
-- [ ] When daily limit hit: clear "You've used X/10 free calls today. Upgrade for more."
+- [x] Create UsageDashboard component: calls today / limit, cost today, wallet balance
+- [x] Show on profile/settings page
+- [x] When daily limit hit: clear "You've used X/10 free calls today. Upgrade for more."
 
 ---
 
