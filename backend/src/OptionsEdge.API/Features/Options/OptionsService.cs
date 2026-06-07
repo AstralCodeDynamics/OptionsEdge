@@ -1,3 +1,4 @@
+using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Options;
@@ -135,6 +136,109 @@ public class OptionsService(IMarketDataService marketData)
         var (_, price) = BlackScholes(spot, strike, RiskFreeRate, T, iv, isCall);
         return Math.Round((decimal)price, 2);
     }
+
+    // Computes the at-expiry payoff curve for a multi-leg strategy. The underlying
+    // can't trade below zero, so the only potentially-unbounded direction is the
+    // upside — determined by the strategy's net call exposure beyond the highest strike.
+    public PayoffResponse ComputePayoff(IReadOnlyList<PayoffLegRequest> legs)
+    {
+        if (legs.Count == 0)
+            throw new ArgumentException("At least one leg is required");
+
+        var resolved = legs.Select(ResolveLeg).ToList();
+
+        int minStrike = resolved.Min(l => l.Strike);
+        int maxStrike = resolved.Max(l => l.Strike);
+        int buffer = Math.Max(Math.Max(maxStrike - minStrike, minStrike / 5), 1);
+        decimal low  = Math.Max(0, minStrike - buffer);
+        decimal high = maxStrike + buffer;
+
+        // The payoff is piecewise-linear with kinks only at strike prices, so including
+        // every strike as an explicit grid point makes each segment truly linear —
+        // which in turn makes the breakeven interpolation below exact rather than approximate.
+        const int points = 60;
+        decimal step = (high - low) / points;
+        var prices = new SortedSet<decimal>();
+        for (int i = 0; i <= points; i++)
+            prices.Add(Math.Round(low + step * i, 2));
+        foreach (var strike in resolved.Select(l => (decimal)l.Strike))
+        {
+            if (strike >= low && strike <= high)
+                prices.Add(Math.Round(strike, 2));
+        }
+
+        var curve = prices
+            .Select(price => new PayoffPoint(price, Math.Round(resolved.Sum(l => l.Sign * (Intrinsic(l, price) - l.Premium) * l.Quantity), 2)))
+            .ToList();
+
+        // Net call exposure determines the slope of the payoff curve as price → ∞;
+        // put legs contribute zero slope there since their intrinsic value flattens to zero.
+        decimal upperSlope = resolved.Where(l => l.IsCall).Sum(l => l.Sign * l.Quantity);
+        bool maxProfitUnlimited = upperSlope > 0;
+        bool maxLossUnlimited   = upperSlope < 0;
+
+        decimal curveMax = curve.Max(p => p.Pnl);
+        decimal curveMin = curve.Min(p => p.Pnl);
+
+        return new PayoffResponse(
+            curve,
+            maxProfitUnlimited ? null : curveMax,
+            maxProfitUnlimited,
+            maxLossUnlimited ? null : curveMin,
+            maxLossUnlimited,
+            FindBreakevens(curve));
+    }
+
+    private static ResolvedLeg ResolveLeg(PayoffLegRequest leg)
+    {
+        var symbol = leg.Symbol.ToUpperInvariant();
+        if (symbol is not ("NIFTY" or "BANKNIFTY"))
+            throw new ArgumentException("Symbol must be NIFTY or BANKNIFTY");
+        var optionType = leg.OptionType.ToUpperInvariant();
+        if (optionType is not ("CE" or "PE"))
+            throw new ArgumentException("OptionType must be CE or PE");
+        var action = leg.Action.ToUpperInvariant();
+        if (action is not ("BUY" or "SELL"))
+            throw new ArgumentException("Action must be BUY or SELL");
+        if (leg.Lots <= 0)
+            throw new ArgumentException("Lots must be positive");
+        if (leg.Premium < 0)
+            throw new ArgumentException("Premium cannot be negative");
+
+        int lotSize = symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+        return new ResolvedLeg(
+            Strike:   leg.Strike,
+            IsCall:   optionType == "CE",
+            Sign:     action == "BUY" ? 1m : -1m,
+            Quantity: leg.Lots * lotSize,
+            Premium:  leg.Premium);
+    }
+
+    private static decimal Intrinsic(ResolvedLeg leg, decimal price) =>
+        leg.IsCall ? Math.Max(price - leg.Strike, 0) : Math.Max(leg.Strike - price, 0);
+
+    private static List<decimal> FindBreakevens(IReadOnlyList<PayoffPoint> curve)
+    {
+        var breakevens = new List<decimal>();
+        for (int i = 1; i < curve.Count; i++)
+        {
+            var prev = curve[i - 1];
+            var cur  = curve[i];
+            if (prev.Pnl == 0)
+            {
+                breakevens.Add(prev.Price);
+            }
+            else if ((prev.Pnl < 0 && cur.Pnl > 0) || (prev.Pnl > 0 && cur.Pnl < 0))
+            {
+                decimal t = -prev.Pnl / (cur.Pnl - prev.Pnl);
+                breakevens.Add(Math.Round(prev.Price + t * (cur.Price - prev.Price), 2));
+            }
+        }
+        if (curve[^1].Pnl == 0) breakevens.Add(curve[^1].Price);
+        return breakevens;
+    }
+
+    private record ResolvedLeg(int Strike, bool IsCall, decimal Sign, int Quantity, decimal Premium);
 
     // ------------------------------------------------------------------
     private static ((double delta, double gamma, double theta, double vega) greeks, double price)

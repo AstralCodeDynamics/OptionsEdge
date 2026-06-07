@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage, BacktestResult } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage, BacktestResult, StrategyLeg, PayoffResult } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
@@ -63,6 +63,17 @@ export const optionsApi = {
       `/options/maxpain/${symbol}${params}`
     ).then((r) => r.data)
   },
+  computePayoff: (legs: StrategyLeg[]) =>
+    api.post<PayoffResult>('/options/payoff', {
+      legs: legs.map((l) => ({
+        symbol: l.symbol,
+        strike: l.strike,
+        optionType: l.optionType,
+        action: l.action,
+        lots: l.lots,
+        premium: l.premium,
+      })),
+    }).then((r) => r.data),
 }
 
 export const signalsApi = {

@@ -117,6 +117,33 @@ export interface OptionLeg {
   vega: number
 }
 
+export interface StrategyLeg {
+  symbol: string
+  strike: number
+  optionType: 'CE' | 'PE'
+  action: 'BUY' | 'SELL'
+  lots: number
+  premium: number
+  delta?: number
+  gamma?: number
+  theta?: number
+  vega?: number
+}
+
+export interface PayoffPoint {
+  price: number
+  pnl: number
+}
+
+export interface PayoffResult {
+  payoffCurve: PayoffPoint[]
+  maxProfit: number | null
+  maxProfitUnlimited: boolean
+  maxLoss: number | null
+  maxLossUnlimited: boolean
+  breakevens: number[]
+}
+
 export interface Signal {
   id: string
   symbol: string

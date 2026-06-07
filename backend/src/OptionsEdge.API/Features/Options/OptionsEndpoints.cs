@@ -23,6 +23,18 @@ public static class OptionsEndpoints
             var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
             return Results.Ok(svc.GetMaxPain(symbol, selectedExpiry));
         }).WithName("GetMaxPain");
+
+        group.MapPost("/payoff", (PayoffRunRequest req, OptionsService svc) =>
+        {
+            try
+            {
+                return Results.Ok(svc.ComputePayoff(req.Legs));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        }).WithName("ComputePayoff");
     }
 
     public static void AddOptionsServices(this IServiceCollection services)

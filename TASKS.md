@@ -299,12 +299,12 @@
 ## Phase 7 — Strategy Builder
 
 ### Backend
-- [ ] Add POST /api/v1/options/payoff:
+- [x] Add POST /api/v1/options/payoff:
   - Input: legs[] with { symbol, strike, optionType, action(buy/sell), lots, premium }
   - Output: payoffCurve[] (price points + net P&L), maxProfit, maxLoss, breakevens[]
 
 ### Frontend
-- [ ] Create `StrategyBuilder` section (on Chain page or standalone):
+- [x] Create `StrategyBuilder` section (on Chain page or standalone):
   - "Add Leg" button → row with: CE/PE toggle, strike picker, Buy/Sell toggle, lots, premium (auto from chain)
   - Payoff diagram updates live as legs change (Recharts AreaChart, positive green, negative red)
   - Summary: Max Profit / Max Loss / Breakeven / Greeks

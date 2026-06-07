@@ -26,3 +26,23 @@ public record OptionLegResponse(
     double Vega);
 
 public record MaxPainResponse(decimal MaxPain, decimal Spot, string Expiry);
+
+public record PayoffLegRequest(
+    string Symbol,
+    int Strike,
+    string OptionType,
+    string Action,
+    int Lots,
+    decimal Premium);
+
+public record PayoffRunRequest(IReadOnlyList<PayoffLegRequest> Legs);
+
+public record PayoffPoint(decimal Price, decimal Pnl);
+
+public record PayoffResponse(
+    IReadOnlyList<PayoffPoint> PayoffCurve,
+    decimal? MaxProfit,
+    bool MaxProfitUnlimited,
+    decimal? MaxLoss,
+    bool MaxLossUnlimited,
+    IReadOnlyList<decimal> Breakevens);

@@ -3,6 +3,7 @@ import { optionsApi } from '../../services/api'
 import { useAppStore } from '../../store/appStore'
 import { ChainTable } from '../../components/chain/ChainTable'
 import { OIChart } from '../../components/charts/OIChart'
+import { StrategyBuilder } from '../../components/strategy/StrategyBuilder'
 import type { OptionsChain } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
@@ -105,6 +106,9 @@ export default function Chain() {
 
           {/* Chain table */}
           <ChainTable rows={chain.rows} spot={spot} maxPain={chain.maxPain} />
+
+          {/* Strategy builder */}
+          <StrategyBuilder chain={chain} symbol={symbol} />
         </>
       )}
     </div>

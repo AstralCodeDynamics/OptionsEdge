@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { useAIChat } from '../../hooks/useAIChat'
 
@@ -31,7 +32,10 @@ export default function AIChat() {
   const marketStatus = useAppStore((s) => s.marketStatus)
 
   const { messages, sending, error, sendMessage, startNewSession } = useAIChat()
-  const [input, setInput] = useState('')
+  const location = useLocation()
+  const [input, setInput] = useState(
+    () => (location.state as { prefillMessage?: string } | null)?.prefillMessage ?? ''
+  )
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
