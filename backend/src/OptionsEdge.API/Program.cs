@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OptionsEdge.API.Features.Chat;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Market;
 using OptionsEdge.API.Features.Options;
@@ -39,6 +40,7 @@ builder.Services.AddIndicatorServices();
 builder.Services.AddOptionsServices();
 builder.Services.AddSignalServices();
 builder.Services.AddPositionServices();
+builder.Services.AddChatServices();
 
 // Background workers
 builder.Services.AddHostedService<MarketDataWorker>();
@@ -66,6 +68,7 @@ app.MapIndicatorEndpoints();
 app.MapOptionsEndpoints();
 app.MapSignalEndpoints();
 app.MapPositionEndpoints();
+app.MapChatEndpoints();
 
 // SignalR hubs
 app.MapHub<MarketHub>("/hubs/market");

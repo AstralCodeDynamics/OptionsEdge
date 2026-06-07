@@ -205,16 +205,16 @@
 ## Phase 5 — AI Chat Expert Partner
 
 ### Backend
-- [ ] Create `ChatService`:
+- [x] Create `ChatService`:
   - BuildSystemPrompt(userId): fetches active positions + current market snapshot
   - System prompt includes: expert persona, market context, user's positions, instructions to be proactive
   - SendMessage(userId, sessionId, message): calls Sonnet, saves messages, logs usage
   - GetHistory(sessionId): returns ordered messages
-- [ ] Implement POST /api/v1/chat/message (streaming SSE)
-- [ ] Implement GET /api/v1/chat/history, POST /api/v1/chat/new-session
+- [x] Implement POST /api/v1/chat/message (streaming SSE)
+- [x] Implement GET /api/v1/chat/history, POST /api/v1/chat/new-session
 
 ### Frontend
-- [ ] Create `AIChat.tsx` page:
+- [x] Create `AIChat.tsx` page:
   - Context bar: "NIFTY 24,198 ▲ 0.36% | 2 Active Positions | Market Open"
   - Chat bubbles: user (right, accent color), assistant (left, muted bg)
   - Streaming: assistant message types character by character
@@ -224,7 +224,7 @@
   - Auto-scroll to latest message
   - Token cost shown below each assistant message
   - Full screen mobile, side panel or full page desktop
-- [ ] Create `useAIChat.ts`: manages session, history, streaming parsing
+- [x] Create `useAIChat.ts`: manages session, history, streaming parsing
 
 ---
 

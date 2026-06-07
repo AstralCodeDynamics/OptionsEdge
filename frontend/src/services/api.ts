@@ -1,5 +1,7 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage } from '../types'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
 let authToken: string | null = null
 
@@ -116,6 +118,94 @@ export const alertsApi = {
     api.put<Alert>(`/alerts/${id}/read`).then((r) => r.data),
   markAllRead: () =>
     api.put('/alerts/read-all'),
+}
+
+export interface ChatStreamHandlers {
+  onDelta: (text: string) => void
+  onDone: (meta: { modelUsed?: string; inputTokens?: number; outputTokens?: number; costUsd?: number }) => void
+  onError: (message: string) => void
+}
+
+// Raw SSE parsing: the backend streams `event: <type>\ndata: <json>\n\n` frames.
+// axios doesn't support streaming response bodies, so we use fetch + ReadableStream here.
+async function streamChatMessage(
+  sessionId: string,
+  message: string,
+  handlers: ChatStreamHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) headers.Authorization = `Bearer ${authToken}`
+
+  const res = await fetch(`${API_BASE_URL}/chat/message`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ sessionId, message }),
+    signal,
+  })
+
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => null)
+    handlers.onError(body?.error ?? 'Failed to send message')
+    return
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let eventType = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    let nlIdx = buffer.indexOf('\n')
+    while (nlIdx >= 0) {
+      const line = buffer.slice(0, nlIdx).replace(/\r$/, '')
+      buffer = buffer.slice(nlIdx + 1)
+
+      if (line.startsWith('event:')) {
+        eventType = line.slice('event:'.length).trim()
+      } else if (line.startsWith('data:')) {
+        const json = line.slice('data:'.length).trim()
+        if (json) {
+          const payload = JSON.parse(json) as {
+            text?: string
+            modelUsed?: string
+            inputTokens?: number
+            outputTokens?: number
+            costUsd?: number
+            error?: string
+          }
+          if (eventType === 'delta' && payload.text) {
+            handlers.onDelta(payload.text)
+          } else if (eventType === 'done') {
+            handlers.onDone(payload)
+          } else if (eventType === 'error') {
+            handlers.onError(payload.error ?? 'Something went wrong')
+          }
+        }
+      } else if (line === '') {
+        eventType = ''
+      }
+
+      nlIdx = buffer.indexOf('\n')
+    }
+  }
+}
+
+export const chatApi = {
+  newSession: () =>
+    api.post<{ sessionId: string }>('/chat/new-session').then((r) => r.data),
+  getHistory: (sessionId: string) =>
+    api
+      .get<{ sessionId: string; messages: Array<Omit<ChatMessage, 'userId' | 'sessionId'>> }>(
+        '/chat/history',
+        { params: { sessionId } },
+      )
+      .then((r) => r.data),
+  streamMessage: streamChatMessage,
 }
 
 export default api

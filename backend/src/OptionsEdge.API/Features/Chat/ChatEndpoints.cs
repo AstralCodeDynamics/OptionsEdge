@@ -1,0 +1,68 @@
+using System.Text.Json;
+using OptionsEdge.API.Infrastructure.Data;
+
+namespace OptionsEdge.API.Features.Chat;
+
+public static class ChatEndpoints
+{
+    public static void MapChatEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/v1/chat");
+
+        // POST /api/v1/chat/message — streams the assistant reply as Server-Sent Events
+        group.MapPost("/message", async (
+            ChatMessageRequest req,
+            ChatService svc,
+            IConfiguration config,
+            HttpResponse response,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Message))
+                return Results.BadRequest(new { error = "Message cannot be empty" });
+
+            var userId = DevUserId(config);
+            var error  = await svc.ValidateAsync(userId, ct);
+            if (error is not null)
+                return Results.BadRequest(new { error });
+
+            response.ContentType = "text/event-stream";
+            response.Headers.CacheControl = "no-cache";
+            response.Headers["X-Accel-Buffering"] = "no";
+
+            await foreach (var chunk in svc.StreamMessageAsync(userId, req.SessionId, req.Message, ct))
+            {
+                await response.WriteAsync($"event: {chunk.Type}\n", ct);
+                await response.WriteAsync($"data: {JsonSerializer.Serialize(chunk)}\n\n", ct);
+                await response.Body.FlushAsync(ct);
+            }
+
+            return Results.Empty;
+        }).WithName("SendChatMessage");
+
+        // GET /api/v1/chat/history?sessionId=...
+        group.MapGet("/history", async (
+            Guid sessionId,
+            ChatService svc,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            var userId  = DevUserId(config);
+            var history = await svc.GetHistoryAsync(userId, sessionId, ct);
+            return Results.Ok(history);
+        }).WithName("GetChatHistory");
+
+        // POST /api/v1/chat/new-session
+        group.MapPost("/new-session", () =>
+            Results.Ok(new NewSessionResponse(Guid.NewGuid()))
+        ).WithName("NewChatSession");
+    }
+
+    public static void AddChatServices(this IServiceCollection services)
+    {
+        services.AddScoped<ChatService>();
+    }
+
+    // Phase 5 dev user; replaced by JWT claim in Phase 8
+    private static Guid DevUserId(IConfiguration config) =>
+        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
+}
