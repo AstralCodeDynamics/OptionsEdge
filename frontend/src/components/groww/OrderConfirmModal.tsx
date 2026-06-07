@@ -6,11 +6,12 @@ interface Props {
   onClose: () => void
   signal: Signal | null
   onConfirm: (lots: number) => Promise<void>
+  orderPlacementEnabled: boolean
 }
 
 const LOT_SIZE: Record<string, number> = { NIFTY: 75, BANKNIFTY: 35 }
 
-export default function OrderConfirmModal({ open, onClose, signal, onConfirm }: Props) {
+export default function OrderConfirmModal({ open, onClose, signal, onConfirm, orderPlacementEnabled }: Props) {
   const [lots, setLots] = useState(1)
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -115,14 +116,29 @@ export default function OrderConfirmModal({ open, onClose, signal, onConfirm }: 
           >
             Cancel
           </button>
-          <button
-            onClick={handleConfirm}
-            disabled={placing}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl py-3 transition-colors"
-          >
-            {placing ? 'Placing…' : 'Confirm Order'}
-          </button>
+          {orderPlacementEnabled ? (
+            <button
+              onClick={handleConfirm}
+              disabled={placing}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl py-3 transition-colors"
+            >
+              {placing ? 'Placing…' : 'Confirm Order'}
+            </button>
+          ) : (
+            <button
+              disabled
+              className="flex-1 bg-gray-800 text-gray-500 font-semibold rounded-xl py-3 cursor-not-allowed"
+            >
+              Requires Production Server
+            </button>
+          )}
         </div>
+
+        {!orderPlacementEnabled && (
+          <p className="text-[11px] text-gray-500 mt-3">
+            Live order placement is enabled only when the app is deployed on a server with a whitelisted static IP. You can still use all signals, analysis and alerts.
+          </p>
+        )}
       </div>
     </>
   )

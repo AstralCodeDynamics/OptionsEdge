@@ -10,6 +10,7 @@ public class MarketDataWorker(
     IHubContext<MarketHub> hubContext,
     MockMarketDataService mockData,
     IndicatorService indicatorService,
+    IConfiguration config,
     ILogger<MarketDataWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
@@ -39,7 +40,8 @@ public class MarketDataWorker(
 
         if (isOpen)
         {
-            mockData.Tick();
+            if (!config.GetValue<bool>("Groww:Enabled"))
+                mockData.Tick();
 
             foreach (var snapshot in mockData.GetSnapshots())
             {

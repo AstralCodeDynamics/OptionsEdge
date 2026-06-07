@@ -102,14 +102,18 @@ public class GrowwApiClient(
             null, ct));
 
         var rows = new List<GrowwOptionChainRow>();
-        if (!root.TryGetProperty("strikes", out var strikes) || strikes.ValueKind != JsonValueKind.Array)
+        if (!root.TryGetProperty("strikes", out var strikes) || strikes.ValueKind != JsonValueKind.Object)
             return rows;
 
-        foreach (var s in strikes.EnumerateArray())
+        // "strikes" is an object keyed by strike price, e.g. {"24200": {"CE": {...}, "PE": {...}}}
+        foreach (var strikeEntry in strikes.EnumerateObject())
         {
-            int strike = (int)(GetDecimal(s, "strike_price") ?? GetDecimal(s, "strike") ?? 0);
-            var call = ParseLeg(s, "call_options") ?? ParseLeg(s, "CE") ?? ParseLeg(s, "ce");
-            var put = ParseLeg(s, "put_options") ?? ParseLeg(s, "PE") ?? ParseLeg(s, "pe");
+            if (!int.TryParse(strikeEntry.Name, out var strike))
+                continue;
+
+            var leg = strikeEntry.Value;
+            var call = ParseLeg(leg, "CE") ?? ParseLeg(leg, "call_options");
+            var put = ParseLeg(leg, "PE") ?? ParseLeg(leg, "put_options");
             rows.Add(new GrowwOptionChainRow(strike, call, put));
         }
 

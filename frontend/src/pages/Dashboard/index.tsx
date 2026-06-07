@@ -231,6 +231,7 @@ export default function Dashboard() {
         onClose={() => setOrderSignal(null)}
         signal={orderSignal}
         onConfirm={handleConfirmOrder}
+        orderPlacementEnabled={growwStatus?.orderPlacementEnabled ?? false}
       />
     </div>
   )

@@ -199,6 +199,7 @@ export interface GrowwStatus {
   enabled: boolean
   connected: boolean
   expiresAt?: string | null
+  orderPlacementEnabled?: boolean
 }
 
 export interface PlaceOrderRequest {

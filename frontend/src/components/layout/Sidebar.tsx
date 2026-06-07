@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
+import { growwApi } from '../../services/api'
+import ConnectGrowwModal from '../groww/ConnectGrowwModal'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: '▦' },
@@ -12,6 +15,13 @@ const navItems = [
 export default function Sidebar() {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
+  const growwStatus = useAppStore((s) => s.growwStatus)
+  const setGrowwStatus = useAppStore((s) => s.setGrowwStatus)
+  const [growwModalOpen, setGrowwModalOpen] = useState(false)
+
+  useEffect(() => {
+    growwApi.getStatus().then(setGrowwStatus).catch(() => {})
+  }, [setGrowwStatus])
 
   return (
     <>
@@ -28,8 +38,21 @@ export default function Sidebar() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
-        <div className="px-4 py-5 border-b border-gray-800">
+        <div className="px-4 py-5 border-b border-gray-800 flex items-center justify-between gap-2">
           <span className="text-lg font-bold text-emerald-400">OptionsEdge</span>
+          {growwStatus?.enabled && (
+            <button
+              onClick={() => setGrowwModalOpen(true)}
+              className={[
+                'text-xs px-2 py-0.5 rounded-full font-medium transition-colors',
+                growwStatus.connected
+                  ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600',
+              ].join(' ')}
+            >
+              {growwStatus.connected ? 'Groww Connected' : 'Connect Groww'}
+            </button>
+          )}
         </div>
         <nav className="flex-1 py-4">
           {navItems.map((item) => (
@@ -53,6 +76,13 @@ export default function Sidebar() {
           ))}
         </nav>
       </aside>
+
+      <ConnectGrowwModal
+        open={growwModalOpen}
+        onClose={() => setGrowwModalOpen(false)}
+        status={growwStatus}
+        onConnected={setGrowwStatus}
+      />
     </>
   )
 }

@@ -46,7 +46,8 @@ public static class GrowwEndpoints
         {
             bool enabled = config.GetValue<bool>("Groww:Enabled");
             bool connected = enabled && groww.IsConnected;
-            return Results.Ok(new GrowwStatusResponse(enabled, connected, connected ? GrowwApiClient.NextTokenExpiry() : null));
+            bool orderPlacementEnabled = config.GetValue<bool>("Groww:OrderPlacementEnabled");
+            return Results.Ok(new GrowwStatusResponse(enabled, connected, connected ? GrowwApiClient.NextTokenExpiry() : null, orderPlacementEnabled));
         }).WithName("GetGrowwStatus");
 
         // POST /api/v1/orders/place — places a live F&O order via Groww
@@ -58,6 +59,9 @@ public static class GrowwEndpoints
         {
             if (!config.GetValue<bool>("Groww:Enabled"))
                 return Results.BadRequest(new { error = "Groww integration is disabled." });
+
+            if (!config.GetValue<bool>("Groww:OrderPlacementEnabled"))
+                return Results.BadRequest(new { error = "Order placement requires a whitelisted static IP. Deploy to production server to enable live orders. See Groww API Keys dashboard to whitelist your server IP." });
 
             try
             {

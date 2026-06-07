@@ -29,7 +29,10 @@ public class GrowwMarketDataService(
 
         try
         {
-            var snapshot = groww.GetSpotSnapshotAsync(key, CancellationToken.None).GetAwaiter().GetResult();
+            // TODO Phase 8: make IMarketDataService fully async
+            var snapshot = Task.Run(() =>
+                groww.GetSpotSnapshotAsync(key, CancellationToken.None))
+                .GetAwaiter().GetResult();
             cache.Set(cacheKey, snapshot, SnapshotTtl);
             return snapshot;
         }
@@ -50,7 +53,9 @@ public class GrowwMarketDataService(
 
         try
         {
-            var candles = groww.GetHistoricalCandlesAsync(key, ct: CancellationToken.None).GetAwaiter().GetResult();
+            var candles = Task.Run(() =>
+                groww.GetHistoricalCandlesAsync(key, ct: CancellationToken.None))
+                .GetAwaiter().GetResult();
             cache.Set(cacheKey, candles, CandleTtl);
             return candles;
         }
