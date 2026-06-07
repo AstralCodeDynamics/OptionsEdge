@@ -1,4 +1,4 @@
-using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
 
@@ -16,6 +16,7 @@ public static class GrowwEndpoints
             GrowwApiClient groww,
             GrowwOrderService orderService,
             IConfiguration config,
+            HttpContext ctx,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -35,7 +36,7 @@ public static class GrowwEndpoints
                 return Results.BadRequest(new { error = "Failed to connect to Groww. Check your TOTP and try again." });
             }
 
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var imported = await orderService.ImportPositionsFromGrowwAsync(userId, ct);
 
             return Results.Ok(new ConnectGrowwResponse(true, GrowwApiClient.NextTokenExpiry(), imported));
@@ -55,6 +56,7 @@ public static class GrowwEndpoints
             PlaceOrderRequest req,
             GrowwOrderService orderService,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (!config.GetValue<bool>("Groww:Enabled"))
@@ -65,7 +67,7 @@ public static class GrowwEndpoints
 
             try
             {
-                var userId = DevUserId(config);
+                var userId = ctx.GetUserId(config);
                 var result = await orderService.PlaceOrderAsync(userId, req, ct);
                 return Results.Ok(result);
             }
@@ -118,8 +120,4 @@ public static class GrowwEndpoints
                 : sp.GetRequiredService<MockMarketDataService>();
         });
     }
-
-    // Phase 5.5 dev user; replaced by JWT claim in Phase 8
-    private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 }

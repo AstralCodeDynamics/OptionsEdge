@@ -1,5 +1,5 @@
 using System.Text.Json;
-using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Common.Extensions;
 
 namespace OptionsEdge.API.Features.Chat;
 
@@ -14,6 +14,7 @@ public static class ChatEndpoints
             ChatMessageRequest req,
             ChatService svc,
             IConfiguration config,
+            HttpContext ctx,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -24,7 +25,7 @@ public static class ChatEndpoints
                 return;
             }
 
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var error  = await svc.ValidateAsync(userId, ct);
             if (error is not null)
             {
@@ -50,9 +51,10 @@ public static class ChatEndpoints
             Guid sessionId,
             ChatService svc,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId  = DevUserId(config);
+            var userId  = ctx.GetUserId(config);
             var history = await svc.GetHistoryAsync(userId, sessionId, ct);
             return Results.Ok(history);
         }).WithName("GetChatHistory");
@@ -67,8 +69,4 @@ public static class ChatEndpoints
     {
         services.AddScoped<ChatService>();
     }
-
-    // Phase 5 dev user; replaced by JWT claim in Phase 8
-    private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 }

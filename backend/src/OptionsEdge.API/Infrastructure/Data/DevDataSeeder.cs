@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using OptionsEdge.API.Domain.Entities;
 
 namespace OptionsEdge.API.Infrastructure.Data;
@@ -9,27 +10,32 @@ public static class DevDataSeeder
     public static async Task SeedAsync(IServiceProvider services, ILogger logger)
     {
         using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        if (!db.Users.Any(u => u.Id == DevUserId))
+        if (await userManager.FindByIdAsync(DevUserId.ToString()) is not null)
+            return;
+
+        var user = new ApplicationUser
         {
-            db.Users.Add(new User
-            {
-                Id                = DevUserId,
-                Email             = "dev@optionsedge.local",
-                PasswordHash      = "$2a$11$devplaceholdernotused",
-                DisplayName       = "Dev User",
-                SubscriptionPlan  = "pro",
-                WalletBalance     = 1000m,
-                AiCallsToday      = 0,
-                AiCallsResetAt    = DateTimeOffset.UtcNow,
-                IsActive          = true,
-                CreatedAt         = DateTimeOffset.UtcNow,
-                UpdatedAt         = DateTimeOffset.UtcNow,
-            });
+            Id                = DevUserId,
+            UserName          = "dev@optionsedge.local",
+            Email             = "dev@optionsedge.local",
+            EmailConfirmed    = true,
+            TwoFactorEnabled  = false,
+            DisplayName       = "Dev User",
+            SubscriptionPlan  = "pro",
+            WalletBalance     = 1000m,
+            AiCallsToday      = 0,
+            AiCallsResetAt    = DateTimeOffset.UtcNow,
+            IsActive          = true,
+            CreatedAt         = DateTimeOffset.UtcNow,
+            UpdatedAt         = DateTimeOffset.UtcNow,
+        };
 
-            await db.SaveChangesAsync();
+        var result = await userManager.CreateAsync(user, "DevPass123!");
+        if (result.Succeeded)
             logger.LogInformation("Dev user seeded (id={DevUserId})", DevUserId);
-        }
+        else
+            logger.LogWarning("Failed to seed dev user: {Errors}", string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 }

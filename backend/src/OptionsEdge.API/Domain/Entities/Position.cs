@@ -20,6 +20,6 @@ public class Position
     public DateTimeOffset? ClosedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
-    public User User { get; set; } = null!;
+    public ApplicationUser User { get; set; } = null!;
     public ICollection<Alert> Alerts { get; set; } = [];
 }

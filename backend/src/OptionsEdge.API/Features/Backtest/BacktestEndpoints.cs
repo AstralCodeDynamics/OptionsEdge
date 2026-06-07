@@ -1,4 +1,4 @@
-using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Common.Extensions;
 
 namespace OptionsEdge.API.Features.Backtest;
 
@@ -13,9 +13,10 @@ public static class BacktestEndpoints
             BacktestRunRequest req,
             BacktestService backtestSvc,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             try
             {
                 var result = await backtestSvc.RunAsync(userId, req, ct);
@@ -35,9 +36,10 @@ public static class BacktestEndpoints
         backtest.MapGet("/history", async (
             BacktestService backtestSvc,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var history = await backtestSvc.GetHistoryAsync(userId, ct: ct);
             return Results.Ok(history);
         }).WithName("GetBacktestHistory");
@@ -47,8 +49,4 @@ public static class BacktestEndpoints
     {
         services.AddScoped<BacktestService>();
     }
-
-    // Phase 3 dev user; replaced by JWT claim in Phase 8
-    private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 }

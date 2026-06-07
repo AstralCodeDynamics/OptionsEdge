@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Infrastructure.Data;
@@ -16,11 +17,12 @@ public static class PositionEndpoints
         positions.MapGet("/", async (
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             PositionService positionSvc,
             OptionsService optionsSvc,
             CancellationToken ct) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var list   = await db.Positions
                 .Where(p => p.UserId == userId)
                 .OrderByDescending(p => p.CreatedAt)
@@ -42,12 +44,13 @@ public static class PositionEndpoints
             CreatePositionRequest req,
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (!ValidateCreate(req, out var err))
                 return Results.BadRequest(new { error = err });
 
-            var userId   = DevUserId(config);
+            var userId   = ctx.GetUserId(config);
             var position = new Position
             {
                 Id         = Guid.NewGuid(),
@@ -77,9 +80,10 @@ public static class PositionEndpoints
             UpdatePositionRequest req,
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId   = DevUserId(config);
+            var userId   = ctx.GetUserId(config);
             var position = await db.Positions.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId, ct);
             if (position is null) return Results.NotFound();
 
@@ -104,9 +108,10 @@ public static class PositionEndpoints
             Guid id,
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId   = DevUserId(config);
+            var userId   = ctx.GetUserId(config);
             var position = await db.Positions.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId, ct);
             if (position is null) return Results.NotFound();
 
@@ -122,11 +127,12 @@ public static class PositionEndpoints
             Guid id,
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             PositionService positionSvc,
             OptionsService optionsSvc,
             CancellationToken ct) =>
         {
-            var userId   = DevUserId(config);
+            var userId   = ctx.GetUserId(config);
             var position = await db.Positions.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId, ct);
             if (position is null) return Results.NotFound();
 
@@ -148,11 +154,12 @@ public static class PositionEndpoints
         alerts.MapGet("/", async (
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             bool? unread = null,
             int limit = 50,
             CancellationToken ct = default) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var query  = db.Alerts
                 .Where(a => a.UserId == userId)
                 .OrderByDescending(a => a.CreatedAt)
@@ -170,9 +177,10 @@ public static class PositionEndpoints
             Guid id,
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var alert  = await db.Alerts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
             if (alert is null) return Results.NotFound();
 
@@ -185,9 +193,10 @@ public static class PositionEndpoints
         alerts.MapPut("/read-all", async (
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             await db.Alerts
                 .Where(a => a.UserId == userId && !a.IsRead)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsRead, true), ct);
@@ -200,9 +209,6 @@ public static class PositionEndpoints
         services.AddSingleton<PositionService>();
         services.AddScoped<AlertService>();
     }
-
-    private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 
     private static bool ValidateCreate(CreatePositionRequest req, out string error)
     {

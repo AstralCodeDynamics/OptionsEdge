@@ -10,13 +10,8 @@ namespace OptionsEdge.API.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string[]>(
-                name: "Rationale",
-                table: "Signals",
-                type: "text[]",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text");
+            migrationBuilder.Sql(
+                "ALTER TABLE \"Signals\" ALTER COLUMN \"Rationale\" TYPE text[] USING string_to_array(\"Rationale\", ',');");
         }
 
         /// <inheritdoc />

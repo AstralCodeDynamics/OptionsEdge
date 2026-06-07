@@ -17,5 +17,5 @@ public class BacktestResult
     public JsonDocument? TradeLog { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
-    public User User { get; set; } = null!;
+    public ApplicationUser User { get; set; } = null!;
 }

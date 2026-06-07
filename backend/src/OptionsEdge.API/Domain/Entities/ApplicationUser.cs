@@ -1,10 +1,9 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace OptionsEdge.API.Domain.Entities;
 
-public class User
+public class ApplicationUser : IdentityUser<Guid>
 {
-    public Guid Id { get; set; }
-    public string Email { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string SubscriptionPlan { get; set; } = "free";
     public decimal WalletBalance { get; set; }

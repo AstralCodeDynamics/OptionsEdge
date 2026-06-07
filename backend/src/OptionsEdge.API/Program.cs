@@ -1,4 +1,10 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Features.Auth;
 using OptionsEdge.API.Features.Backtest;
 using OptionsEdge.API.Features.Chat;
 using OptionsEdge.API.Features.Groww;
@@ -7,8 +13,10 @@ using OptionsEdge.API.Features.Market;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Features.Positions;
 using OptionsEdge.API.Features.Signals;
+using OptionsEdge.API.Infrastructure.Auth;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Infrastructure.Email;
 using OptionsEdge.API.Infrastructure.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,9 +28,78 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddSignalR();
 
-builder.Services.AddAuthentication().AddJwtBearer();
+// AuthSettings drives dev-friendly toggles for email confirmation, 2FA, lockout and email sending
+builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("AuthSettings"));
+var authSettings = builder.Configuration.GetSection("AuthSettings").Get<AuthSettings>() ?? new AuthSettings();
+
+builder.Services
+    .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+    {
+        options.Password.RequireDigit           = true;
+        options.Password.RequireLowercase        = true;
+        options.Password.RequireUppercase        = true;
+        options.Password.RequireNonAlphanumeric  = true;
+        options.Password.RequiredLength          = 8;
+
+        options.Lockout.DefaultLockoutTimeSpan   = TimeSpan.FromMinutes(15);
+        options.Lockout.MaxFailedAccessAttempts  = 5;
+        options.Lockout.AllowedForNewUsers       = authSettings.EnableLockout;
+
+        options.SignIn.RequireConfirmedEmail     = authSettings.RequireEmailConfirmation;
+
+        options.User.RequireUniqueEmail          = true;
+    })
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtSecret  = jwtSection["Secret"] ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
+
+builder.Services
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer              = jwtSection["Issuer"],
+            ValidAudience            = jwtSection["Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ClockSkew                = TimeSpan.FromSeconds(30),
+        };
+
+        // SignalR sends the access token via query string (?access_token=...) since browsers
+        // can't set Authorization headers on WebSocket connections.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+
+                return Task.CompletedTask;
+            },
+        };
+    });
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddScoped<JwtService>();
+builder.Services.AddScoped<IEmailService>(sp =>
+    authSettings.SendRealEmails
+        ? sp.GetRequiredService<EmailService>()
+        : sp.GetRequiredService<DevEmailService>());
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<DevEmailService>();
 
 builder.Services.AddMemoryCache();
 
@@ -67,6 +144,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
    .WithName("Health");
 
 // Feature endpoints
+app.MapAuthEndpoints();
 app.MapMarketEndpoints();
 app.MapIndicatorEndpoints();
 app.MapOptionsEndpoints();

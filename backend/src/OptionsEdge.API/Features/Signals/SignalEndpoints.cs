@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Infrastructure.Data;
 
 namespace OptionsEdge.API.Features.Signals;
@@ -14,6 +15,7 @@ public static class SignalEndpoints
             GenerateSignalRequest req,
             AISignalService svc,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Symbol) ||
@@ -22,8 +24,7 @@ public static class SignalEndpoints
                 return Results.BadRequest(new { error = "Symbol must be NIFTY or BANKNIFTY" });
             }
 
-            // Phase 3: use dev user; Phase 8 will use JWT claim
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var (signal, error) = await svc.GenerateEntrySignalAsync(req.Symbol, userId, ct);
 
             if (error is not null)
@@ -36,11 +37,12 @@ public static class SignalEndpoints
         group.MapGet("/history", async (
             AppDbContext db,
             IConfiguration config,
+            HttpContext ctx,
             string? symbol,
             int limit = 20,
             CancellationToken ct = default) =>
         {
-            var userId = DevUserId(config);
+            var userId = ctx.GetUserId(config);
             var query  = db.Signals
                 .Where(s => s.UserId == userId)
                 .OrderByDescending(s => s.CreatedAt)
@@ -114,8 +116,4 @@ public static class SignalEndpoints
         services.AddSingleton<SignalCacheService>();
         services.AddScoped<AISignalService>();
     }
-
-    // Phase 3 dev user; replaced by JWT claim in Phase 8
-    private static Guid DevUserId(IConfiguration config) =>
-        Guid.TryParse(config["Dev:UserId"], out var id) ? id : DevDataSeeder.DevUserId;
 }

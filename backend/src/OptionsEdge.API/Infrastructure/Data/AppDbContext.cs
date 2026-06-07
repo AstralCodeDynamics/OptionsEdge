@@ -1,11 +1,14 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Domain.Entities;
 
 namespace OptionsEdge.API.Infrastructure.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
-    public DbSet<User> Users { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Position> Positions { get; set; }
     public DbSet<Signal> Signals { get; set; }
     public DbSet<Alert> Alerts { get; set; }
@@ -17,18 +20,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<User>(e =>
+        modelBuilder.Entity<ApplicationUser>(e =>
         {
-            e.HasKey(u => u.Id);
-            e.Property(u => u.Id).HasDefaultValueSql("gen_random_uuid()");
-            e.HasIndex(u => u.Email).IsUnique();
-            e.Property(u => u.Email).HasMaxLength(255).IsRequired();
-            e.Property(u => u.PasswordHash).HasMaxLength(255).IsRequired();
             e.Property(u => u.DisplayName).HasMaxLength(100);
             e.Property(u => u.SubscriptionPlan).HasMaxLength(20);
             e.Property(u => u.WalletBalance).HasColumnType("decimal(10,4)");
             e.Property(u => u.CreatedAt).HasDefaultValueSql("now()");
             e.Property(u => u.UpdatedAt).HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<RefreshToken>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(r => r.Token).HasMaxLength(255).IsRequired();
+            e.HasIndex(r => r.Token).IsUnique();
+            e.HasIndex(r => new { r.UserId, r.IsRevoked });
+            e.Property(r => r.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId);
         });
 
         modelBuilder.Entity<Position>(e =>
