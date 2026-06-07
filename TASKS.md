@@ -228,6 +228,50 @@
 
 ---
 
+## Phase 5.5 — Groww API Integration
+
+### Backend
+- [ ] Create GrowwApiClient (HttpClient wrapper):
+      POST /v1/token/api/access (TOTP auth → access token)
+      GET /v1/live-data/quote?exchange=NSE&segment=FNO (options LTP, IV, OI)
+      GET /v1/live-data/quote?segment=CASH (NIFTY/BN spot price)
+      POST /v1/order/create (place F&O order)
+      POST /v1/order/cancel
+      GET /v1/portfolio/positions?segment=FNO (open positions)
+      GET /v1/historical-data (OHLCV candles)
+- [ ] Store Groww access token in IMemoryCache (expires 6 AM daily)
+- [ ] Create GrowwMarketDataService implementing same interface as
+      MockMarketDataService (swap via config flag "Groww:Enabled")
+- [ ] Create GrowwAuthEndpoints:
+      POST /api/v1/groww/connect (user submits TOTP → get token)
+      GET  /api/v1/groww/status  (token valid or expired)
+- [ ] Create GrowwOrderService:
+      PlaceOrderAsync (with full confirm payload)
+      CancelOrderAsync
+- [ ] Add POST /api/v1/orders/place endpoint (calls GrowwOrderService)
+- [ ] Auto-import positions from Groww portfolio on connect
+- [ ] Add "Groww:Enabled", "Groww:ApiKey", "Groww:ApiSecret"
+      to appsettings.json (empty values, filled in Development.json)
+
+### Frontend
+- [ ] Create ConnectGroww page/modal:
+      Shows connection status (connected/expired/disconnected)
+      TOTP input field + Connect button
+      Token expiry countdown (resets at 6 AM IST)
+      Clear instructions for your spouse
+- [ ] Update api.ts with growwApi:
+      connect(totp), getStatus, placeOrder, cancelOrder
+- [ ] Add "Place Order" button to SignalCard (appears when Groww connected)
+- [ ] Create OrderConfirmModal:
+      Shows full order details before placing
+      Contract, lots, price, estimated cost, SL, target
+      Confirm / Cancel buttons
+- [ ] On successful order: auto-create position in tracker
+- [ ] Replace mock price source with Groww live data when enabled
+- [ ] Show "Groww Connected" badge in Header when active
+
+---
+
 ## Phase 6 — Backtesting Engine
 
 ### Backend
