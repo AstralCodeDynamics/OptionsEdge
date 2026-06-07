@@ -2,7 +2,7 @@ using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Options;
 
-public class OptionsService(MockMarketDataService mockData)
+public class OptionsService(IMarketDataService marketData)
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
     private const double RiskFreeRate = 0.065; // 6.5% India risk-free rate
@@ -47,7 +47,7 @@ public class OptionsService(MockMarketDataService mockData)
     public OptionsChainResponse GetChain(string symbol, string expiry)
     {
         var key = symbol.ToUpper();
-        var snapshot = mockData.GetSnapshot(key);
+        var snapshot = marketData.GetSnapshot(key);
         decimal spot = snapshot.Ltp;
 
         if (!DateOnly.TryParse(expiry, out var expiryDate))
@@ -119,7 +119,7 @@ public class OptionsService(MockMarketDataService mockData)
     public decimal GetOptionLtp(string symbol, int strike, string optionType, string expiry)
     {
         var key      = symbol.ToUpper();
-        var snapshot = mockData.GetSnapshot(key);
+        var snapshot = marketData.GetSnapshot(key);
         double spot  = (double)snapshot.Ltp;
 
         if (!DateOnly.TryParse(expiry, out var expiryDate))

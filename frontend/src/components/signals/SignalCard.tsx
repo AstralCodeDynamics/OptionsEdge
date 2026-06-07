@@ -4,6 +4,8 @@ import type { Signal } from '../../types'
 interface Props {
   signal: Signal
   onAddPosition?: (signal: Signal) => void
+  onPlaceOrder?: (signal: Signal) => void
+  growwConnected?: boolean
 }
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -43,7 +45,7 @@ function Box({ label, value, sub }: { label: string; value: string; sub?: string
   )
 }
 
-export function SignalCard({ signal, onAddPosition }: Props) {
+export function SignalCard({ signal, onAddPosition, onPlaceOrder, growwConnected }: Props) {
   const cfg      = TYPE_CONFIG[signal.signalType] ?? TYPE_CONFIG.WATCH
   const countdown = useCountdown(signal.validUntil)
   const isExpired = new Date(signal.validUntil).getTime() < Date.now()
@@ -123,13 +125,25 @@ export function SignalCard({ signal, onAddPosition }: Props) {
           </span>
           <span className="text-gray-600">{createdLabel}</span>
         </div>
-        {onAddPosition && !isExpired && (
-          <button
-            onClick={() => onAddPosition(signal)}
-            className="text-[11px] font-semibold px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg transition-colors"
-          >
-            + Add Position
-          </button>
+        {!isExpired && (
+          <div className="flex items-center gap-2">
+            {growwConnected && onPlaceOrder && (
+              <button
+                onClick={() => onPlaceOrder(signal)}
+                className="text-[11px] font-semibold px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                Place Order
+              </button>
+            )}
+            {onAddPosition && (
+              <button
+                onClick={() => onAddPosition(signal)}
+                className="text-[11px] font-semibold px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+              >
+                + Add Position
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

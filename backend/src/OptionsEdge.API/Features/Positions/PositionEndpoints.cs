@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Infrastructure.Data;
-using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Positions;
 
@@ -18,7 +17,6 @@ public static class PositionEndpoints
             AppDbContext db,
             IConfiguration config,
             PositionService positionSvc,
-            MockMarketDataService mockData,
             OptionsService optionsSvc,
             CancellationToken ct) =>
         {

@@ -3,21 +3,21 @@ using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Market;
 
-public class MarketService(MockMarketDataService mockData)
+public class MarketService(IMarketDataService marketData)
 {
     public IReadOnlyList<MarketSnapshotResponse> GetSnapshots() =>
-        mockData.GetSnapshots().Select(ToResponse).ToList();
+        marketData.GetSnapshots().Select(ToResponse).ToList();
 
     public MarketSnapshotResponse? GetSnapshot(string symbol)
     {
         var key = symbol.ToUpper();
         if (key is not ("NIFTY" or "BANKNIFTY")) return null;
-        return ToResponse(mockData.GetSnapshot(key));
+        return ToResponse(marketData.GetSnapshot(key));
     }
 
     public IReadOnlyList<CandleResponse> GetCandles(string symbol)
     {
-        var candles = mockData.GetCandles(symbol.ToUpper());
+        var candles = marketData.GetCandles(symbol.ToUpper());
         return candles.Select(c => new CandleResponse(
             Time:   c.Time.ToUnixTimeSeconds(),
             Open:   c.Open,

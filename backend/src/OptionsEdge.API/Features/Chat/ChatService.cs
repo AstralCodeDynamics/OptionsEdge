@@ -14,7 +14,7 @@ namespace OptionsEdge.API.Features.Chat;
 public class ChatService(
     ClaudeApiClient claude,
     IndicatorService indicatorService,
-    MockMarketDataService mockData,
+    IMarketDataService marketData,
     AppDbContext db,
     IConfiguration config,
     ILogger<ChatService> logger)
@@ -181,7 +181,7 @@ public class ChatService(
 
         var marketLines = symbols.Select(sym =>
         {
-            var snap = mockData.GetSnapshot(sym);
+            var snap = marketData.GetSnapshot(sym);
             var ind  = indicatorService.GetIndicators(sym);
             return $"- {sym}: Spot {snap.Ltp:F2} ({snap.ChangePct:F2}%) | VIX {snap.Vix:F2} | PCR {snap.Pcr:F2} | " +
                    $"RSI {ind.Rsi.Value:F1} [{ind.Rsi.Signal}] | MACD bullish cross: {ind.Macd.IsBullishCross} | " +

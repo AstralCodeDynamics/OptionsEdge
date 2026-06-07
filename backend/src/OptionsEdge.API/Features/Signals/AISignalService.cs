@@ -18,7 +18,7 @@ public class AISignalService(
     SignalCacheService cache,
     IndicatorService indicatorService,
     OptionsService optionsService,
-    MockMarketDataService mockData,
+    IMarketDataService marketData,
     IHubContext<MarketHub> hub,
     AppDbContext db,
     IConfiguration config,
@@ -59,7 +59,7 @@ public class AISignalService(
 
         // Gather market context
         var indicators = indicatorService.GetIndicators(key);
-        var snapshot   = mockData.GetSnapshot(key);
+        var snapshot   = marketData.GetSnapshot(key);
         var expiries   = optionsService.GetExpiries(key);
 
         // Cache check
@@ -206,7 +206,7 @@ public class AISignalService(
         Domain.Entities.Position position,
         CancellationToken ct = default)
     {
-        var snapshot = mockData.GetSnapshot(position.Symbol);
+        var snapshot = marketData.GetSnapshot(position.Symbol);
         var model    = config["Claude:HaikuModel"] ?? AppConstants.Models.Haiku;
 
         var prompt = BuildRiskCheckPrompt(position, snapshot);

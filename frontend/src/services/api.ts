@@ -195,6 +195,44 @@ async function streamChatMessage(
   }
 }
 
+export interface GrowwStatus {
+  enabled: boolean
+  connected: boolean
+  expiresAt?: string | null
+}
+
+export interface PlaceOrderRequest {
+  positionId?: string
+  symbol: string
+  strike: number
+  optionType: string
+  expiry: string
+  quantity: number
+  price: number
+  orderType: string
+  transactionType: string
+}
+
+export interface PlaceOrderResult {
+  orderId: string
+  status: string
+  tradingSymbol: string
+  quantity: number
+}
+
+export const growwApi = {
+  connect: (totp: string) =>
+    api.post<{ connected: boolean; expiresAt: string; importedPositions: number }>(
+      '/groww/connect',
+      { totp },
+    ).then((r) => r.data),
+  getStatus: () => api.get<GrowwStatus>('/groww/status').then((r) => r.data),
+  placeOrder: (data: PlaceOrderRequest) =>
+    api.post<PlaceOrderResult>('/orders/place', data).then((r) => r.data),
+  cancelOrder: (orderId: string) =>
+    api.post(`/orders/${orderId}/cancel`).then((r) => r.data),
+}
+
 export const chatApi = {
   newSession: () =>
     api.post<{ sessionId: string }>('/chat/new-session').then((r) => r.data),

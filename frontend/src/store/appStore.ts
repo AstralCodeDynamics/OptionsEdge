@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { MarketSnapshot, Position, Alert, User, MarketStatus, IndicatorsResponse, Signal } from '../types'
+import type { GrowwStatus } from '../services/api'
 
 interface MarketSlice {
   snapshots: Record<string, MarketSnapshot>
@@ -43,7 +44,12 @@ interface UiSlice {
   setSidebarOpen: (open: boolean) => void
 }
 
-type AppStore = MarketSlice & SignalsSlice & PositionsSlice & AlertsSlice & UserSlice & UiSlice
+interface GrowwSlice {
+  growwStatus: GrowwStatus | null
+  setGrowwStatus: (status: GrowwStatus | null) => void
+}
+
+type AppStore = MarketSlice & SignalsSlice & PositionsSlice & AlertsSlice & UserSlice & UiSlice & GrowwSlice
 
 export const useAppStore = create<AppStore>((set) => ({
   // Market
@@ -107,4 +113,8 @@ export const useAppStore = create<AppStore>((set) => ({
   sidebarOpen: false,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+
+  // Groww
+  growwStatus: null,
+  setGrowwStatus: (growwStatus) => set({ growwStatus }),
 }))

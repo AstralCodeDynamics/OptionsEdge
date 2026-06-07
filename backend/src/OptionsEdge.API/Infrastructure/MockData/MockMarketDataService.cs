@@ -19,7 +19,7 @@ public record MarketSnapshotData(
     decimal DiiFlow,
     DateTimeOffset Timestamp);
 
-public class MockMarketDataService
+public class MockMarketDataService : IMarketDataService
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
 

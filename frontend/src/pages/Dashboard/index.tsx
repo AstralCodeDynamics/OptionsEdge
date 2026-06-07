@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMarketData } from '../../hooks/useMarketData'
 import { useAppStore } from '../../store/appStore'
-import { marketApi, signalsApi } from '../../services/api'
+import { marketApi, signalsApi, growwApi, positionsApi } from '../../services/api'
 import IndexCard from '../../components/market/IndexCard'
 import MarketStatusBanner from '../../components/market/MarketStatusBanner'
 import MarketPulse from '../../components/market/MarketPulse'
@@ -10,7 +10,8 @@ import { IndicatorPanel } from '../../components/indicators/IndicatorPanel'
 import { PivotLevels } from '../../components/market/PivotLevels'
 import { PriceChart } from '../../components/charts/PriceChart'
 import { SignalCard } from '../../components/signals/SignalCard'
-import type { Candle } from '../../types'
+import OrderConfirmModal from '../../components/groww/OrderConfirmModal'
+import type { Candle, Signal } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
 type Symbol = (typeof SYMBOLS)[number]
@@ -21,6 +22,8 @@ export default function Dashboard() {
   const indicators    = useAppStore((s) => s.indicators)
   const storeSignals  = useAppStore((s) => s.signals)
   const prependSignal = useAppStore((s) => s.prependSignal)
+  const growwStatus   = useAppStore((s) => s.growwStatus)
+  const upsertPosition = useAppStore((s) => s.upsertPosition)
   const navigate      = useNavigate()
 
   const [activeSymbol, setActiveSymbol] = useState<Symbol>('NIFTY')
@@ -28,6 +31,7 @@ export default function Dashboard() {
   const [signalLoading, setSignalLoading] = useState(false)
   const [signalElapsed, setSignalElapsed] = useState(0)
   const [signalError, setSignalError]   = useState<string | null>(null)
+  const [orderSignal, setOrderSignal]    = useState<Signal | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -60,6 +64,37 @@ export default function Dashboard() {
       stopTimer()
       setSignalLoading(false)
     }
+  }
+
+  async function handleConfirmOrder(lots: number) {
+    if (!orderSignal) return
+    const signal = orderSignal
+
+    await growwApi.placeOrder({
+      symbol: signal.symbol,
+      strike: signal.strike,
+      optionType: signal.optionType,
+      expiry: signal.expiry,
+      quantity: lots,
+      price: signal.entryHigh,
+      orderType: 'LIMIT',
+      transactionType: 'BUY',
+    })
+
+    // Auto-create the position in the tracker so it shows up alongside Groww-imported ones
+    const created = await positionsApi.create({
+      symbol: signal.symbol,
+      strike: signal.strike,
+      optionType: signal.optionType,
+      expiry: signal.expiry,
+      entryPrice: signal.entryHigh,
+      quantity: lots,
+      stopLoss: signal.stopLoss,
+      target1: signal.target1,
+      target2: signal.target2,
+      signalId: signal.id,
+    })
+    upsertPosition(created)
   }
 
   const nifty = snapshots['NIFTY']
@@ -176,7 +211,12 @@ export default function Dashboard() {
         )}
 
         {storeSignals.filter((s) => s.symbol === activeSymbol).slice(0, 1).map((sig) => (
-          <SignalCard key={sig.id} signal={sig} />
+          <SignalCard
+            key={sig.id}
+            signal={sig}
+            growwConnected={growwStatus?.connected}
+            onPlaceOrder={setOrderSignal}
+          />
         ))}
 
         {storeSignals.filter((s) => s.symbol === activeSymbol).length === 0 && !signalLoading && (
@@ -185,6 +225,13 @@ export default function Dashboard() {
           </p>
         )}
       </div>
+
+      <OrderConfirmModal
+        open={orderSignal !== null}
+        onClose={() => setOrderSignal(null)}
+        signal={orderSignal}
+        onConfirm={handleConfirmOrder}
+      />
     </div>
   )
 }

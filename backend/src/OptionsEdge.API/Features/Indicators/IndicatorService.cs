@@ -3,15 +3,15 @@ using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Indicators;
 
-public class IndicatorService(MockMarketDataService mockData)
+public class IndicatorService(IMarketDataService marketData)
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
 
     public IndicatorsResponse GetIndicators(string symbol)
     {
         var key = symbol.ToUpper();
-        var candles = mockData.GetCandles(key);
-        var snapshot = mockData.GetSnapshot(key);
+        var candles = marketData.GetCandles(key);
+        var snapshot = marketData.GetSnapshot(key);
         decimal price = snapshot.Ltp;
 
         var quotes = candles

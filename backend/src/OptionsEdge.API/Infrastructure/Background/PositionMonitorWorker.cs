@@ -9,7 +9,7 @@ namespace OptionsEdge.API.Infrastructure.Background;
 
 public class PositionMonitorWorker(
     IServiceScopeFactory scopeFactory,
-    MockMarketDataService mockData,
+    IMarketDataService marketData,
     OptionsService optionsService,
     PositionService positionService,
     IMemoryCache cache,
@@ -52,7 +52,7 @@ public class PositionMonitorWorker(
 
         foreach (var symbol in new[] { "NIFTY", "BANKNIFTY" })
         {
-            var snapshot = mockData.GetSnapshot(symbol);
+            var snapshot = marketData.GetSnapshot(symbol);
             PushHistory(_spotHistory, symbol, snapshot.Ltp);
             PushHistory(_vixHistory,  symbol, snapshot.Vix);
         }
@@ -81,7 +81,7 @@ public class PositionMonitorWorker(
         CancellationToken ct)
     {
         var symbol       = position.Symbol.ToUpper();
-        var snapshot     = mockData.GetSnapshot(symbol);
+        var snapshot     = marketData.GetSnapshot(symbol);
         decimal currentLtp = optionsService.GetOptionLtp(
             symbol, position.Strike, position.OptionType, position.Expiry.ToString("yyyy-MM-dd"));
 
