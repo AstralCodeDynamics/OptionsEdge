@@ -74,19 +74,35 @@ public class ClaudeApiClient(
 
     // Streams a completion as raw SSE (event:/data: lines), yielding text deltas as they
     // arrive and a final chunk carrying input/output token usage for cost tracking.
+    public IAsyncEnumerable<ClaudeStreamChunk> StreamAsync(
+        string model,
+        string systemPrompt,
+        string userMessage,
+        int maxTokens,
+        CancellationToken ct = default) =>
+        StreamAsync(model, systemPrompt, userMessage, maxTokens, [], ct);
+
+    // Overload that prepends prior turns (oldest first) to the messages array, enabling
+    // multi-turn conversation memory (e.g. chat history).
     public async IAsyncEnumerable<ClaudeStreamChunk> StreamAsync(
         string model,
         string systemPrompt,
         string userMessage,
         int maxTokens,
+        IReadOnlyList<(string Role, string Content)> history,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        var messages = new List<object>(history.Count + 1);
+        foreach (var (role, content) in history)
+            messages.Add(new { role, content });
+        messages.Add(new { role = "user", content = userMessage });
+
         var requestBody = JsonSerializer.Serialize(new
         {
             model,
             max_tokens = maxTokens,
             system = systemPrompt,
-            messages = new[] { new { role = "user", content = userMessage } },
+            messages,
             stream = true
         });
 

@@ -10,7 +10,7 @@ public static class ChatEndpoints
         var group = app.MapGroup("/api/v1/chat");
 
         // POST /api/v1/chat/message — streams the assistant reply as Server-Sent Events
-        group.MapPost("/message", async (
+        group.MapPost("/message", async Task (
             ChatMessageRequest req,
             ChatService svc,
             IConfiguration config,
@@ -18,12 +18,20 @@ public static class ChatEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Message))
-                return Results.BadRequest(new { error = "Message cannot be empty" });
+            {
+                response.StatusCode = StatusCodes.Status400BadRequest;
+                await response.WriteAsJsonAsync(new { error = "Message cannot be empty" }, ct);
+                return;
+            }
 
             var userId = DevUserId(config);
             var error  = await svc.ValidateAsync(userId, ct);
             if (error is not null)
-                return Results.BadRequest(new { error });
+            {
+                response.StatusCode = StatusCodes.Status400BadRequest;
+                await response.WriteAsJsonAsync(new { error }, ct);
+                return;
+            }
 
             response.ContentType = "text/event-stream";
             response.Headers.CacheControl = "no-cache";
@@ -35,8 +43,6 @@ public static class ChatEndpoints
                 await response.WriteAsync($"data: {JsonSerializer.Serialize(chunk)}\n\n", ct);
                 await response.Body.FlushAsync(ct);
             }
-
-            return Results.Empty;
         }).WithName("SendChatMessage");
 
         // GET /api/v1/chat/history?sessionId=...

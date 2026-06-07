@@ -67,6 +67,19 @@ public class ChatService(
 
         var systemPrompt = await BuildSystemPromptAsync(userId, ct);
 
+        // Last 10 turns (oldest first) give Claude genuine multi-turn memory of this session
+        var recent = await db.ChatMessages
+            .Where(m => m.UserId == userId && m.SessionId == sessionId)
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(10)
+            .Select(m => new { m.Role, m.Content, m.CreatedAt })
+            .ToListAsync(ct);
+
+        IReadOnlyList<(string Role, string Content)> history = recent
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => (m.Role, m.Content))
+            .ToList();
+
         db.ChatMessages.Add(new ChatMessage
         {
             Id        = Guid.NewGuid(),
@@ -84,7 +97,7 @@ public class ChatService(
 
         logger.LogInformation("Streaming Claude Sonnet chat reply for user {UserId} session {SessionId}", userId, sessionId);
 
-        await foreach (var chunk in claude.StreamAsync(model, systemPrompt, message, AppConstants.AiTokenLimits.SonnetMaxTokens, ct))
+        await foreach (var chunk in claude.StreamAsync(model, systemPrompt, message, AppConstants.AiTokenLimits.SonnetMaxTokens, history, ct))
         {
             if (chunk.TextDelta is not null)
             {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatApi } from '../services/api'
 
-const SESSION_STORAGE_KEY = 'oe_chat_session_id'
+let cachedSessionId: string | null = null
 
 export interface DisplayMessage {
   id: string
@@ -16,19 +16,11 @@ export interface DisplayMessage {
 }
 
 function loadSessionId(): string | null {
-  try {
-    return localStorage.getItem(SESSION_STORAGE_KEY)
-  } catch {
-    return null
-  }
+  return cachedSessionId
 }
 
 function saveSessionId(id: string): void {
-  try {
-    localStorage.setItem(SESSION_STORAGE_KEY, id)
-  } catch {
-    // ignore storage failures (private browsing etc.)
-  }
+  cachedSessionId = id
 }
 
 export function useAIChat() {
