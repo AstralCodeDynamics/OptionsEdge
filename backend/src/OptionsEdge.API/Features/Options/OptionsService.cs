@@ -144,6 +144,8 @@ public class OptionsService(IMarketDataService marketData)
     {
         if (legs.Count == 0)
             throw new ArgumentException("At least one leg is required");
+        if (legs.Count > 10)
+            throw new ArgumentException("Maximum 10 legs allowed per strategy.");
 
         var resolved = legs.Select(ResolveLeg).ToList();
 

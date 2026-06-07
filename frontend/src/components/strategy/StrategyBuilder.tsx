@@ -10,7 +10,7 @@ interface Props {
   symbol: string
 }
 
-const LOT_SIZE: Record<string, number> = { NIFTY: 75, BANKNIFTY: 15 }
+const LOT_SIZE: Record<string, number> = { NIFTY: 75, BANKNIFTY: 35 }
 const fmtMoney = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
 let legSeq = 0
@@ -140,7 +140,7 @@ export function StrategyBuilder({ chain, symbol }: Props) {
           optionType: leg.optionType,
           expiry: chain.expiry,
           entryPrice: leg.premium,
-          quantity: leg.lots * lotSize,
+          quantity: leg.lots,
           stopLoss: Math.round(leg.premium * 0.5 * 100) / 100,
           target1: Math.round(leg.premium * 1.5 * 100) / 100,
         })
