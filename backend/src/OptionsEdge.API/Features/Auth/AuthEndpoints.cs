@@ -105,6 +105,7 @@ public static class AuthEndpoints
             LoginRequest req,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
+            IOptions<AuthSettings> authSettings,
             JwtService jwt,
             AppDbContext db,
             CancellationToken ct) =>
@@ -113,7 +114,7 @@ public static class AuthEndpoints
             if (user is null)
                 return Results.BadRequest(new { error = InvalidCredentialsMessage });
 
-            var passwordCheck = await signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: true);
+            var passwordCheck = await signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: authSettings.Value.EnableLockout);
 
             if (passwordCheck.IsLockedOut)
                 return Results.Json(new { error = "Account locked due to too many failed attempts. Try again later." }, statusCode: StatusCodes.Status423Locked);
@@ -177,7 +178,6 @@ public static class AuthEndpoints
             db.RefreshTokens.Update(existing);
 
             var response = await IssueAuthResponseAsync(user, userManager, jwt, db, ct);
-            await db.SaveChangesAsync(ct);
 
             return Results.Ok(response);
         }).WithName("RefreshToken");
@@ -223,6 +223,9 @@ public static class AuthEndpoints
             UserManager<ApplicationUser> userManager,
             CancellationToken ct) =>
         {
+            if (req.NewPassword != req.ConfirmPassword)
+                return Results.BadRequest(new { error = "Passwords do not match." });
+
             var user = await userManager.FindByEmailAsync(req.Email);
             if (user is null)
                 return Results.BadRequest(new { error = "Invalid or expired reset token." });
@@ -329,6 +332,9 @@ public static class AuthEndpoints
             UserManager<ApplicationUser> userManager,
             CancellationToken ct) =>
         {
+            if (req.NewPassword != req.ConfirmPassword)
+                return Results.BadRequest(new { error = "Passwords do not match." });
+
             var userId = ctx.GetUserId(config);
             var user   = await userManager.FindByIdAsync(userId.ToString());
             if (user is null) return Results.NotFound();

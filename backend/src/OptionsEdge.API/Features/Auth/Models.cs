@@ -8,10 +8,10 @@ public record TwoFactorRequest(string Email, string Code, bool RememberMachine =
 public record RefreshRequest(string RefreshToken);
 public record LogoutRequest(string RefreshToken);
 public record ForgotPasswordRequest(string Email);
-public record ResetPasswordRequest(string Email, string Token, string NewPassword);
+public record ResetPasswordRequest(string Email, string Token, string NewPassword, string ConfirmPassword);
 public record VerifyTwoFactorSetupRequest(string Code);
 public record DisableTwoFactorRequest(string Password);
-public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword, string ConfirmPassword);
 
 public record AuthResponse(
     string AccessToken,
