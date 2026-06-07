@@ -396,7 +396,10 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
             ? trades.Sum(t => Math.Pow((double)t.PnL - mean, 2)) / (trades.Count - 1)
             : 0;
         double stdDev = Math.Sqrt(variance);
-        decimal sharpe = stdDev > 0 ? Math.Round((decimal)(mean / stdDev * Math.Sqrt(trades.Count)), 2) : 0;
+        // Per-trade Sharpe (not annualised) — valid for comparing
+        // strategies run over the same period. Positive > 0 is good,
+        // > 1.0 is excellent for options strategies.
+        decimal sharpe = stdDev > 0 ? Math.Round((decimal)(mean / stdDev), 2) : 0;
 
         return new BacktestStats(winRate, Math.Round(netPnl, 2), Math.Round(maxDrawdown, 2), sharpe, profitFactor, avgWin, avgLoss);
     }
