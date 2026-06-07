@@ -188,6 +188,36 @@ export interface ChatMessage {
   createdAt: string
 }
 
+export interface BacktestTradeLogEntry {
+  entryDate: string
+  exitDate: string
+  contract: string
+  entryPrice: number
+  exitPrice: number
+  pnL: number
+  exitReason: string
+}
+
+export interface BacktestResult {
+  id: string
+  symbol: string
+  strategy: string
+  entryCondition: string
+  exitCondition: string
+  periodDays: number
+  lots: number
+  winRate: number
+  totalTrades: number
+  netPnl: number
+  maxDrawdown: number
+  sharpeRatio: number
+  profitFactor: number
+  avgWin: number
+  avgLoss: number
+  tradeLog: BacktestTradeLogEntry[]
+  createdAt: string
+}
+
 export interface User {
   id: string
   email: string

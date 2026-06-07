@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage } from '../types'
+import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage, BacktestResult } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
@@ -105,6 +105,19 @@ export const positionsApi = {
     api.delete(`/positions/${id}`),
   getPnL: (id: string) =>
     api.get(`/positions/${id}/pnl`).then((r) => r.data),
+}
+
+export const backtestApi = {
+  run: (data: {
+    symbol: string
+    strategy: string
+    entryCondition: string
+    exitCondition: string
+    periodDays: number
+    lots: number
+  }) => api.post<BacktestResult>('/backtest/run', data).then((r) => r.data),
+  getHistory: () =>
+    api.get<BacktestResult[]>('/backtest/history').then((r) => r.data),
 }
 
 export const alertsApi = {

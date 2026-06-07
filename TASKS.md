@@ -275,17 +275,17 @@
 ## Phase 6 — Backtesting Engine
 
 ### Backend
-- [ ] Create `BacktestService`:
+- [x] Create `BacktestService`:
   - Uses 90 days mock OHLCV history from MockMarketDataService
   - Strategies: LongCall, LongPut, BullCallSpread, BearPutSpread, Straddle, Strangle, IronCondor
   - Entry signals: RSI_Oversold(30), RSI_Overbought(70), MACD_Bullish_Cross, MACD_Bearish_Cross, SupertrendBullish, SupertrendBearish, PriceBreakoutAboveR1, PriceBreakdownBelowS1
   - Exit signals: SLHit, Target1Hit, Target2Hit, ThetaDecay50Pct, ExpiryMinus1Day
   - Compute: winRate, totalPnL, maxDrawdown, sharpeRatio, profitFactor, avgWin, avgLoss, tradeLog
   - Save to backtest_results table
-- [ ] Implement POST /api/v1/backtest/run, GET /api/v1/backtest/history
+- [x] Implement POST /api/v1/backtest/run, GET /api/v1/backtest/history
 
 ### Frontend
-- [ ] Create `Backtest.tsx` page:
+- [x] Create `Backtest.tsx` page:
   - Form: strategy, entry condition, exit condition, period, lots
   - "Run Backtest" button with progress indicator
   - Stats cards: Win Rate, Net P&L, Max Drawdown, Sharpe Ratio, Profit Factor, Total Trades
