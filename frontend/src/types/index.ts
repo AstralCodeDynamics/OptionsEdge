@@ -245,17 +245,71 @@ export interface BacktestResult {
   createdAt: string
 }
 
-export interface User {
+export interface AuthUser {
+  id: string
+  email: string
+  displayName: string
+  subscriptionPlan: string
+  twoFactorEnabled: boolean
+  emailConfirmed: boolean
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  displayName: string
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface ResetPasswordRequest {
+  email: string
+  token: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface AuthResponse {
+  accessToken: string
+  refreshToken: string
+  accessTokenExpiry: string
+  displayName: string
+  email: string
+  subscriptionPlan: string
+  twoFactorEnabled: boolean
+}
+
+export interface TwoFactorRequiredResponse {
+  twoFactorRequired: boolean
+  email: string
+}
+
+export interface MeResponse {
   id: string
   email: string
   displayName: string
   subscriptionPlan: string
   walletBalance: number
-  aiCallsToday: number
+  emailConfirmed: boolean
+  twoFactorEnabled: boolean
+  createdAt: string
 }
 
-export interface AuthTokens {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
+export interface EnableTwoFactorResponse {
+  sharedKey: string
+  authenticatorUri: string
+}
+
+export interface VerifyTwoFactorSetupResponse {
+  enabled: boolean
+  recoveryCodes: string[]
 }

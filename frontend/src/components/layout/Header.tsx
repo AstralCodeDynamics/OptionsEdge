@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { growwApi } from '../../services/api'
+import { useAuth } from '../../hooks/useAuth'
 import ConnectGrowwModal from '../groww/ConnectGrowwModal'
 
 export default function Header() {
@@ -8,7 +10,10 @@ export default function Header() {
   const marketStatus = useAppStore((s) => s.marketStatus)
   const growwStatus = useAppStore((s) => s.growwStatus)
   const setGrowwStatus = useAppStore((s) => s.setGrowwStatus)
+  const user = useAppStore((s) => s.user)
+  const { logout } = useAuth()
   const [growwModalOpen, setGrowwModalOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   useEffect(() => {
     growwApi.getStatus().then(setGrowwStatus).catch(() => {})
@@ -46,6 +51,43 @@ export default function Header() {
         >
           {marketStatus.isOpen ? 'Open' : 'Closed'}
         </span>
+      )}
+
+      {user && (
+        <div className="relative">
+          <button
+            onClick={() => setUserMenuOpen((v) => !v)}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-semibold"
+            aria-label="Account menu"
+          >
+            {user.displayName.charAt(0).toUpperCase()}
+          </button>
+
+          {userMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />
+              <div className="absolute right-0 top-10 z-40 w-56 bg-gray-900 border border-gray-800 rounded-xl shadow-lg py-2">
+                <div className="px-4 py-2 border-b border-gray-800">
+                  <p className="text-sm font-medium text-white truncate">{user.displayName}</p>
+                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                </div>
+                <Link
+                  to="/settings/security"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="block px-4 py-2.5 min-h-[44px] flex items-center text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  Security settings
+                </Link>
+                <button
+                  onClick={() => { setUserMenuOpen(false); logout() }}
+                  className="w-full text-left px-4 py-2.5 min-h-[44px] flex items-center text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                >
+                  Log out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       <ConnectGrowwModal

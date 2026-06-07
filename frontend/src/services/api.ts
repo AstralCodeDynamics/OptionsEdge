@@ -1,16 +1,34 @@
 import axios from 'axios'
-import type { MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert, ChatMessage, BacktestResult, StrategyLeg, PayoffResult } from '../types'
+import type {
+  MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert,
+  ChatMessage, BacktestResult, StrategyLeg, PayoffResult,
+  RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
+  AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
+} from '../types'
+import { useAppStore } from '../store/appStore'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
-let authToken: string | null = null
+// Tokens are kept in module-level memory only — never localStorage/sessionStorage.
+let _accessToken: string | null = null
+let _refreshToken: string | null = null
 
-export function setAuthToken(token: string): void {
-  authToken = token
+export function setTokens(access: string, refresh: string): void {
+  _accessToken = access
+  _refreshToken = refresh
 }
 
-export function clearAuthToken(): void {
-  authToken = null
+export function clearTokens(): void {
+  _accessToken = null
+  _refreshToken = null
+}
+
+export function getAccessToken(): string | null {
+  return _accessToken
+}
+
+export function getRefreshToken(): string | null {
+  return _refreshToken
 }
 
 const api = axios.create({
@@ -19,19 +37,87 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  if (authToken) {
-    config.headers.Authorization = `Bearer ${authToken}`
+  if (_accessToken) {
+    config.headers.Authorization = `Bearer ${_accessToken}`
   }
   return config
 })
 
+let _isRefreshing = false
+let _refreshQueue: Array<{
+  resolve: (token: string) => void
+  reject: (error: unknown) => void
+}> = []
+
+function redirectToLogin(): void {
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      clearAuthToken()
-      window.location.href = '/login'
+    const status = error.response?.status
+    const originalRequest = error.config
+
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      const refresh = getRefreshToken()
+      if (!refresh) {
+        clearTokens()
+        useAppStore.getState().logout()
+        redirectToLogin()
+        return Promise.reject(error)
+      }
+
+      if (_isRefreshing) {
+        return new Promise((resolve, reject) => {
+          _refreshQueue.push({
+            resolve: (token: string) => {
+              originalRequest._retry = true
+              originalRequest.headers = originalRequest.headers ?? {}
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(api(originalRequest))
+            },
+            reject,
+          })
+        })
+      }
+
+      originalRequest._retry = true
+      _isRefreshing = true
+
+      try {
+        const data = await authApi.refresh(refresh)
+        setTokens(data.accessToken, data.refreshToken)
+
+        _refreshQueue.forEach((p) => p.resolve(data.accessToken))
+        _refreshQueue = []
+
+        originalRequest.headers = originalRequest.headers ?? {}
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        _refreshQueue.forEach((p) => p.reject(refreshError))
+        _refreshQueue = []
+
+        clearTokens()
+        useAppStore.getState().logout()
+        redirectToLogin()
+        return Promise.reject(refreshError)
+      } finally {
+        _isRefreshing = false
+      }
     }
+
+    if (status === 429) {
+      const retryAfter = error.response?.headers?.['retry-after']
+      const message = retryAfter
+        ? `You're sending requests too quickly. Try again in ${retryAfter}s.`
+        : "You're sending requests too quickly. Please slow down and try again shortly."
+      error.friendlyMessage = message
+    }
+
     return Promise.reject(error)
   }
 )
@@ -159,7 +245,7 @@ async function streamChatMessage(
   signal?: AbortSignal,
 ): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (authToken) headers.Authorization = `Bearer ${authToken}`
+  if (_accessToken) headers.Authorization = `Bearer ${_accessToken}`
 
   const res = await fetch(`${API_BASE_URL}/chat/message`, {
     method: 'POST',
@@ -269,6 +355,50 @@ export const chatApi = {
       )
       .then((r) => r.data),
   streamMessage: streamChatMessage,
+}
+
+export const authApi = {
+  register: (data: RegisterRequest) =>
+    api.post<{ message: string; requiresEmailConfirmation: boolean }>('/auth/register', data).then((r) => r.data),
+
+  confirmEmail: (userId: string, token: string) =>
+    api.post<{ message: string }>('/auth/confirm-email', { userId, token }).then((r) => r.data),
+
+  resendConfirmation: (email: string) =>
+    api.post<{ message: string }>('/auth/resend-confirmation', { email }).then((r) => r.data),
+
+  login: (data: LoginRequest) =>
+    api.post<AuthResponse | TwoFactorRequiredResponse>('/auth/login', data).then((r) => r.data),
+
+  twoFactor: (email: string, code: string) =>
+    api.post<AuthResponse>('/auth/two-factor', { email, code }).then((r) => r.data),
+
+  refresh: (refreshToken: string) =>
+    api.post<AuthResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
+
+  logout: (refreshToken: string) =>
+    api.post('/auth/logout', { refreshToken }),
+
+  forgotPassword: (email: string) =>
+    api.post<{ message: string }>('/auth/forgot-password', { email }).then((r) => r.data),
+
+  resetPassword: (data: ResetPasswordRequest) =>
+    api.post<{ message: string }>('/auth/reset-password', data).then((r) => r.data),
+
+  me: () =>
+    api.get<MeResponse>('/auth/me').then((r) => r.data),
+
+  enableTwoFactor: () =>
+    api.post<EnableTwoFactorResponse>('/auth/enable-2fa').then((r) => r.data),
+
+  verifyTwoFactorSetup: (code: string) =>
+    api.post<VerifyTwoFactorSetupResponse>('/auth/verify-2fa-setup', { code }).then((r) => r.data),
+
+  disableTwoFactor: (password: string) =>
+    api.post('/auth/disable-2fa', { password }),
+
+  changePassword: (data: ChangePasswordRequest) =>
+    api.post('/auth/change-password', data),
 }
 
 export default api

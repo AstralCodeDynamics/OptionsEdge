@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MarketSnapshot, Position, Alert, User, MarketStatus, IndicatorsResponse, Signal } from '../types'
+import type { MarketSnapshot, Position, Alert, AuthUser, MarketStatus, IndicatorsResponse, Signal } from '../types'
 import type { GrowwStatus } from '../services/api'
 
 interface MarketSlice {
@@ -33,9 +33,14 @@ interface AlertsSlice {
   markAllRead: () => void
 }
 
-interface UserSlice {
-  user: User | null
-  setUser: (user: User | null) => void
+interface AuthSlice {
+  user: AuthUser | null
+  isAuthenticated: boolean
+  isAuthLoading: boolean
+  setUser: (user: AuthUser | null) => void
+  setIsAuthenticated: (value: boolean) => void
+  setAuthLoading: (value: boolean) => void
+  logout: () => void
 }
 
 interface UiSlice {
@@ -49,7 +54,7 @@ interface GrowwSlice {
   setGrowwStatus: (status: GrowwStatus | null) => void
 }
 
-type AppStore = MarketSlice & SignalsSlice & PositionsSlice & AlertsSlice & UserSlice & UiSlice & GrowwSlice
+type AppStore = MarketSlice & SignalsSlice & PositionsSlice & AlertsSlice & AuthSlice & UiSlice & GrowwSlice
 
 export const useAppStore = create<AppStore>((set) => ({
   // Market
@@ -105,9 +110,14 @@ export const useAppStore = create<AppStore>((set) => ({
       unreadCount: 0,
     })),
 
-  // User
+  // Auth
   user: null,
+  isAuthenticated: false,
+  isAuthLoading: true,
   setUser: (user) => set({ user }),
+  setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
+  setAuthLoading: (isAuthLoading) => set({ isAuthLoading }),
+  logout: () => set({ user: null, isAuthenticated: false }),
 
   // UI
   sidebarOpen: false,

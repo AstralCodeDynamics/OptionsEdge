@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { growwApi } from '../../services/api'
+import { useAuth } from '../../hooks/useAuth'
 import ConnectGrowwModal from '../groww/ConnectGrowwModal'
 
 const navItems = [
@@ -10,6 +11,7 @@ const navItems = [
   { to: '/chain', label: 'Chain', icon: '⊞' },
   { to: '/backtest', label: 'Backtest', icon: '◷' },
   { to: '/chat', label: 'AI Chat', icon: '◉' },
+  { to: '/settings/security', label: 'Security', icon: '⚙' },
 ]
 
 export default function Sidebar() {
@@ -17,6 +19,8 @@ export default function Sidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
   const growwStatus = useAppStore((s) => s.growwStatus)
   const setGrowwStatus = useAppStore((s) => s.setGrowwStatus)
+  const user = useAppStore((s) => s.user)
+  const { logout } = useAuth()
   const [growwModalOpen, setGrowwModalOpen] = useState(false)
 
   useEffect(() => {
@@ -75,6 +79,21 @@ export default function Sidebar() {
             </NavLink>
           ))}
         </nav>
+
+        {user && (
+          <div className="border-t border-gray-800 p-4 space-y-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white truncate">{user.displayName}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={() => logout()}
+              className="w-full text-left text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg px-3 py-2.5 min-h-[44px] transition-colors"
+            >
+              Log out
+            </button>
+          </div>
+        )}
       </aside>
 
       <ConnectGrowwModal
