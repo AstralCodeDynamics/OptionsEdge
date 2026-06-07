@@ -11,6 +11,7 @@ import { PivotLevels } from '../../components/market/PivotLevels'
 import { PriceChart } from '../../components/charts/PriceChart'
 import { SignalCard } from '../../components/signals/SignalCard'
 import OrderConfirmModal from '../../components/groww/OrderConfirmModal'
+import { IndexCardSkeleton, IndicatorPanelSkeleton } from '../../components/common/Skeleton'
 import type { Candle, Signal } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
@@ -108,16 +109,8 @@ export default function Dashboard() {
 
       {/* Index cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {nifty ? (
-          <IndexCard snapshot={nifty} />
-        ) : (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 animate-pulse h-32" />
-        )}
-        {bankNifty ? (
-          <IndexCard snapshot={bankNifty} />
-        ) : (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 animate-pulse h-32" />
-        )}
+        {nifty ? <IndexCard snapshot={nifty} /> : <IndexCardSkeleton />}
+        {bankNifty ? <IndexCard snapshot={bankNifty} /> : <IndexCardSkeleton />}
       </div>
 
       {/* Symbol selector */}
@@ -166,7 +159,7 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 animate-pulse h-40" />
+        <IndicatorPanelSkeleton />
       )}
 
       {/* Market pulse */}

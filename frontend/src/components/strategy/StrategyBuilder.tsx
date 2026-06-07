@@ -279,14 +279,14 @@ export function StrategyBuilder({ chain, symbol }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={handleAnalyzeWithAI}
-          className="text-xs font-semibold px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+          className="text-xs font-semibold px-4 py-2 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
         >
           Analyze with AI
         </button>
         <button
           onClick={handleTrackThis}
           disabled={tracking}
-          className="text-xs font-semibold px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white transition-colors"
+          className="text-xs font-semibold px-4 py-2 min-h-[44px] rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white transition-colors"
         >
           {tracking ? 'Adding…' : 'Track This'}
         </button>

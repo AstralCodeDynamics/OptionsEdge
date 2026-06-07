@@ -59,7 +59,7 @@ export default function AIChat() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] lg:h-screen max-w-3xl mx-auto w-full">
+    <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-screen max-w-3xl mx-auto w-full">
       {/* Context bar */}
       <div className="flex items-center gap-2 flex-wrap px-4 py-3 border-b border-gray-800 text-xs text-gray-400">
         {nifty && (
@@ -151,12 +151,12 @@ export default function AIChat() {
           onKeyDown={handleKeyDown}
           rows={1}
           placeholder="Ask about the market, your positions, or strategy…"
-          className="flex-1 resize-none bg-gray-800 text-gray-100 text-sm rounded-xl px-3 py-2.5 placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-600 max-h-32"
+          className="flex-1 resize-none bg-gray-800 text-gray-100 text-sm rounded-xl px-3 py-2.5 min-h-[44px] placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-600 max-h-32"
         />
         <button
           onClick={handleSend}
           disabled={sending || !input.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors"
+          className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl px-4 py-2.5 min-h-[44px] transition-colors"
         >
           Send
         </button>

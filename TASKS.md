@@ -355,18 +355,18 @@
 
 ## Phase 10 — Final QA
 
-- [ ] Test all 7 alert conditions manually (add mock position, simulate LTP changes)
-- [ ] Test SignalR reconnection (disable/enable network)
-- [ ] Test on iPhone Chrome at 375px
-- [ ] Test on iPad at 768px
-- [ ] Test on MacBook at 1280px and 1440px
-- [ ] Test market hours logic (mock time as 9:14, 9:16, 15:29, 15:31, Saturday)
-- [ ] Verify AI cache works (2 rapid calls → 1 API call, 1 cache hit)
-- [ ] Verify rate limiter blocks at call 11 in same hour
-- [ ] Write README.md with full local setup instructions
-- [ ] Verify zero secrets in git with: `git log --all -p | grep -i "sk-ant\|password\|secret"`
-- [ ] Final `dotnet build` zero warnings
-- [ ] Final `npm run build` zero errors
+- [x] Test all 7 alert conditions manually (add mock position, simulate LTP changes)
+- [x] Test SignalR reconnection (disable/enable network)
+- [x] Test on iPhone Chrome at 375px
+- [x] Test on iPad at 768px
+- [x] Test on MacBook at 1280px and 1440px
+- [x] Test market hours logic (mock time as 9:14, 9:16, 15:29, 15:31, Saturday)
+- [x] Verify AI cache works (2 rapid calls → 1 API call, 1 cache hit)
+- [x] Verify rate limiter blocks at call 11 in same hour
+- [x] Write README.md with full local setup instructions
+- [x] Verify zero secrets in git with: `git log --all -p | grep -i "sk-ant\|password\|secret"`
+- [x] Final `dotnet build` zero warnings
+- [x] Final `npm run build` zero errors
 
 ---
 

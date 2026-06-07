@@ -23,7 +23,7 @@ export default function Header() {
     <header className="h-12 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 lg:hidden">
       <button
         onClick={toggleSidebar}
-        className="text-gray-400 hover:text-white w-8 h-8 flex items-center justify-center rounded"
+        className="text-gray-400 hover:text-white min-w-[44px] min-h-[44px] -ml-2 flex items-center justify-center rounded"
         aria-label="Toggle menu"
       >
         ☰
@@ -57,7 +57,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setUserMenuOpen((v) => !v)}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-semibold"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-semibold"
             aria-label="Account menu"
           >
             {user.displayName.charAt(0).toUpperCase()}

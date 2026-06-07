@@ -45,16 +45,31 @@ Create `backend/src/OptionsEdge.API/appsettings.Development.json`:
 cd backend
 dotnet restore
 dotnet ef database update --project src/OptionsEdge.API
-dotnet run --project src/OptionsEdge.API
-# API: https://localhost:5001
+dotnet run --project src/OptionsEdge.API --launch-profile https
+# API:     https://localhost:5001
+# SignalR: https://localhost:5001/hubs/market
 ```
+The frontend talks to the API over HTTPS (see `.env.development` below), so always
+launch with the `https` profile — the plain `http` profile only binds port 5000 and
+the frontend's API calls will fail with `ERR_CONNECTION_REFUSED`.
+
+In `Development`, a seed user is created automatically on first run:
+- Email: `dev@optionsedge.local`
+- Password: `DevPass123!`
 
 ### 4. Run frontend
 ```bash
 cd frontend
+cp .env.example .env.development   # defaults match the steps above; edit if your ports differ
 npm install
 npm run dev
 # App: http://localhost:5173
+```
+
+### 5. Run backend tests
+```bash
+cd backend
+dotnet test OptionsEdge.slnx
 ```
 
 ## Disclaimer

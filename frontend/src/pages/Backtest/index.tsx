@@ -304,7 +304,7 @@ export default function Backtest() {
         <button
           onClick={handleRun}
           disabled={running}
-          className="w-full sm:w-auto flex flex-col items-center py-2.5 px-6 bg-emerald-800 hover:bg-emerald-700 disabled:bg-gray-800 disabled:cursor-not-allowed rounded-lg transition-colors"
+          className="w-full sm:w-auto flex flex-col items-center justify-center py-2.5 px-6 min-h-[44px] bg-emerald-800 hover:bg-emerald-700 disabled:bg-gray-800 disabled:cursor-not-allowed rounded-lg transition-colors"
         >
           <span className="text-xs font-semibold text-white">
             {running ? `Running… ${elapsed}s` : 'Run Backtest'}

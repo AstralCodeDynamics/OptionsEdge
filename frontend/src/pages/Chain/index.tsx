@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/appStore'
 import { ChainTable } from '../../components/chain/ChainTable'
 import { OIChart } from '../../components/charts/OIChart'
 import { StrategyBuilder } from '../../components/strategy/StrategyBuilder'
+import { ChainTableSkeleton } from '../../components/common/Skeleton'
 import type { OptionsChain } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
@@ -95,9 +96,7 @@ export default function Chain() {
         )}
       </div>
 
-      {loading && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 animate-pulse h-40" />
-      )}
+      {loading && <ChainTableSkeleton />}
 
       {!loading && chain && (
         <>

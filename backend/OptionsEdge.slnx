@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/OptionsEdge.API/OptionsEdge.API.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj" />
+  </Folder>
 </Solution>

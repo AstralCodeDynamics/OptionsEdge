@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/appStore'
 import { positionsApi, alertsApi } from '../../services/api'
 import PositionCard from '../../components/positions/PositionCard'
 import AddPositionModal from '../../components/positions/AddPositionModal'
+import { PositionCardSkeleton } from '../../components/common/Skeleton'
 import type { Position, Alert } from '../../types'
 
 export default function Positions() {
@@ -70,8 +71,11 @@ export default function Positions() {
 
   if (loading) {
     return (
-      <div className="p-4 flex items-center justify-center min-h-[200px]">
-        <div className="text-gray-400 text-sm">Loading positions…</div>
+      <div className="p-4 max-w-5xl mx-auto space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-xl font-semibold text-white">Positions</h1>
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => <PositionCardSkeleton key={i} />)}
       </div>
     )
   }
@@ -83,7 +87,7 @@ export default function Positions() {
         <h1 className="text-xl font-semibold text-white">Positions</h1>
         <button
           onClick={() => setModalOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg px-4 py-2 min-h-[44px] transition-colors"
         >
           + Add Position
         </button>
@@ -170,7 +174,7 @@ export default function Positions() {
           <p className="text-gray-400 text-sm">No positions yet.</p>
           <button
             onClick={() => setModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg px-4 py-2 transition-colors"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg px-4 py-2 min-h-[44px] transition-colors"
           >
             Add your first position
           </button>
