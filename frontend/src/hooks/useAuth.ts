@@ -51,8 +51,14 @@ export function useAuth() {
       }
 
       setTokens(result.accessToken, result.refreshToken)
-      const me = await authApi.me()
-      setUser(toAuthUser(me))
+      setUser({
+        id: result.userId,
+        email: result.email,
+        displayName: result.displayName,
+        subscriptionPlan: result.subscriptionPlan,
+        twoFactorEnabled: result.twoFactorEnabled,
+        emailConfirmed: true,
+      })
       setIsAuthenticated(true)
 
       return { requiresTwoFactor: false as const, email: result.email }
@@ -64,8 +70,14 @@ export function useAuth() {
     async (email: string, code: string) => {
       const result = await authApi.twoFactor(email, code)
       setTokens(result.accessToken, result.refreshToken)
-      const me = await authApi.me()
-      setUser(toAuthUser(me))
+      setUser({
+        id: result.userId,
+        email: result.email,
+        displayName: result.displayName,
+        subscriptionPlan: result.subscriptionPlan,
+        twoFactorEnabled: result.twoFactorEnabled,
+        emailConfirmed: true,
+      })
       setIsAuthenticated(true)
 
       return result

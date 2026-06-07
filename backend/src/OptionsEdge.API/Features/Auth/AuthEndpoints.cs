@@ -373,6 +373,7 @@ public static class AuthEndpoints
             accessToken,
             refreshToken,
             expiresAt.ToString("O"),
+            user.Id,
             user.DisplayName,
             user.Email!,
             user.SubscriptionPlan,

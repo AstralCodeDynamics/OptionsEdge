@@ -282,6 +282,7 @@ export interface AuthResponse {
   accessToken: string
   refreshToken: string
   accessTokenExpiry: string
+  userId: string
   displayName: string
   email: string
   subscriptionPlan: string

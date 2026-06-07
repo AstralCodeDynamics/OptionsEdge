@@ -17,6 +17,7 @@ public record AuthResponse(
     string AccessToken,
     string RefreshToken,
     string AccessTokenExpiry,
+    Guid UserId,
     string DisplayName,
     string Email,
     string SubscriptionPlan,
