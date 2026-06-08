@@ -10,9 +10,11 @@ public static class GrowwEndpoints
     {
         var group = app.MapGroup("/api/v1/groww");
 
-        // POST /api/v1/groww/connect — submit a TOTP to authenticate with Groww and cache the access token
-        group.MapPost("/connect", async (
-            ConnectGrowwRequest req,
+        // GET /api/v1/groww/status — checks (and triggers, if needed) the automatic TOTP
+        // authentication, reporting whether Groww is enabled, connected, and when the
+        // current access token expires. On the first successful auth after a token refresh,
+        // also imports open positions from the Groww portfolio for the calling user.
+        group.MapGet("/status", async (
             GrowwApiClient groww,
             GrowwOrderService orderService,
             IConfiguration config,
@@ -20,35 +22,29 @@ public static class GrowwEndpoints
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            if (!config.GetValue<bool>("Groww:Enabled"))
-                return Results.BadRequest(new { error = "Groww integration is disabled. Set Groww:Enabled to true in configuration." });
+            bool enabled = config.GetValue<bool>("Groww:Enabled");
+            bool orderPlacementEnabled = config.GetValue<bool>("Groww:OrderPlacementEnabled");
 
-            if (string.IsNullOrWhiteSpace(req.Totp) || req.Totp.Trim().Length != 6)
-                return Results.BadRequest(new { error = "Enter the 6-digit TOTP from your authenticator app." });
+            if (!enabled)
+                return Results.Ok(new GrowwStatusResponse(false, false, null, orderPlacementEnabled, null));
 
             try
             {
-                await groww.AuthenticateAsync(req.Totp.Trim(), ct);
+                await groww.GetOrRefreshTokenAsync(ct);
+
+                if (groww.TryConsumeImportFlag())
+                {
+                    var userId = ctx.GetUserId(config);
+                    await orderService.ImportPositionsFromGrowwAsync(userId, ct);
+                }
+
+                return Results.Ok(new GrowwStatusResponse(true, true, GrowwApiClient.NextTokenExpiry(), orderPlacementEnabled, null));
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Groww connect failed");
-                return Results.BadRequest(new { error = "Failed to connect to Groww. Check your TOTP and try again." });
+                logger.LogWarning(ex, "Groww authentication check failed");
+                return Results.Ok(new GrowwStatusResponse(true, false, null, orderPlacementEnabled, ex.Message));
             }
-
-            var userId = ctx.GetUserId(config);
-            var imported = await orderService.ImportPositionsFromGrowwAsync(userId, ct);
-
-            return Results.Ok(new ConnectGrowwResponse(true, GrowwApiClient.NextTokenExpiry(), imported));
-        }).WithName("ConnectGroww");
-
-        // GET /api/v1/groww/status — whether Groww integration is enabled and currently connected
-        group.MapGet("/status", (GrowwApiClient groww, IConfiguration config) =>
-        {
-            bool enabled = config.GetValue<bool>("Groww:Enabled");
-            bool connected = enabled && groww.IsConnected;
-            bool orderPlacementEnabled = config.GetValue<bool>("Groww:OrderPlacementEnabled");
-            return Results.Ok(new GrowwStatusResponse(enabled, connected, connected ? GrowwApiClient.NextTokenExpiry() : null, orderPlacementEnabled));
         }).WithName("GetGrowwStatus");
 
         // POST /api/v1/orders/place — places a live F&O order via Groww

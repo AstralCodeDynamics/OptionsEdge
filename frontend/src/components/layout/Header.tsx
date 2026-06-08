@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { growwApi } from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
-import ConnectGrowwModal from '../groww/ConnectGrowwModal'
+import GrowwStatusModal from '../groww/GrowwStatusModal'
+import { growwBadgeClass, growwBadgeLabel } from '../groww/growwBadge'
 
 export default function Header() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
@@ -16,7 +17,10 @@ export default function Header() {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   useEffect(() => {
-    growwApi.getStatus().then(setGrowwStatus).catch(() => {})
+    const poll = () => growwApi.getStatus().then(setGrowwStatus).catch(() => {})
+    poll()
+    const id = setInterval(poll, 5 * 60_000)
+    return () => clearInterval(id)
   }, [setGrowwStatus])
 
   return (
@@ -34,12 +38,10 @@ export default function Header() {
           onClick={() => setGrowwModalOpen(true)}
           className={[
             'text-xs px-2 py-0.5 rounded-full font-medium transition-colors',
-            growwStatus.connected
-              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-              : 'bg-gray-700 text-gray-400 hover:bg-gray-600',
+            growwBadgeClass(growwStatus),
           ].join(' ')}
         >
-          {growwStatus.connected ? 'Groww Connected' : 'Connect Groww'}
+          {growwBadgeLabel(growwStatus)}
         </button>
       )}
       {marketStatus && (
@@ -90,11 +92,10 @@ export default function Header() {
         </div>
       )}
 
-      <ConnectGrowwModal
+      <GrowwStatusModal
         open={growwModalOpen}
         onClose={() => setGrowwModalOpen(false)}
         status={growwStatus}
-        onConnected={setGrowwStatus}
       />
     </header>
   )

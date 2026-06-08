@@ -3,12 +3,16 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Infrastructure.MockData;
+using OtpNet;
 
 namespace OptionsEdge.API.Infrastructure.Groww;
 
 // Thin wrapper around the Groww broker REST API (https://api.groww.in).
-// Handles TOTP authentication, daily token caching (expires 6 AM IST), standard headers,
-// and retry-with-delay on HTTP 429 (rate limited).
+// Authenticates automatically: the configured ApiKey/ApiSecret pair (the permanent "TOTP
+// Token" and "TOTP Secret" from the Groww API dashboard) generates a 6-digit TOTP code,
+// which is exchanged for a daily access token. The token is cached until 6 AM IST — no
+// manual reconnect is needed. Also handles standard headers and retry-with-delay on
+// HTTP 429 (rate limited).
 public class GrowwApiClient(
     IHttpClientFactory factory,
     IConfiguration config,
@@ -16,43 +20,86 @@ public class GrowwApiClient(
     ILogger<GrowwApiClient> logger)
 {
     private const string TokenCacheKey = "groww:access_token";
+    private const string ImportPendingCacheKey = "groww:import_pending";
     private static readonly TimeZoneInfo IstZone = GetIstZone();
+    private static readonly SemaphoreSlim AuthLock = new(1, 1);
 
     private readonly HttpClient _http = factory.CreateClient("groww");
     private string ApiKey => config["Groww:ApiKey"] ?? "";
-
-    public bool IsConnected => cache.TryGetValue(TokenCacheKey, out string? token) && !string.IsNullOrEmpty(token);
+    private string ApiSecret => config["Groww:ApiSecret"] ?? "";
 
     // The cached token's absolute expiry is always "the next 6 AM IST" — while the token
     // remains valid, recomputing it now yields the same instant the cache entry was set with.
     public static DateTimeOffset NextTokenExpiry() => NextSixAmIst();
 
-    public async Task<string> AuthenticateAsync(string totp, CancellationToken ct = default)
+    // Returns the cached daily access token, transparently generating a fresh TOTP from
+    // ApiKey/ApiSecret and re-authenticating when the cache has expired (after 6 AM IST).
+    // Concurrent callers share one in-flight authentication via AuthLock.
+    public async Task<string> GetOrRefreshTokenAsync(CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/token/api/access");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Add("X-API-VERSION", "1.0");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { key_type = "totp", totp }), Encoding.UTF8, "application/json");
+        if (cache.TryGetValue(TokenCacheKey, out string? cached) && !string.IsNullOrEmpty(cached))
+            return cached;
 
-        var response = await _http.SendAsync(request, ct);
-        var raw = await response.Content.ReadAsStringAsync(ct);
+        await AuthLock.WaitAsync(ct);
+        try
+        {
+            if (cache.TryGetValue(TokenCacheKey, out cached) && !string.IsNullOrEmpty(cached))
+                return cached;
 
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"Groww authentication failed ({(int)response.StatusCode}): {raw}");
+            var apiKey = ApiKey;
+            var apiSecret = ApiSecret;
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
+                throw new InvalidOperationException("Groww:ApiKey and Groww:ApiSecret must be configured");
 
-        using var doc = JsonDocument.Parse(raw);
-        var root = Unwrap(doc.RootElement);
-        var token = GetString(root, "token") ?? GetString(root, "access_token");
+            var totp = new Totp(Base32Encoding.ToBytes(apiSecret));
+            var totpCode = totp.ComputeTotp();
 
-        if (string.IsNullOrEmpty(token))
-            throw new InvalidOperationException("Groww authentication response did not include a token");
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/token/api/access");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Add("X-API-VERSION", "1.0");
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(new { key_type = "totp", totp = totpCode }), Encoding.UTF8, "application/json");
 
-        var expiry = NextSixAmIst();
-        cache.Set(TokenCacheKey, token, new MemoryCacheEntryOptions { AbsoluteExpiration = expiry });
-        logger.LogInformation("Groww access token cached, expires {Expiry} IST", expiry);
-        return token;
+            var response = await _http.SendAsync(request, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogError("Groww TOTP authentication failed ({Status}): {Body}", response.StatusCode, raw);
+                throw new InvalidOperationException($"Groww authentication failed ({(int)response.StatusCode}): {raw}");
+            }
+
+            using var doc = JsonDocument.Parse(raw);
+            var root = Unwrap(doc.RootElement);
+            var token = GetString(root, "token") ?? GetString(root, "access_token");
+
+            if (string.IsNullOrEmpty(token))
+                throw new InvalidOperationException("Groww authentication response did not include a token");
+
+            var expiry = NextSixAmIst();
+            var cacheOptions = new MemoryCacheEntryOptions { AbsoluteExpiration = expiry };
+            cache.Set(TokenCacheKey, token, cacheOptions);
+            cache.Set(ImportPendingCacheKey, true, cacheOptions);
+            logger.LogInformation("Groww access token refreshed automatically, expires {Expiry} IST", expiry);
+            return token;
+        }
+        finally
+        {
+            AuthLock.Release();
+        }
+    }
+
+    // Returns true exactly once per freshly-issued token, so the caller can run a one-time
+    // position import after each automatic re-authentication.
+    public bool TryConsumeImportFlag()
+    {
+        if (cache.TryGetValue(ImportPendingCacheKey, out bool pending) && pending)
+        {
+            cache.Remove(ImportPendingCacheKey);
+            return true;
+        }
+        return false;
     }
 
     public async Task<MarketSnapshotData> GetSpotSnapshotAsync(string symbol, CancellationToken ct = default)
@@ -214,8 +261,7 @@ public class GrowwApiClient(
     // with a 100ms delay when rate-limited (HTTP 429).
     private async Task<JsonElement> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
     {
-        if (!cache.TryGetValue(TokenCacheKey, out string? token) || string.IsNullOrEmpty(token))
-            throw new InvalidOperationException("Groww is not connected. Submit your TOTP via /api/v1/groww/connect first.");
+        var token = await GetOrRefreshTokenAsync(ct);
 
         for (int attempt = 0; attempt <= 3; attempt++)
         {

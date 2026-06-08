@@ -311,6 +311,7 @@ export interface GrowwStatus {
   connected: boolean
   expiresAt?: string | null
   orderPlacementEnabled?: boolean
+  error?: string | null
 }
 
 export interface PlaceOrderRequest {
@@ -333,11 +334,6 @@ export interface PlaceOrderResult {
 }
 
 export const growwApi = {
-  connect: (totp: string) =>
-    api.post<{ connected: boolean; expiresAt: string; importedPositions: number }>(
-      '/groww/connect',
-      { totp },
-    ).then((r) => r.data),
   getStatus: () => api.get<GrowwStatus>('/groww/status').then((r) => r.data),
   placeOrder: (data: PlaceOrderRequest) =>
     api.post<PlaceOrderResult>('/orders/place', data).then((r) => r.data),
