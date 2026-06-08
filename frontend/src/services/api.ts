@@ -308,10 +308,16 @@ async function streamChatMessage(
 
 export interface GrowwStatus {
   enabled: boolean
+  hasCredentials: boolean
   connected: boolean
   expiresAt?: string | null
   orderPlacementEnabled?: boolean
   error?: string | null
+}
+
+export interface GrowwCredentialsResult {
+  success: boolean
+  message: string
 }
 
 export interface PlaceOrderRequest {
@@ -335,6 +341,9 @@ export interface PlaceOrderResult {
 
 export const growwApi = {
   getStatus: () => api.get<GrowwStatus>('/groww/status').then((r) => r.data),
+  saveCredentials: (apiKey: string, apiSecret: string) =>
+    api.post<GrowwCredentialsResult>('/groww/credentials', { apiKey, apiSecret }).then((r) => r.data),
+  removeCredentials: () => api.delete('/groww/credentials').then((r) => r.data),
   placeOrder: (data: PlaceOrderRequest) =>
     api.post<PlaceOrderResult>('/orders/place', data).then((r) => r.data),
   cancelOrder: (orderId: string) =>

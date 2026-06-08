@@ -102,6 +102,7 @@ export default function Sidebar() {
         open={growwModalOpen}
         onClose={() => setGrowwModalOpen(false)}
         status={growwStatus}
+        onStatusChange={setGrowwStatus}
       />
     </>
   )

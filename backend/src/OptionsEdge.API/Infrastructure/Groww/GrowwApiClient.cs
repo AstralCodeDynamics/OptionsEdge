@@ -4,37 +4,39 @@ using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Infrastructure.MockData;
 using OtpNet;
+using static OptionsEdge.API.Infrastructure.Groww.GrowwHttpHelpers;
 
 namespace OptionsEdge.API.Infrastructure.Groww;
 
-// Thin wrapper around the Groww broker REST API (https://api.groww.in).
-// Authenticates automatically: the configured ApiKey/ApiSecret pair (the permanent "TOTP
-// Token" and "TOTP Secret" from the Groww API dashboard) generates a 6-digit TOTP code,
-// which is exchanged for a daily access token. The token is cached until 6 AM IST — no
-// manual reconnect is needed. Also handles standard headers and retry-with-delay on
-// HTTP 429 (rate limited).
+// Shared, read-only market-data wrapper around the Groww broker REST API (https://api.groww.in).
+// Powers the app's live NIFTY/BANKNIFTY snapshots, option chains, and candles for ALL users —
+// these aren't user-specific, so a single "system" account (Groww:ApiKey / Groww:ApiSecret in
+// configuration) is used. It authenticates automatically: that ApiKey/ApiSecret pair (the
+// permanent "TOTP Token" and "TOTP Secret" from the Groww API dashboard) generates a 6-digit
+// TOTP code, exchanged for a daily access token cached until 6 AM IST.
+//
+// Per-user operations (placing orders, cancelling orders, importing positions) use each
+// user's own credentials via GrowwUserApiClient instead.
 public class GrowwApiClient(
     IHttpClientFactory factory,
     IConfiguration config,
     IMemoryCache cache,
     ILogger<GrowwApiClient> logger)
 {
-    private const string TokenCacheKey = "groww:access_token";
-    private const string ImportPendingCacheKey = "groww:import_pending";
-    private static readonly TimeZoneInfo IstZone = GetIstZone();
+    private const string TokenCacheKey = "groww:system_access_token";
     private static readonly SemaphoreSlim AuthLock = new(1, 1);
 
     private readonly HttpClient _http = factory.CreateClient("groww");
-    private string ApiKey => config["Groww:ApiKey"] ?? "";
-    private string ApiSecret => config["Groww:ApiSecret"] ?? "";
+    private string ApiKey => config["Groww:SystemApiKey"] ?? "";
+    private string ApiSecret => config["Groww:SystemApiSecret"] ?? "";
 
     // The cached token's absolute expiry is always "the next 6 AM IST" — while the token
     // remains valid, recomputing it now yields the same instant the cache entry was set with.
     public static DateTimeOffset NextTokenExpiry() => NextSixAmIst();
 
-    // Returns the cached daily access token, transparently generating a fresh TOTP from
-    // ApiKey/ApiSecret and re-authenticating when the cache has expired (after 6 AM IST).
-    // Concurrent callers share one in-flight authentication via AuthLock.
+    // Returns the cached daily access token for the shared system account, transparently
+    // generating a fresh TOTP from ApiKey/ApiSecret and re-authenticating once the cache has
+    // expired (after 6 AM IST). Concurrent callers share one in-flight authentication via AuthLock.
     public async Task<string> GetOrRefreshTokenAsync(CancellationToken ct = default)
     {
         if (cache.TryGetValue(TokenCacheKey, out string? cached) && !string.IsNullOrEmpty(cached))
@@ -49,7 +51,7 @@ public class GrowwApiClient(
             var apiKey = ApiKey;
             var apiSecret = ApiSecret;
             if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
-                throw new InvalidOperationException("Groww:ApiKey and Groww:ApiSecret must be configured");
+                throw new InvalidOperationException("Groww:SystemApiKey and Groww:SystemApiSecret must be configured");
 
             var totp = new Totp(Base32Encoding.ToBytes(apiSecret));
             var totpCode = totp.ComputeTotp();
@@ -66,7 +68,7 @@ public class GrowwApiClient(
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogError("Groww TOTP authentication failed ({Status}): {Body}", response.StatusCode, raw);
+                logger.LogError("Groww system TOTP authentication failed ({Status}): {Body}", response.StatusCode, raw);
                 throw new InvalidOperationException($"Groww authentication failed ({(int)response.StatusCode}): {raw}");
             }
 
@@ -78,28 +80,14 @@ public class GrowwApiClient(
                 throw new InvalidOperationException("Groww authentication response did not include a token");
 
             var expiry = NextSixAmIst();
-            var cacheOptions = new MemoryCacheEntryOptions { AbsoluteExpiration = expiry };
-            cache.Set(TokenCacheKey, token, cacheOptions);
-            cache.Set(ImportPendingCacheKey, true, cacheOptions);
-            logger.LogInformation("Groww access token refreshed automatically, expires {Expiry} IST", expiry);
+            cache.Set(TokenCacheKey, token, new MemoryCacheEntryOptions { AbsoluteExpiration = expiry });
+            logger.LogInformation("Groww system access token refreshed automatically, expires {Expiry} IST", expiry);
             return token;
         }
         finally
         {
             AuthLock.Release();
         }
-    }
-
-    // Returns true exactly once per freshly-issued token, so the caller can run a one-time
-    // position import after each automatic re-authentication.
-    public bool TryConsumeImportFlag()
-    {
-        if (cache.TryGetValue(ImportPendingCacheKey, out bool pending) && pending)
-        {
-            cache.Remove(ImportPendingCacheKey);
-            return true;
-        }
-        return false;
     }
 
     public async Task<MarketSnapshotData> GetSpotSnapshotAsync(string symbol, CancellationToken ct = default)
@@ -167,62 +155,6 @@ public class GrowwApiClient(
         return rows;
     }
 
-    public async Task<GrowwOrderResult> PlaceOrderAsync(GrowwOrderRequest order, CancellationToken ct = default)
-    {
-        var body = new
-        {
-            trading_symbol = order.TradingSymbol,
-            quantity = order.Quantity,
-            price = order.Price,
-            validity = order.Validity,
-            exchange = order.Exchange,
-            segment = order.Segment,
-            product = order.Product,
-            order_type = order.OrderType,
-            transaction_type = order.TransactionType,
-            order_reference_id = order.OrderReferenceId,
-        };
-
-        var root = Unwrap(await SendAsync(HttpMethod.Post, "/v1/order/create", body, ct));
-
-        return new GrowwOrderResult(
-            OrderId: GetString(root, "order_id") ?? "",
-            Status: GetString(root, "order_status") ?? GetString(root, "status") ?? "",
-            RejectReason: GetString(root, "remark"));
-    }
-
-    public async Task<GrowwOrderResult> CancelOrderAsync(string orderId, string segment, CancellationToken ct = default)
-    {
-        var root = Unwrap(await SendAsync(HttpMethod.Post, "/v1/order/cancel",
-            new { order_id = orderId, segment }, ct));
-
-        return new GrowwOrderResult(
-            OrderId: orderId,
-            Status: GetString(root, "order_status") ?? GetString(root, "status") ?? "CANCELLED",
-            RejectReason: GetString(root, "remark"));
-    }
-
-    public async Task<IReadOnlyList<GrowwPosition>> GetPositionsAsync(CancellationToken ct = default)
-    {
-        var root = Unwrap(await SendAsync(HttpMethod.Get, "/v1/portfolio/positions?segment=FNO", null, ct));
-
-        var positions = new List<GrowwPosition>();
-        if (!root.TryGetProperty("positions", out var arr) || arr.ValueKind != JsonValueKind.Array)
-            return positions;
-
-        foreach (var p in arr.EnumerateArray())
-        {
-            positions.Add(new GrowwPosition(
-                TradingSymbol: GetString(p, "trading_symbol") ?? "",
-                Quantity: (int)(GetDecimal(p, "quantity") ?? GetDecimal(p, "net_quantity") ?? 0),
-                AvgPrice: GetDecimal(p, "average_price") ?? GetDecimal(p, "buy_avg_price") ?? 0,
-                Ltp: GetDecimal(p, "ltp") ?? GetDecimal(p, "last_price") ?? 0,
-                Pnl: GetDecimal(p, "pnl") ?? 0));
-        }
-
-        return positions;
-    }
-
     public async Task<IReadOnlyList<CandleData>> GetHistoricalCandlesAsync(
         string tradingSymbol, string segment = "CASH", string resolution = "D", int lookbackDays = 130, CancellationToken ct = default)
     {
@@ -257,53 +189,10 @@ public class GrowwApiClient(
         return candles;
     }
 
-    // Sends an authenticated request with standard Groww headers, retrying up to 3 times
-    // with a 100ms delay when rate-limited (HTTP 429).
     private async Task<JsonElement> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
     {
         var token = await GetOrRefreshTokenAsync(ct);
-
-        for (int attempt = 0; attempt <= 3; attempt++)
-        {
-            using var request = new HttpRequestMessage(method, path);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Headers.Add("X-API-VERSION", "1.0");
-
-            if (body is not null)
-                request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-
-            var response = await _http.SendAsync(request, ct);
-
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < 3)
-            {
-                logger.LogWarning("Groww API rate limited on {Path}, retrying in 100ms (attempt {Attempt})", path, attempt + 1);
-                await Task.Delay(TimeSpan.FromMilliseconds(100), ct);
-                continue;
-            }
-
-            var raw = await response.Content.ReadAsStringAsync(ct);
-            if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException($"Groww API error {(int)response.StatusCode} on {path}: {raw}");
-
-            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw);
-            return doc.RootElement.Clone();
-        }
-
-        throw new HttpRequestException($"Groww API rate limit retries exhausted for {path}");
-    }
-
-    // Many broker APIs wrap the real payload in an envelope, e.g. {"status":"SUCCESS","payload":{...}}
-    private static JsonElement Unwrap(JsonElement root)
-    {
-        if (root.ValueKind == JsonValueKind.Object)
-        {
-            if (root.TryGetProperty("payload", out var payload) && payload.ValueKind == JsonValueKind.Object)
-                return Unwrap(payload);
-            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
-                return Unwrap(data);
-        }
-        return root;
+        return await SendAuthenticatedAsync(_http, logger, token, method, path, body, ct);
     }
 
     private static GrowwOptionLeg? ParseLeg(JsonElement parent, string property)
@@ -321,41 +210,5 @@ public class GrowwApiClient(
             Gamma: GetDecimal(leg, "gamma") ?? 0,
             Theta: GetDecimal(leg, "theta") ?? 0,
             Vega: GetDecimal(leg, "vega") ?? 0);
-    }
-
-    private static string? GetString(JsonElement element, string property) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var el) && el.ValueKind == JsonValueKind.String
-            ? el.GetString()
-            : null;
-
-    private static decimal? GetDecimal(JsonElement element, string property)
-    {
-        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(property, out var el))
-            return null;
-
-        return el.ValueKind switch
-        {
-            JsonValueKind.Number => el.GetDecimal(),
-            JsonValueKind.String when decimal.TryParse(el.GetString(), out var d) => d,
-            _ => null,
-        };
-    }
-
-    // Groww access tokens expire daily at 6:00 AM IST
-    private static DateTimeOffset NextSixAmIst()
-    {
-        var ist = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstZone);
-        var sixAm = ist.Date.AddHours(6);
-        if (ist >= sixAm)
-            sixAm = sixAm.AddDays(1);
-
-        var offset = IstZone.GetUtcOffset(sixAm);
-        return new DateTimeOffset(sixAm, offset).ToUniversalTime();
-    }
-
-    private static TimeZoneInfo GetIstZone()
-    {
-        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); }
-        catch { return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); }
     }
 }

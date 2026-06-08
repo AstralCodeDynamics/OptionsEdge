@@ -1,6 +1,7 @@
 using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
+using OtpNet;
 
 namespace OptionsEdge.API.Features.Groww;
 
@@ -10,12 +11,77 @@ public static class GrowwEndpoints
     {
         var group = app.MapGroup("/api/v1/groww");
 
-        // GET /api/v1/groww/status — checks (and triggers, if needed) the automatic TOTP
-        // authentication, reporting whether Groww is enabled, connected, and when the
-        // current access token expires. On the first successful auth after a token refresh,
-        // also imports open positions from the Groww portfolio for the calling user.
+        // POST /api/v1/groww/credentials — save (or replace) the current user's Groww API
+        // credentials. Validates them by generating a TOTP and authenticating with Groww
+        // before persisting anything; nothing is saved if the test auth fails.
+        group.MapPost("/credentials", async (
+            SaveGrowwCredentialsRequest req,
+            GrowwCredentialService credentialService,
+            GrowwUserApiClient groww,
+            IConfiguration config,
+            HttpContext ctx,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            if (!config.GetValue<bool>("Groww:Enabled"))
+                return Results.BadRequest(new { error = "Groww integration is not enabled on this server." });
+
+            var apiKey = req.ApiKey?.Trim() ?? "";
+            var apiSecret = req.ApiSecret?.Trim() ?? "";
+
+            if (string.IsNullOrEmpty(apiKey))
+                return Results.BadRequest(new { error = "Enter your Groww TOTP Token (ApiKey)." });
+            if (string.IsNullOrEmpty(apiSecret))
+                return Results.BadRequest(new { error = "Enter your Groww TOTP Secret (ApiSecret)." });
+
+            try
+            {
+                Base32Encoding.ToBytes(apiSecret);
+            }
+            catch (Exception)
+            {
+                return Results.BadRequest(new { error = "TOTP Secret is not valid Base32. Copy it again from your Groww API keys page." });
+            }
+
+            var userId = ctx.GetUserId(config);
+
+            try
+            {
+                await groww.TestAuthenticateAsync(apiKey, apiSecret, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Groww credential validation failed for user {UserId}", userId);
+                return Results.BadRequest(new { error = "Failed to connect to Groww with these credentials. Double-check the Token and Secret and try again." });
+            }
+
+            await credentialService.SaveCredentialsAsync(userId, apiKey, apiSecret, ct);
+            groww.InvalidateToken(userId);
+
+            return Results.Ok(new GrowwCredentialsResponse(true, "Groww connected. Credentials saved securely."));
+        }).WithName("SaveGrowwCredentials");
+
+        // DELETE /api/v1/groww/credentials — disconnects Groww for the current user
+        group.MapDelete("/credentials", async (
+            GrowwCredentialService credentialService,
+            GrowwUserApiClient groww,
+            IConfiguration config,
+            HttpContext ctx,
+            CancellationToken ct) =>
+        {
+            var userId = ctx.GetUserId(config);
+            await credentialService.RemoveCredentialsAsync(userId, ct);
+            groww.InvalidateToken(userId);
+            return Results.NoContent();
+        }).WithName("RemoveGrowwCredentials");
+
+        // GET /api/v1/groww/status — whether Groww is enabled, whether the current user has
+        // saved credentials, and (if so) whether those credentials currently authenticate.
+        // On the first successful auth after a token refresh, also imports open positions
+        // from the user's Groww portfolio.
         group.MapGet("/status", async (
-            GrowwApiClient groww,
+            GrowwCredentialService credentialService,
+            GrowwUserApiClient groww,
             GrowwOrderService orderService,
             IConfiguration config,
             HttpContext ctx,
@@ -26,24 +92,27 @@ public static class GrowwEndpoints
             bool orderPlacementEnabled = config.GetValue<bool>("Groww:OrderPlacementEnabled");
 
             if (!enabled)
-                return Results.Ok(new GrowwStatusResponse(false, false, null, orderPlacementEnabled, null));
+                return Results.Ok(new GrowwStatusResponse(false, false, false, null, orderPlacementEnabled, null));
+
+            var userId = ctx.GetUserId(config);
+            bool hasCredentials = await credentialService.HasCredentialsAsync(userId, ct);
+
+            if (!hasCredentials)
+                return Results.Ok(new GrowwStatusResponse(true, false, false, null, orderPlacementEnabled, null));
 
             try
             {
-                await groww.GetOrRefreshTokenAsync(ct);
+                await groww.GetOrRefreshTokenAsync(userId, ct);
 
-                if (groww.TryConsumeImportFlag())
-                {
-                    var userId = ctx.GetUserId(config);
+                if (groww.TryConsumeImportFlag(userId))
                     await orderService.ImportPositionsFromGrowwAsync(userId, ct);
-                }
 
-                return Results.Ok(new GrowwStatusResponse(true, true, GrowwApiClient.NextTokenExpiry(), orderPlacementEnabled, null));
+                return Results.Ok(new GrowwStatusResponse(true, true, true, GrowwUserApiClient.NextTokenExpiry(), orderPlacementEnabled, null));
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Groww authentication check failed");
-                return Results.Ok(new GrowwStatusResponse(true, false, null, orderPlacementEnabled, ex.Message));
+                logger.LogWarning(ex, "Groww authentication check failed for user {UserId}", userId);
+                return Results.Ok(new GrowwStatusResponse(true, true, false, null, orderPlacementEnabled, ex.Message));
             }
         }).WithName("GetGrowwStatus");
 
@@ -78,6 +147,7 @@ public static class GrowwEndpoints
             string orderId,
             GrowwOrderService orderService,
             IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             if (!config.GetValue<bool>("Groww:Enabled"))
@@ -85,7 +155,8 @@ public static class GrowwEndpoints
 
             try
             {
-                var cancelled = await orderService.CancelOrderAsync(orderId, ct);
+                var userId = ctx.GetUserId(config);
+                var cancelled = await orderService.CancelOrderAsync(userId, orderId, ct);
                 return Results.Ok(new { orderId, cancelled });
             }
             catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
@@ -105,6 +176,8 @@ public static class GrowwEndpoints
 
         services.AddSingleton<GrowwApiClient>();
         services.AddSingleton<GrowwMarketDataService>();
+        services.AddScoped<GrowwCredentialService>();
+        services.AddScoped<GrowwUserApiClient>();
         services.AddScoped<GrowwOrderService>();
 
         // Factory pattern: swap the live IMarketDataService implementation via "Groww:Enabled"

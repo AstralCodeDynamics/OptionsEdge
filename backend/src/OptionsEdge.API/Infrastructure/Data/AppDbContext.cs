@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ChatMessage> ChatMessages { get; set; }
     public DbSet<AIUsageLog> AIUsageLogs { get; set; }
     public DbSet<BacktestResult> BacktestResults { get; set; }
+    public DbSet<GrowwCredential> GrowwCredentials { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -132,6 +133,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(b => b.ProfitFactor).HasColumnType("decimal(5,2)");
             e.Property(b => b.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(b => b.User).WithMany(u => u.BacktestResults).HasForeignKey(b => b.UserId);
+        });
+
+        modelBuilder.Entity<GrowwCredential>(e =>
+        {
+            e.HasKey(g => g.Id);
+            e.Property(g => g.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(g => g.ApiKeyEncrypted).IsRequired();
+            e.Property(g => g.ApiSecretEncrypted).IsRequired();
+            e.Property(g => g.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(g => g.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(g => g.UserId).IsUnique();
+            e.HasOne(g => g.User).WithOne().HasForeignKey<GrowwCredential>(g => g.UserId);
         });
     }
 }

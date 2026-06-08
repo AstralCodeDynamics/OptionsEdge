@@ -1,6 +1,15 @@
 namespace OptionsEdge.API.Features.Groww;
 
-public record GrowwStatusResponse(bool Enabled, bool Connected, DateTimeOffset? ExpiresAt, bool OrderPlacementEnabled, string? Error);
+public record GrowwStatusResponse(
+    bool Enabled,
+    bool HasCredentials,
+    bool Connected,
+    DateTimeOffset? ExpiresAt,
+    bool OrderPlacementEnabled,
+    string? Error);
+
+public record SaveGrowwCredentialsRequest(string ApiKey, string ApiSecret);
+public record GrowwCredentialsResponse(bool Success, string Message);
 
 public record PlaceOrderRequest(
     Guid? PositionId,

@@ -7,7 +7,7 @@ using OptionsEdge.API.Infrastructure.Groww;
 namespace OptionsEdge.API.Features.Groww;
 
 public class GrowwOrderService(
-    GrowwApiClient groww,
+    GrowwUserApiClient groww,
     AppDbContext db,
     ILogger<GrowwOrderService> logger)
 {
@@ -46,16 +46,16 @@ public class GrowwOrderService(
             TransactionType: req.TransactionType.ToUpper(),
             OrderReferenceId: referenceId);
 
-        var result = await groww.PlaceOrderAsync(order, ct);
+        var result = await groww.PlaceOrderAsync(userId, order, ct);
         logger.LogInformation("Placed Groww order {OrderId} ({Status}) for {Symbol} qty {Qty}",
             result.OrderId, result.Status, tradingSymbol, order.Quantity);
 
         return new PlaceOrderResponse(result.OrderId, result.Status, tradingSymbol, order.Quantity);
     }
 
-    public async Task<bool> CancelOrderAsync(string orderId, CancellationToken ct = default)
+    public async Task<bool> CancelOrderAsync(Guid userId, string orderId, CancellationToken ct = default)
     {
-        var result = await groww.CancelOrderAsync(orderId, "FNO", ct);
+        var result = await groww.CancelOrderAsync(userId, orderId, "FNO", ct);
         return result.Status is "CANCELLED" or "CANCELLED_AT_EXCHANGE" or "CANCELLATION_REQUESTED";
     }
 
@@ -67,7 +67,7 @@ public class GrowwOrderService(
         IReadOnlyList<GrowwPosition> growwPositions;
         try
         {
-            growwPositions = await groww.GetPositionsAsync(ct);
+            growwPositions = await groww.GetPositionsAsync(userId, ct);
         }
         catch (Exception ex)
         {

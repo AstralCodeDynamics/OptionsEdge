@@ -19,6 +19,7 @@ using OptionsEdge.API.Infrastructure.Auth;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
 using OptionsEdge.API.Infrastructure.Email;
+using OptionsEdge.API.Infrastructure.Security;
 using OptionsEdge.API.Infrastructure.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,6 +97,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddSingleton<IEncryptionService, AesEncryptionService>();
 builder.Services.AddScoped<IEmailService>(sp =>
     authSettings.SendRealEmails
         ? sp.GetRequiredService<EmailService>()

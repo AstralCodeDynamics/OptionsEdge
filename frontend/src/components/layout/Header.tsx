@@ -96,6 +96,7 @@ export default function Header() {
         open={growwModalOpen}
         onClose={() => setGrowwModalOpen(false)}
         status={growwStatus}
+        onStatusChange={setGrowwStatus}
       />
     </header>
   )
