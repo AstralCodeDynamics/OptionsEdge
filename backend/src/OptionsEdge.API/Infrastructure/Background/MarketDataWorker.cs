@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Market;
+using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
 using OptionsEdge.API.Infrastructure.SignalR;
 
@@ -9,6 +10,7 @@ namespace OptionsEdge.API.Infrastructure.Background;
 public class MarketDataWorker(
     IHubContext<MarketHub> hubContext,
     MockMarketDataService mockData,
+    GrowwMarketDataService growwMarketData,
     IndicatorService indicatorService,
     IConfiguration config,
     ILogger<MarketDataWorker> logger) : BackgroundService
@@ -40,10 +42,17 @@ public class MarketDataWorker(
 
         if (isOpen)
         {
-            if (!config.GetValue<bool>("Groww:Enabled"))
+            bool growwEnabled = config.GetValue<bool>("Groww:Enabled");
+            if (!growwEnabled)
                 mockData.Tick();
 
-            foreach (var snapshot in mockData.GetSnapshots())
+            // No platform-wide Groww account exists, so the worker (no user context) can't
+            // call Groww directly — it broadcasts whatever GrowwMarketDataService has cached
+            // from recent authenticated user requests, falling back to simulated data when
+            // that cache is empty (e.g. no user has been active yet).
+            var snapshots = growwEnabled ? growwMarketData.GetSnapshots() : mockData.GetSnapshots();
+
+            foreach (var snapshot in snapshots)
             {
                 var priceEvent = new PriceUpdateEvent(
                     snapshot.Symbol,

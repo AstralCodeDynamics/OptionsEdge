@@ -174,7 +174,6 @@ public static class GrowwEndpoints
             client.BaseAddress = new Uri(config["Groww:BaseUrl"] ?? "https://api.groww.in");
         });
 
-        services.AddSingleton<GrowwApiClient>();
         services.AddSingleton<GrowwMarketDataService>();
         services.AddScoped<GrowwCredentialService>();
         services.AddScoped<GrowwUserApiClient>();

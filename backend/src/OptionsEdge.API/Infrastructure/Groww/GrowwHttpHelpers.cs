@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace OptionsEdge.API.Infrastructure.Groww;
 
 // Shared low-level helpers for talking to the Groww broker REST API (https://api.groww.in),
-// used by both GrowwApiClient (shared market data) and GrowwUserApiClient (per-user trading).
+// used by GrowwUserApiClient — the sole client, since every Groww call (market data, orders,
+// positions) authenticates with an individual user's own credentials.
 internal static class GrowwHttpHelpers
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();

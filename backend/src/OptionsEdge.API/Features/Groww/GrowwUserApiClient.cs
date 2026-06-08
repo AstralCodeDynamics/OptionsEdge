@@ -3,19 +3,21 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Infrastructure.Groww;
+using OptionsEdge.API.Infrastructure.MockData;
 using OtpNet;
 using static OptionsEdge.API.Infrastructure.Groww.GrowwHttpHelpers;
 
 namespace OptionsEdge.API.Features.Groww;
 
-// Per-user wrapper around the Groww broker REST API for genuinely user-specific operations:
-// placing/cancelling orders and reading each user's own portfolio. Authenticates with that
-// user's own ApiKey/ApiSecret pair (saved via GrowwCredentialService, AES-encrypted at rest),
+// Per-user wrapper around the entire Groww broker REST API. There is no platform-wide "system"
+// Groww account — every call (market data, orders, positions) authenticates with that user's
+// own ApiKey/ApiSecret pair (saved via GrowwCredentialService, AES-encrypted at rest),
 // generating a TOTP via Otp.NET and exchanging it for a daily access token cached per user
 // until 6 AM IST.
 //
-// Shared, read-only market data (snapshots/option chains/candles) is NOT user-specific and
-// is served by GrowwApiClient with a single system account instead.
+// Market data (snapshots/option chains/candles) isn't user-specific in meaning, but Groww
+// still requires an authenticated user to fetch it — GrowwMarketDataService caches whichever
+// active user's results come back as the "last known" data for everyone.
 public class GrowwUserApiClient(
     IHttpClientFactory factory,
     GrowwCredentialService credentials,
@@ -180,9 +182,125 @@ public class GrowwUserApiClient(
         return positions;
     }
 
+    public async Task<MarketSnapshotData> GetSpotSnapshotAsync(Guid userId, string symbol, CancellationToken ct = default)
+    {
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
+            $"/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol={Uri.EscapeDataString(symbol)}",
+            null, ct));
+
+        decimal ltp = GetDecimal(root, "last_price") ?? 0;
+        decimal open = GetDecimal(root, "open") ?? GetDecimal(root, "day_open") ?? ltp;
+        decimal high = GetDecimal(root, "high") ?? GetDecimal(root, "day_high") ?? ltp;
+        decimal low = GetDecimal(root, "low") ?? GetDecimal(root, "day_low") ?? ltp;
+        decimal prevClose = GetDecimal(root, "close") ?? GetDecimal(root, "prev_close") ?? GetDecimal(root, "previous_close") ?? ltp;
+        decimal change = Math.Round(ltp - prevClose, 2);
+        decimal changePct = prevClose != 0 ? Math.Round(change / prevClose * 100, 2) : 0;
+
+        return new MarketSnapshotData(
+            Symbol: symbol,
+            Ltp: ltp,
+            Open: open,
+            High: high,
+            Low: low,
+            PreviousClose: prevClose,
+            Change: change,
+            ChangePct: changePct,
+            // Groww's quote API doesn't expose VIX/PCR/FII/DII flow — those need a separate data source
+            Vix: 0,
+            Pcr: 0,
+            FiiFlow: 0,
+            DiiFlow: 0,
+            Timestamp: DateTimeOffset.UtcNow);
+    }
+
+    public async Task<decimal> GetOptionLtpAsync(Guid userId, string tradingSymbol, CancellationToken ct = default)
+    {
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
+            $"/v1/live-data/quote?exchange=NSE&segment=FNO&trading_symbol={Uri.EscapeDataString(tradingSymbol)}",
+            null, ct));
+
+        return GetDecimal(root, "last_price") ?? 0;
+    }
+
+    public async Task<IReadOnlyList<GrowwOptionChainRow>> GetOptionChainAsync(Guid userId, string underlying, string expiryDate, CancellationToken ct = default)
+    {
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
+            $"/v1/option-chain/exchange/NSE/underlying/{Uri.EscapeDataString(underlying)}?expiry_date={Uri.EscapeDataString(expiryDate)}",
+            null, ct));
+
+        var rows = new List<GrowwOptionChainRow>();
+        if (!root.TryGetProperty("strikes", out var strikes) || strikes.ValueKind != JsonValueKind.Object)
+            return rows;
+
+        // "strikes" is an object keyed by strike price, e.g. {"24200": {"CE": {...}, "PE": {...}}}
+        foreach (var strikeEntry in strikes.EnumerateObject())
+        {
+            if (!int.TryParse(strikeEntry.Name, out var strike))
+                continue;
+
+            var leg = strikeEntry.Value;
+            var call = ParseLeg(leg, "CE") ?? ParseLeg(leg, "call_options");
+            var put = ParseLeg(leg, "PE") ?? ParseLeg(leg, "put_options");
+            rows.Add(new GrowwOptionChainRow(strike, call, put));
+        }
+
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<CandleData>> GetHistoricalCandlesAsync(
+        Guid userId, string tradingSymbol, string segment = "CASH", string resolution = "D", int lookbackDays = 130, CancellationToken ct = default)
+    {
+        var to = DateTimeOffset.UtcNow;
+        var from = to.AddDays(-lookbackDays);
+
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
+            $"/v1/historical-data/candles/exchange/NSE/trading-symbol/{Uri.EscapeDataString(tradingSymbol)}" +
+            $"?segment={segment}&resolution={resolution}&from={from.ToUnixTimeSeconds()}&to={to.ToUnixTimeSeconds()}",
+            null, ct));
+
+        var candles = new List<CandleData>();
+        if (!root.TryGetProperty("candles", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return candles;
+
+        // Each candle is [timestamp, open, high, low, close, volume]
+        foreach (var c in arr.EnumerateArray())
+        {
+            if (c.ValueKind != JsonValueKind.Array) continue;
+            var items = c.EnumerateArray().ToList();
+            if (items.Count < 6) continue;
+
+            candles.Add(new CandleData(
+                Time: DateTimeOffset.FromUnixTimeSeconds(items[0].GetInt64()),
+                Open: items[1].GetDecimal(),
+                High: items[2].GetDecimal(),
+                Low: items[3].GetDecimal(),
+                Close: items[4].GetDecimal(),
+                Volume: items[5].GetInt64()));
+        }
+
+        return candles;
+    }
+
     private async Task<JsonElement> SendAsync(Guid userId, HttpMethod method, string path, object? body, CancellationToken ct)
     {
         var token = await GetOrRefreshTokenAsync(userId, ct);
         return await SendAuthenticatedAsync(_http, logger, token, method, path, body, ct);
+    }
+
+    private static GrowwOptionLeg? ParseLeg(JsonElement parent, string property)
+    {
+        if (!parent.TryGetProperty(property, out var leg) || leg.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return new GrowwOptionLeg(
+            TradingSymbol: GetString(leg, "trading_symbol") ?? "",
+            Ltp: GetDecimal(leg, "ltp") ?? GetDecimal(leg, "last_price") ?? 0,
+            OpenInterest: (long)(GetDecimal(leg, "open_interest") ?? 0),
+            Volume: (long)(GetDecimal(leg, "volume") ?? 0),
+            ImpliedVolatility: GetDecimal(leg, "implied_volatility") ?? 0,
+            Delta: GetDecimal(leg, "delta") ?? 0,
+            Gamma: GetDecimal(leg, "gamma") ?? 0,
+            Theta: GetDecimal(leg, "theta") ?? 0,
+            Vega: GetDecimal(leg, "vega") ?? 0);
     }
 }

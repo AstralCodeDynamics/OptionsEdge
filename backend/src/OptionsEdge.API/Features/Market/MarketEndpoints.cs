@@ -1,3 +1,6 @@
+using OptionsEdge.API.Common.Extensions;
+using OptionsEdge.API.Infrastructure.Groww;
+
 namespace OptionsEdge.API.Features.Market;
 
 public static class MarketEndpoints
@@ -6,12 +9,15 @@ public static class MarketEndpoints
     {
         var group = app.MapGroup("/api/v1/market");
 
-        group.MapGet("/snapshot", (MarketService svc) =>
-            Results.Ok(svc.GetSnapshots()))
-            .WithName("GetMarketSnapshots");
-
-        group.MapGet("/snapshot/{symbol}", (string symbol, MarketService svc) =>
+        group.MapGet("/snapshot", async (HttpContext ctx, IConfiguration config, MarketService svc, GrowwMarketDataService growwMarketData, CancellationToken ct) =>
         {
+            await RefreshLiveDataAsync(ctx, config, growwMarketData, null, ct);
+            return Results.Ok(svc.GetSnapshots());
+        }).WithName("GetMarketSnapshots");
+
+        group.MapGet("/snapshot/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, MarketService svc, GrowwMarketDataService growwMarketData, CancellationToken ct) =>
+        {
+            await RefreshLiveDataAsync(ctx, config, growwMarketData, symbol, ct);
             var snap = svc.GetSnapshot(symbol);
             return snap is null ? Results.NotFound() : Results.Ok(snap);
         }).WithName("GetMarketSnapshot");
@@ -29,5 +35,22 @@ public static class MarketEndpoints
     {
         services.AddSingleton<OptionsEdge.API.Infrastructure.MockData.MockMarketDataService>();
         services.AddScoped<MarketService>();
+    }
+
+    // Live Groww data requires an authenticated user's own credentials (no platform-wide
+    // account exists). When Groww is enabled and the caller is signed in, this refreshes the
+    // shared "last known" snapshot/candles cache using their credentials before responding;
+    // otherwise the response simply falls back to whatever's cached, or simulated data.
+    private static async Task RefreshLiveDataAsync(
+        HttpContext ctx, IConfiguration config, GrowwMarketDataService growwMarketData, string? symbol, CancellationToken ct)
+    {
+        if (!config.GetValue<bool>("Groww:Enabled") || ctx.User.Identity?.IsAuthenticated != true)
+            return;
+
+        var userId = ctx.GetUserId(config);
+        var symbols = symbol is null ? ["NIFTY", "BANKNIFTY"] : new[] { symbol };
+
+        foreach (var s in symbols)
+            await growwMarketData.RefreshForUserAsync(userId, s, ct);
     }
 }
