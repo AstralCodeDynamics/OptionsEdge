@@ -24,6 +24,7 @@ OptionsEdge/
 ```
 
 ## Key Rules
+- Read `docs/AI_HANDOFF.md` before non-trivial changes and update it after changes so Claude/Codex stay in sync.
 - Responsive first: mobile → tablet → desktop
 - Cache AI responses aggressively (market data unchanged = no new API call)
 - All C# code follows Microsoft coding conventions

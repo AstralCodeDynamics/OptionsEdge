@@ -8,7 +8,8 @@ public static class SignalEndpoints
 {
     public static void MapSignalEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/signals");
+        var group = app.MapGroup("/api/v1/signals")
+            .RequireAuthorization();
 
         // POST /api/v1/signals/generate
         group.MapPost("/generate", async (
@@ -80,9 +81,12 @@ public static class SignalEndpoints
         group.MapGet("/{id:guid}", async (
             Guid id,
             AppDbContext db,
+            IConfiguration config,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
-            var s = await db.Signals.FindAsync([id], ct);
+            var userId = ctx.GetUserId(config);
+            var s = await db.Signals.FirstOrDefaultAsync(signal => signal.Id == id && signal.UserId == userId, ct);
             if (s is null) return Results.NotFound();
 
             return Results.Ok(new SignalResponse(

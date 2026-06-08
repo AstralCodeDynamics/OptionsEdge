@@ -4,7 +4,8 @@ public static class OptionsEndpoints
 {
     public static void MapOptionsEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/options");
+        var group = app.MapGroup("/api/v1/options")
+            .RequireAuthorization();
 
         group.MapGet("/chain/{symbol}", (string symbol, string? expiry, OptionsService svc) =>
         {

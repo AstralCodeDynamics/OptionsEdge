@@ -186,9 +186,14 @@ public static class AuthEndpoints
         group.MapPost("/logout", async (
             LogoutRequest req,
             AppDbContext db,
+            HttpContext ctx,
+            IConfiguration config,
             CancellationToken ct) =>
         {
-            var existing = await db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == req.RefreshToken, ct);
+            var userId = ctx.GetUserId(config);
+            var existing = await db.RefreshTokens.FirstOrDefaultAsync(
+                t => t.Token == req.RefreshToken && t.UserId == userId,
+                ct);
             if (existing is not null)
             {
                 existing.IsRevoked = true;
@@ -196,7 +201,8 @@ public static class AuthEndpoints
             }
 
             return Results.Ok(new { message = "Logged out." });
-        }).WithName("Logout");
+        }).WithName("Logout")
+          .RequireAuthorization();
 
         // POST /api/v1/auth/forgot-password — always 200 to prevent user enumeration
         group.MapPost("/forgot-password", async (
@@ -257,7 +263,8 @@ public static class AuthEndpoints
 
             var authenticatorUri = BuildAuthenticatorUri(user.Email!, key!);
             return Results.Ok(new EnableTwoFactorResponse(key!, authenticatorUri));
-        }).WithName("EnableTwoFactor");
+        }).WithName("EnableTwoFactor")
+          .RequireAuthorization();
 
         // POST /api/v1/auth/verify-2fa-setup — confirms the TOTP code and turns 2FA on
         group.MapPost("/verify-2fa-setup", async (
@@ -279,7 +286,8 @@ public static class AuthEndpoints
             var recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
 
             return Results.Ok(new VerifyTwoFactorSetupResponse(true, recoveryCodes?.ToArray() ?? []));
-        }).WithName("VerifyTwoFactorSetup");
+        }).WithName("VerifyTwoFactorSetup")
+          .RequireAuthorization();
 
         // POST /api/v1/auth/disable-2fa
         group.MapPost("/disable-2fa", async (
@@ -300,7 +308,8 @@ public static class AuthEndpoints
             await userManager.ResetAuthenticatorKeyAsync(user);
 
             return Results.Ok(new { message = "Two-factor authentication disabled." });
-        }).WithName("DisableTwoFactor");
+        }).WithName("DisableTwoFactor")
+          .RequireAuthorization();
 
         // GET /api/v1/auth/me
         group.MapGet("/me", async (
@@ -322,7 +331,8 @@ public static class AuthEndpoints
                 user.EmailConfirmed,
                 user.TwoFactorEnabled,
                 user.CreatedAt.ToString("O")));
-        }).WithName("Me");
+        }).WithName("Me")
+          .RequireAuthorization();
 
         // POST /api/v1/auth/change-password
         group.MapPost("/change-password", async (
@@ -344,7 +354,8 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
             return Results.Ok(new { message = "Password changed." });
-        }).WithName("ChangePassword");
+        }).WithName("ChangePassword")
+          .RequireAuthorization();
     }
 
     private static async Task<AuthResponse> IssueAuthResponseAsync(

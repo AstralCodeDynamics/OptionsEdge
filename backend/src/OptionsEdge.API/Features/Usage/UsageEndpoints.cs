@@ -6,7 +6,8 @@ public static class UsageEndpoints
 {
     public static void MapUsageEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/usage");
+        var group = app.MapGroup("/api/v1/usage")
+            .RequireAuthorization();
 
         // GET /api/v1/usage/stats
         group.MapGet("/stats", async (

@@ -7,16 +7,23 @@ using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Backtest;
 
-// Simulates options strategies over the mock 90-day OHLCV history, evaluating one
+// Simulates options strategies over the available 15-minute OHLCV history, evaluating one
 // entry signal and one exit signal per run (plus always-on SL/Target risk management,
 // since a strategy without a stop would never close within the test window).
 // Option premiums are estimated with Black-Scholes using a baseline IV + moneyness skew —
 // there is no real historical option chain to replay against.
-public class BacktestService(IMarketDataService marketData, AppDbContext db, ILogger<BacktestService> logger)
+public class BacktestService(
+    IMarketDataService marketData,
+    AppDbContext db,
+    IConfiguration config,
+    ILogger<BacktestService> logger)
 {
     private const double RiskFreeRate = 0.065;
     private const double BaselineIv = 0.14;
-    private const int MinWarmupDays = 35;
+    private const int MinWarmupBars = 200;
+    private const decimal StopLossPct = 0.35m;
+    private const decimal Target1Pct = 0.70m;
+    private const decimal Target2Pct = 1.20m;
 
     private static readonly TimeZoneInfo IstZone = GetIstZone();
 
@@ -31,7 +38,8 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
 
     public static readonly string[] EntryConditions =
         ["RSI_Oversold", "RSI_Overbought", "MACD_Bullish_Cross", "MACD_Bearish_Cross",
-         "SupertrendBullish", "SupertrendBearish", "PriceBreakoutAboveR1", "PriceBreakdownBelowS1"];
+         "SupertrendBullish", "SupertrendBearish", "PriceBreakoutAboveR1", "PriceBreakdownBelowS1",
+         "PivotEma20Bullish", "PivotEma20Bearish"];
 
     public static readonly string[] ExitConditions =
         ["SLHit", "Target1Hit", "Target2Hit", "ThetaDecay50Pct", "ExpiryMinus1Day"];
@@ -63,15 +71,20 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
             throw new ArgumentException("PeriodDays must be at least 5");
         if (req.Lots <= 0)
             throw new ArgumentException("Lots must be at least 1");
+        if (req.TargetPoints is <= 0)
+            throw new ArgumentException("TargetPoints must be greater than 0");
+        if (req.StopLossPoints is <= 0)
+            throw new ArgumentException("StopLossPoints must be greater than 0");
 
         int lotSize = symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
         int step = StrikeStep[symbol];
 
-        var daily = ToDailyCandles(marketData.GetCandles(symbol));
-        if (daily.Count < MinWarmupDays + 5)
+        var intraday = marketData.GetCandles(symbol);
+        var daily = ToDailyCandles(intraday);
+        if (daily.Count < 2 || intraday.Count < MinWarmupBars + 5)
             throw new InvalidOperationException("Not enough historical data to run a backtest");
 
-        var trades = Simulate(daily, req, legs, symbol, step, lotSize);
+        var trades = Simulate(intraday, daily, req, legs, symbol, step, lotSize);
 
         var parameters = JsonSerializer.SerializeToDocument(new
         {
@@ -81,8 +94,14 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
             exitCondition = req.ExitCondition,
             periodDays = req.PeriodDays,
             lots = req.Lots,
+            targetPoints = req.TargetPoints,
+            stopLossPoints = req.StopLossPoints,
+            dataSource = GetDataSource(),
+            candleCount = intraday.Count,
+            tradingDays = daily.Count,
         });
         var stats = ComputeStats(trades);
+        await CleanupExpiredHistoryAsync(userId, ct);
 
         var result = new Domain.Entities.BacktestResult
         {
@@ -109,15 +128,37 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
         return ToResponse(result);
     }
 
-    public async Task<IReadOnlyList<BacktestResultResponse>> GetHistoryAsync(Guid userId, int limit = 20, CancellationToken ct = default)
+    public async Task<BacktestHistoryResponse> GetHistoryAsync(
+        Guid userId,
+        int page = 1,
+        int pageSize = 8,
+        CancellationToken ct = default)
     {
+        await CleanupExpiredHistoryAsync(userId, ct);
+
+        pageSize = pageSize <= 0 ? 8 : Math.Clamp(pageSize, 1, 25);
+        page = Math.Max(page, 1);
+
+        int totalItems = await db.BacktestResults
+            .Where(b => b.UserId == userId)
+            .CountAsync(ct);
+        int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
         var rows = await db.BacktestResults
             .Where(b => b.UserId == userId)
             .OrderByDescending(b => b.CreatedAt)
-            .Take(Math.Min(limit, 100))
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
-        return rows.Select(ToResponse).ToList();
+        return new BacktestHistoryResponse(
+            rows.Select(ToResponse).ToList(),
+            page,
+            pageSize,
+            totalItems,
+            totalPages,
+            GetHistoryRetentionDays());
     }
 
     // ------------------------------------------------------------------
@@ -125,40 +166,48 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
     // ------------------------------------------------------------------
 
     private List<BacktestTradeLogEntry> Simulate(
-        IReadOnlyList<CandleData> daily, BacktestRunRequest req, StrategyLeg[] legs, string symbol, int step, int lotSize)
+        IReadOnlyList<CandleData> intraday,
+        IReadOnlyList<CandleData> daily,
+        BacktestRunRequest req,
+        StrategyLeg[] legs,
+        string symbol,
+        int step,
+        int lotSize)
     {
-        var quotes = daily.Select(ToQuote).ToList();
+        var candles = intraday.OrderBy(c => c.Time).ToList();
+        var quotes = candles.Select(ToQuote).ToList();
         var rsi = quotes.GetRsi(14).ToList();
         var macd = quotes.GetMacd(12, 26, 9).ToList();
+        var ema20 = quotes.GetEma(20).ToList();
         var supertrend = quotes.GetSuperTrend(10, 3).ToList();
+        var pivotsByDate = BuildPivotLookup(daily);
 
-        int testWindow = Math.Min(req.PeriodDays, daily.Count - MinWarmupDays);
-        int startIndex = Math.Max(MinWarmupDays, daily.Count - testWindow);
+        int testWindow = Math.Min(req.PeriodDays, daily.Count - 1);
+        var startDate = ToIstDate(daily[^testWindow].Time);
+        int firstWindowBar = candles.FindIndex(c => ToIstDate(c.Time) >= startDate);
+        int startIndex = Math.Max(MinWarmupBars, firstWindowBar < 0 ? MinWarmupBars : firstWindowBar);
 
         var trades = new List<BacktestTradeLogEntry>();
         OpenTrade? open = null;
 
-        for (int i = startIndex; i < daily.Count; i++)
+        for (int i = startIndex; i < candles.Count; i++)
         {
-            var candle = daily[i];
-            var prev = daily[i - 1];
-            var (_, r1, s1) = ComputeDailyPivots(prev);
+            var candle = candles[i];
+            var prev = candles[i - 1];
+            if (!pivotsByDate.TryGetValue(ToIstDate(candle.Time), out var pivots))
+                continue;
 
             if (open is null)
             {
-                if (EntrySignalFires(req.EntryCondition, i, candle, prev, rsi, macd, supertrend, r1, s1))
+                if (EntrySignalFires(req.EntryCondition, i, candle, prev, rsi, macd, ema20, supertrend, pivots))
                     open = OpenPosition(symbol, req.Strategy, legs, candle, step, lotSize);
             }
             else
             {
-                var (netValue, intrinsic, daysToExpiry) = ValuePosition(open, candle.Close, candle.Time);
-                decimal pnl = (netValue - open.EntryNetPremium) * req.Lots * lotSize;
-                decimal extrinsic = netValue - intrinsic;
-
-                var exitReason = CheckExitConditions(req.ExitCondition, open, pnl, extrinsic, daysToExpiry);
-                if (exitReason is not null)
+                var exit = CheckExitConditions(req.ExitCondition, open, candle, req, lotSize);
+                if (exit is not null)
                 {
-                    trades.Add(ToTradeLogEntry(open, candle.Time, netValue, pnl, exitReason));
+                    trades.Add(ToTradeLogEntry(open, candle.Time, exit.ExitValue, exit.PnL, exit.Reason, req));
                     open = null;
                 }
             }
@@ -169,56 +218,166 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
             var last = daily[^1];
             var (netValue, _, _) = ValuePosition(open, last.Close, last.Time);
             decimal pnl = (netValue - open.EntryNetPremium) * req.Lots * lotSize;
-            trades.Add(ToTradeLogEntry(open, last.Time, netValue, pnl, "EndOfPeriod"));
+            trades.Add(ToTradeLogEntry(open, last.Time, netValue, pnl, "EndOfPeriod", req));
         }
 
         return trades;
     }
 
-    private static BacktestTradeLogEntry ToTradeLogEntry(OpenTrade trade, DateTimeOffset exitDate, decimal exitValue, decimal pnl, string reason) =>
-        new(
-            EntryDate: trade.EntryDate.ToString("yyyy-MM-dd"),
-            ExitDate: exitDate.ToString("yyyy-MM-dd"),
+    private static BacktestTradeLogEntry ToTradeLogEntry(
+        OpenTrade trade,
+        DateTimeOffset exitDate,
+        decimal exitValue,
+        decimal pnl,
+        string reason,
+        BacktestRunRequest req)
+    {
+        var risk = GetRiskSettings(trade, req);
+        return new(
+            EntryDate: trade.EntryDate.ToString("yyyy-MM-dd HH:mm"),
+            ExitDate: exitDate.ToString("yyyy-MM-dd HH:mm"),
             Contract: trade.Contract,
             EntryPrice: Math.Round(trade.EntryNetPremium, 2),
             ExitPrice: Math.Round(exitValue, 2),
             PnL: Math.Round(pnl, 2),
-            ExitReason: reason);
+            ExitReason: reason,
+            StopLossPrice: Math.Round(trade.EntryNetPremium - risk.StopLossPoints, 2),
+            Target1Price: Math.Round(trade.EntryNetPremium + risk.Target1Points, 2),
+            Target2Price: Math.Round(trade.EntryNetPremium + risk.Target2Points, 2));
+    }
 
     private static bool EntrySignalFires(
         string condition, int i, CandleData candle, CandleData prev,
-        IReadOnlyList<RsiResult> rsi, IReadOnlyList<MacdResult> macd, IReadOnlyList<SuperTrendResult> supertrend,
-        decimal r1, decimal s1) => condition switch
+        IReadOnlyList<RsiResult> rsi,
+        IReadOnlyList<MacdResult> macd,
+        IReadOnlyList<EmaResult> ema20,
+        IReadOnlyList<SuperTrendResult> supertrend,
+        DailyPivotLevels pivots) => condition switch
     {
         "RSI_Oversold"         => (rsi[i].Rsi ?? 50) < 30,
         "RSI_Overbought"       => (rsi[i].Rsi ?? 50) > 70,
         "MACD_Bullish_Cross"   => (macd[i].Macd ?? 0) > (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) <= (macd[i - 1].Signal ?? 0),
         "MACD_Bearish_Cross"   => (macd[i].Macd ?? 0) < (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) >= (macd[i - 1].Signal ?? 0),
-        "SupertrendBullish"    => IsSupertrendBullish(supertrend[i]) && !IsSupertrendBullish(supertrend[i - 1]),
-        "SupertrendBearish"    => !IsSupertrendBullish(supertrend[i]) && IsSupertrendBullish(supertrend[i - 1]),
-        "PriceBreakoutAboveR1" => candle.Close > r1 && prev.Close <= r1,
-        "PriceBreakdownBelowS1" => candle.Close < s1 && prev.Close >= s1,
+        "SupertrendBullish"    => IsSupertrendBullish(supertrend[i]),
+        "SupertrendBearish"    => !IsSupertrendBullish(supertrend[i]),
+        "PriceBreakoutAboveR1" => candle.Close > pivots.R1 && prev.Close <= pivots.R1,
+        "PriceBreakdownBelowS1" => candle.Close < pivots.S1 && prev.Close >= pivots.S1,
+        "PivotEma20Bullish"    => IsPivotEma20Bullish(i, candle, prev, ema20, pivots),
+        "PivotEma20Bearish"    => IsPivotEma20Bearish(i, candle, prev, ema20, pivots),
         _ => false,
     };
 
     private static bool IsSupertrendBullish(SuperTrendResult r) => r.LowerBand.HasValue;
 
-    // SL/Target are always-on risk management sized as a percentage of entry risk capital —
-    // without them a strategy could ride out the whole test window without ever closing.
-    // The user-selected exit condition is checked as an additional early-exit trigger.
-    private static string? CheckExitConditions(string selectedExit, OpenTrade trade, decimal pnl, decimal extrinsic, double daysToExpiry)
+    private static bool IsPivotEma20Bullish(
+        int i,
+        CandleData candle,
+        CandleData prev,
+        IReadOnlyList<EmaResult> ema20,
+        DailyPivotLevels pivots)
     {
-        if (pnl <= -0.5m * trade.RiskCapital) return "SLHit";
-        if (pnl >= 1.5m * trade.RiskCapital) return "Target2Hit";
-        if (pnl >= 1.0m * trade.RiskCapital) return "Target1Hit";
-        if (daysToExpiry <= 0) return "ExpiryMinus1Day";
+        var ema = ema20[i].Ema;
+        var prevEma = ema20[i - 1].Ema;
+        if (!ema.HasValue || !prevEma.HasValue)
+            return false;
+
+        decimal currentEma = (decimal)ema.Value;
+        decimal previousEma = (decimal)prevEma.Value;
+        bool reclaimedEma = prev.Close <= previousEma && candle.Close > currentEma;
+        bool reclaimedPivot = prev.Close <= pivots.Pivot && candle.Close > pivots.Pivot;
+        bool bouncedFromSupport = candle.Low <= Math.Max(currentEma, pivots.Pivot) && candle.Close > candle.Open;
+
+        return candle.Close > currentEma
+            && candle.Close > pivots.Pivot
+            && candle.Close < pivots.R1
+            && (reclaimedEma || reclaimedPivot || bouncedFromSupport);
+    }
+
+    private static bool IsPivotEma20Bearish(
+        int i,
+        CandleData candle,
+        CandleData prev,
+        IReadOnlyList<EmaResult> ema20,
+        DailyPivotLevels pivots)
+    {
+        var ema = ema20[i].Ema;
+        var prevEma = ema20[i - 1].Ema;
+        if (!ema.HasValue || !prevEma.HasValue)
+            return false;
+
+        decimal currentEma = (decimal)ema.Value;
+        decimal previousEma = (decimal)prevEma.Value;
+        bool lostEma = prev.Close >= previousEma && candle.Close < currentEma;
+        bool lostPivot = prev.Close >= pivots.Pivot && candle.Close < pivots.Pivot;
+        bool rejectedFromResistance = candle.High >= Math.Min(currentEma, pivots.Pivot) && candle.Close < candle.Open;
+
+        return candle.Close < currentEma
+            && candle.Close < pivots.Pivot
+            && candle.Close > pivots.S1
+            && (lostEma || lostPivot || rejectedFromResistance);
+    }
+
+    // SL and target checks use intraday candle extremes so a stop/target touched inside
+    // a 15-minute bar is captured instead of waiting for the daily close.
+    private static ExitDecision? CheckExitConditions(
+        string selectedExit,
+        OpenTrade trade,
+        CandleData candle,
+        BacktestRunRequest req,
+        int lotSize)
+    {
+        var close = ValuePosition(trade, candle.Close, candle.Time);
+        decimal closePnl = ToPnl(close.NetValue, trade, req.Lots, lotSize);
+        decimal highPnl = ToPnl(ValuePosition(trade, candle.High, candle.Time).NetValue, trade, req.Lots, lotSize);
+        decimal lowPnl = ToPnl(ValuePosition(trade, candle.Low, candle.Time).NetValue, trade, req.Lots, lotSize);
+        decimal minPnl = Math.Min(closePnl, Math.Min(highPnl, lowPnl));
+        decimal maxPnl = Math.Max(closePnl, Math.Max(highPnl, lowPnl));
+
+        var risk = GetRiskSettings(trade, req);
+        decimal slPnl = -risk.StopLossPoints * req.Lots * lotSize;
+        decimal target1Pnl = risk.Target1Points * req.Lots * lotSize;
+        decimal target2Pnl = risk.Target2Points * req.Lots * lotSize;
+
+        if (minPnl <= slPnl)
+            return FromThreshold(trade, "SLHit", slPnl, req.Lots, lotSize);
+
+        if (selectedExit == "Target2Hit" && maxPnl >= target2Pnl)
+            return FromThreshold(trade, "Target2Hit", target2Pnl, req.Lots, lotSize);
+
+        if (selectedExit != "Target2Hit" && maxPnl >= target1Pnl)
+            return FromThreshold(trade, "Target1Hit", target1Pnl, req.Lots, lotSize);
+
+        if (close.DaysToExpiry <= 0)
+            return new ExitDecision("ExpiryMinus1Day", close.NetValue, closePnl);
 
         return selectedExit switch
         {
-            "ThetaDecay50Pct" when trade.EntryExtrinsic > 0 && extrinsic <= 0.5m * trade.EntryExtrinsic => "ThetaDecay50Pct",
-            "ExpiryMinus1Day" when daysToExpiry <= 1 => "ExpiryMinus1Day",
+            "ThetaDecay50Pct" when trade.EntryExtrinsic > 0 && close.NetValue - close.Intrinsic <= 0.5m * trade.EntryExtrinsic
+                => new ExitDecision("ThetaDecay50Pct", close.NetValue, closePnl),
+            "ExpiryMinus1Day" when close.DaysToExpiry <= 1
+                => new ExitDecision("ExpiryMinus1Day", close.NetValue, closePnl),
             _ => null,
         };
+    }
+
+    private static decimal ToPnl(decimal netValue, OpenTrade trade, int lots, int lotSize) =>
+        (netValue - trade.EntryNetPremium) * lots * lotSize;
+
+    private static RiskSettings GetRiskSettings(OpenTrade trade, BacktestRunRequest req)
+    {
+        decimal stopLossPoints = req.StopLossPoints ?? StopLossPct * trade.RiskCapital;
+        decimal target1Points = req.TargetPoints ?? Target1Pct * trade.RiskCapital;
+        decimal target2Points = req.TargetPoints.HasValue
+            ? req.TargetPoints.Value * 2m
+            : Target2Pct * trade.RiskCapital;
+
+        return new RiskSettings(stopLossPoints, target1Points, target2Points);
+    }
+
+    private static ExitDecision FromThreshold(OpenTrade trade, string reason, decimal pnl, int lots, int lotSize)
+    {
+        decimal exitValue = trade.EntryNetPremium + pnl / (lots * lotSize);
+        return new ExitDecision(reason, exitValue, pnl);
     }
 
     private OpenTrade OpenPosition(string symbol, string strategy, StrategyLeg[] legs, CandleData entryCandle, int step, int lotSize)
@@ -322,12 +481,21 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
     // Helpers
     // ------------------------------------------------------------------
 
-    private static (decimal Pivot, decimal R1, decimal S1) ComputeDailyPivots(CandleData prevDay)
+    private static DailyPivotLevels ComputeDailyPivots(CandleData prevDay)
     {
         decimal pivot = (prevDay.High + prevDay.Low + prevDay.Close) / 3m;
         decimal r1 = 2m * pivot - prevDay.Low;
         decimal s1 = 2m * pivot - prevDay.High;
-        return (pivot, r1, s1);
+        return new DailyPivotLevels(pivot, r1, s1);
+    }
+
+    private static Dictionary<DateOnly, DailyPivotLevels> BuildPivotLookup(IReadOnlyList<CandleData> daily)
+    {
+        var lookup = new Dictionary<DateOnly, DailyPivotLevels>();
+        for (int i = 1; i < daily.Count; i++)
+            lookup[ToIstDate(daily[i].Time)] = ComputeDailyPivots(daily[i - 1]);
+
+        return lookup;
     }
 
     // Resamples the 15-minute mock candles into daily OHLCV bars suitable for
@@ -351,6 +519,9 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
             .OrderBy(c => c.Time)
             .ToList();
     }
+
+    private static DateOnly ToIstDate(DateTimeOffset time) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(time.UtcDateTime, IstZone));
 
     private static Quote ToQuote(CandleData c) => new()
     {
@@ -412,6 +583,11 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
         string exitCondition  = TryGetString(p, "exitCondition");
         int periodDays        = TryGetInt(p, "periodDays");
         int lots              = TryGetInt(p, "lots");
+        string dataSource     = TryGetString(p, "dataSource");
+        int candleCount       = TryGetInt(p, "candleCount");
+        int tradingDays       = TryGetInt(p, "tradingDays");
+        decimal? targetPoints = TryGetNullableDecimal(p, "targetPoints");
+        decimal? stopLossPoints = TryGetNullableDecimal(p, "stopLossPoints");
 
         var tradeLog = r.TradeLog is not null
             ? JsonSerializer.Deserialize<List<BacktestTradeLogEntry>>(r.TradeLog.RootElement.GetRawText()) ?? []
@@ -423,14 +599,46 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
         return new BacktestResultResponse(
             r.Id, symbol, r.Strategy, entryCondition, exitCondition, periodDays, lots,
             r.WinRate, r.TotalTrades, r.NetPnl, r.MaxDrawdown, r.SharpeRatio, r.ProfitFactor,
-            stats.AvgWin, stats.AvgLoss, tradeLog, r.CreatedAt.ToString("O"));
+            stats.AvgWin, stats.AvgLoss, string.IsNullOrEmpty(dataSource) ? "unknown" : dataSource,
+            candleCount, tradingDays, targetPoints, stopLossPoints, tradeLog, r.CreatedAt.ToString("O"));
     }
+
+    private string GetDataSource() =>
+        config.GetValue<bool>("Groww:Enabled") ? "groww" : "mock";
+
+    private async Task<int> CleanupExpiredHistoryAsync(Guid userId, CancellationToken ct)
+    {
+        int retentionDays = GetHistoryRetentionDays();
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
+        int deleted = await db.BacktestResults
+            .Where(b => b.UserId == userId && b.CreatedAt < cutoff)
+            .ExecuteDeleteAsync(ct);
+
+        if (deleted > 0)
+        {
+            logger.LogInformation(
+                "Deleted {Count} expired backtest runs for {UserId}; retention {RetentionDays} days",
+                deleted,
+                userId,
+                retentionDays);
+        }
+
+        return deleted;
+    }
+
+    private int GetHistoryRetentionDays() =>
+        Math.Clamp(config.GetValue("Backtest:HistoryRetentionDays", 30), 1, 365);
 
     private static string TryGetString(JsonElement? element, string property) =>
         element?.TryGetProperty(property, out var v) == true ? v.GetString() ?? "" : "";
 
     private static int TryGetInt(JsonElement? element, string property) =>
         element?.TryGetProperty(property, out var v) == true ? v.GetInt32() : 0;
+
+    private static decimal? TryGetNullableDecimal(JsonElement? element, string property) =>
+        element?.TryGetProperty(property, out var v) == true && v.ValueKind == JsonValueKind.Number
+            ? v.GetDecimal()
+            : null;
 
     private static TimeZoneInfo GetIstZone()
     {
@@ -440,6 +648,9 @@ public class BacktestService(IMarketDataService marketData, AppDbContext db, ILo
 
     private record StrategyLeg(int StrikeOffset, string OptionType, string Action);
     private record TradeLeg(int Strike, string OptionType, string Action, decimal EntryPremium);
+    private record DailyPivotLevels(decimal Pivot, decimal R1, decimal S1);
+    private record ExitDecision(string Reason, decimal ExitValue, decimal PnL);
+    private record RiskSettings(decimal StopLossPoints, decimal Target1Points, decimal Target2Points);
 
     private record OpenTrade(
         DateTimeOffset EntryDate,

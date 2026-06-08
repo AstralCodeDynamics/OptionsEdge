@@ -9,7 +9,8 @@ public static class GrowwEndpoints
 {
     public static void MapGrowwEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/groww");
+        var group = app.MapGroup("/api/v1/groww")
+            .RequireAuthorization();
 
         // POST /api/v1/groww/credentials — save (or replace) the current user's Groww API
         // credentials. Validates them by generating a TOTP and authenticating with Groww
@@ -140,7 +141,8 @@ public static class GrowwEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        }).WithName("PlaceOrder");
+        }).WithName("PlaceOrder")
+          .RequireAuthorization();
 
         // POST /api/v1/orders/{orderId}/cancel — cancels a live F&O order via Groww
         app.MapPost("/api/v1/orders/{orderId}/cancel", async (
@@ -163,7 +165,8 @@ public static class GrowwEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        }).WithName("CancelOrder");
+        }).WithName("CancelOrder")
+          .RequireAuthorization();
     }
 
     public static void AddGrowwServices(this IServiceCollection services)

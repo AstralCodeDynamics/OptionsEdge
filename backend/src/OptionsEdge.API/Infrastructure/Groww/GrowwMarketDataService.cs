@@ -73,16 +73,50 @@ public class GrowwMarketDataService(
                 "Groww live snapshot cached for {Symbol} via user {UserId}: LTP={Ltp}",
                 key, userId, snapshot.Ltp);
 
-            if (!cache.TryGetValue(CandleCacheKey(key), out IReadOnlyList<CandleData>? _))
+            if (!cache.TryGetValue(CandleCacheKey(key), out IReadOnlyList<CandleData>? cachedCandles)
+                || cachedCandles is null
+                || cachedCandles.Count == 0)
             {
                 var candles = await groww.GetHistoricalCandlesAsync(
                     userId, key, segment: "CASH", intervalMinutes: 15, lookbackDays: 90, ct: ct);
-                cache.Set(CandleCacheKey(key), candles, CandleTtl);
+                if (candles.Count > 0)
+                    cache.Set(CandleCacheKey(key), candles, CandleTtl);
+                else
+                    cache.Remove(CandleCacheKey(key));
             }
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to refresh Groww market data for {Symbol} via user {UserId}", key, userId);
         }
+    }
+
+    public async Task<IReadOnlyList<CandleData>> RefreshCandlesForBacktestAsync(
+        Guid userId,
+        string symbol,
+        CancellationToken ct = default)
+    {
+        var key = symbol.ToUpperInvariant();
+        if (key is not ("NIFTY" or "BANKNIFTY"))
+            throw new ArgumentException("Symbol must be NIFTY or BANKNIFTY");
+
+        using var scope = scopeFactory.CreateScope();
+        var groww = scope.ServiceProvider.GetRequiredService<GrowwUserApiClient>();
+
+        var candles = await groww.GetHistoricalCandlesAsync(
+            userId, key, segment: "CASH", intervalMinutes: 15, lookbackDays: 90, ct: ct);
+
+        if (candles.Count == 0)
+        {
+            cache.Remove(CandleCacheKey(key));
+            throw new InvalidOperationException($"Groww returned no historical candles for {key}.");
+        }
+
+        cache.Set(CandleCacheKey(key), candles, CandleTtl);
+        logger.LogInformation(
+            "Groww historical candles cached for backtest: {Symbol}, {Count} candles",
+            key, candles.Count);
+
+        return candles;
     }
 }

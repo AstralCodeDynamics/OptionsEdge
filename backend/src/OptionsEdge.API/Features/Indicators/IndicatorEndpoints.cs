@@ -9,7 +9,8 @@ public static class IndicatorEndpoints
             if (symbol.ToUpper() is not ("NIFTY" or "BANKNIFTY"))
                 return Results.NotFound();
             return Results.Ok(svc.GetIndicators(symbol));
-        }).WithName("GetIndicators");
+        }).WithName("GetIndicators")
+          .RequireAuthorization();
     }
 
     public static void AddIndicatorServices(this IServiceCollection services)

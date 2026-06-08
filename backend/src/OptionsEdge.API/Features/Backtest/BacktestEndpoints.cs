@@ -7,7 +7,8 @@ public static class BacktestEndpoints
 {
     public static void MapBacktestEndpoints(this WebApplication app)
     {
-        var backtest = app.MapGroup("/api/v1/backtest");
+        var backtest = app.MapGroup("/api/v1/backtest")
+            .RequireAuthorization();
 
         // POST /api/v1/backtest/run
         backtest.MapPost("/run", async (
@@ -22,21 +23,25 @@ public static class BacktestEndpoints
             var userId = ctx.GetUserId(config);
 
             // Live data needs the user's own Groww credentials (no platform-wide account), so
-            // refresh the candle cache on their behalf before backtesting against it. Failure
-            // here shouldn't block the run — it just falls back to whatever's already cached.
+            // fetch fresh historical candles on their behalf before backtesting. When Groww is
+            // enabled, backtests should use Groww data rather than quietly falling back to mock.
             if (config.GetValue<bool>("Groww:Enabled"))
             {
                 try
                 {
                     var growwMarketData = sp.GetRequiredService<GrowwMarketDataService>();
-                    await growwMarketData.RefreshForUserAsync(userId, req.Symbol, ct);
-                    logger.LogInformation("Groww candles refreshed for backtest: {Symbol}", req.Symbol);
+                    var candles = await growwMarketData.RefreshCandlesForBacktestAsync(userId, req.Symbol, ct);
+                    logger.LogInformation("Groww candles refreshed for backtest: {Symbol}, {Count} candles", req.Symbol, candles.Count);
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex,
-                        "Groww candle refresh failed before backtest for {Symbol} — using cached/mock data",
+                        "Groww candle refresh failed before backtest for {Symbol}",
                         req.Symbol);
+                    return Results.BadRequest(new
+                    {
+                        error = $"Could not fetch Groww historical candles for {req.Symbol}. Check Groww connection and try again."
+                    });
                 }
             }
 
@@ -60,10 +65,12 @@ public static class BacktestEndpoints
             BacktestService backtestSvc,
             IConfiguration config,
             HttpContext ctx,
+            int? page,
+            int? pageSize,
             CancellationToken ct) =>
         {
             var userId = ctx.GetUserId(config);
-            var history = await backtestSvc.GetHistoryAsync(userId, ct: ct);
+            var history = await backtestSvc.GetHistoryAsync(userId, page ?? 1, pageSize ?? 8, ct);
             return Results.Ok(history);
         }).WithName("GetBacktestHistory");
     }

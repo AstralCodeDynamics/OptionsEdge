@@ -162,6 +162,7 @@ app.MapUsageEndpoints();
 app.MapBillingEndpoints();
 
 // SignalR hubs
-app.MapHub<MarketHub>("/hubs/market");
+app.MapHub<MarketHub>("/hubs/market")
+   .RequireAuthorization();
 
 app.Run();

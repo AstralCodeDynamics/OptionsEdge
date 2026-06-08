@@ -7,7 +7,8 @@ public static class ChatEndpoints
 {
     public static void MapChatEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/chat");
+        var group = app.MapGroup("/api/v1/chat")
+            .RequireAuthorization();
 
         // POST /api/v1/chat/message — streams the assistant reply as Server-Sent Events
         group.MapPost("/message", async Task (

@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
@@ -25,6 +26,7 @@ public class GrowwUserApiClient(
     ILogger<GrowwUserApiClient> logger)
 {
     private static readonly SemaphoreSlim AuthLock = new(1, 1);
+    private static readonly TimeSpan IstOffset = TimeSpan.FromHours(5.5);
 
     private readonly HttpClient _http = factory.CreateClient("groww");
 
@@ -163,7 +165,7 @@ public class GrowwUserApiClient(
 
     public async Task<IReadOnlyList<GrowwPosition>> GetPositionsAsync(Guid userId, CancellationToken ct = default)
     {
-        var root = Unwrap(await SendAsync(userId, HttpMethod.Get, "/v1/portfolio/positions?segment=FNO", null, ct));
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get, "/v1/positions/user?segment=FNO", null, ct));
 
         var positions = new List<GrowwPosition>();
         if (!root.TryGetProperty("positions", out var arr) || arr.ValueKind != JsonValueKind.Array)
@@ -174,9 +176,9 @@ public class GrowwUserApiClient(
             positions.Add(new GrowwPosition(
                 TradingSymbol: GetString(p, "trading_symbol") ?? "",
                 Quantity: (int)(GetDecimal(p, "quantity") ?? GetDecimal(p, "net_quantity") ?? 0),
-                AvgPrice: GetDecimal(p, "average_price") ?? GetDecimal(p, "buy_avg_price") ?? 0,
+                AvgPrice: GetDecimal(p, "average_price") ?? GetDecimal(p, "buy_avg_price") ?? GetDecimal(p, "net_price") ?? GetDecimal(p, "net_carry_forward_price") ?? 0,
                 Ltp: GetDecimal(p, "ltp") ?? GetDecimal(p, "last_price") ?? 0,
-                Pnl: GetDecimal(p, "pnl") ?? 0));
+                Pnl: GetDecimal(p, "pnl") ?? GetDecimal(p, "realised_pnl") ?? 0));
         }
 
         return positions;
@@ -250,45 +252,27 @@ public class GrowwUserApiClient(
     public async Task<IReadOnlyList<CandleData>> GetHistoricalCandlesAsync(
         Guid userId, string tradingSymbol, string segment = "CASH", int intervalMinutes = 15, int lookbackDays = 90, CancellationToken ct = default)
     {
-        var to = DateTime.UtcNow.AddHours(5).AddMinutes(30); // Convert to IST
+        var to = DateTime.UtcNow.Add(IstOffset);
         var from = to.AddDays(-lookbackDays);
+        var maxDuration = TimeSpan.FromDays(GetMaxCandleRequestDays(intervalMinutes));
+        var candlesByTime = new SortedDictionary<DateTimeOffset, CandleData>();
 
-        // Groww expects "yyyy-MM-dd HH:mm:ss" in IST, not unix timestamps
-        var startTime = from.ToString("yyyy-MM-dd HH:mm:ss");
-        var endTime = to.ToString("yyyy-MM-dd HH:mm:ss");
-
-        var path = "/v1/historical/candle/range" +
-            $"?exchange=NSE" +
-            $"&segment={segment}" +
-            $"&trading_symbol={Uri.EscapeDataString(tradingSymbol)}" +
-            $"&start_time={Uri.EscapeDataString(startTime)}" +
-            $"&end_time={Uri.EscapeDataString(endTime)}" +
-            $"&interval_in_minutes={intervalMinutes}";
-
-        var root = Unwrap(await SendAsync(userId, HttpMethod.Get, path, null, ct));
-
-        var candles = new List<CandleData>();
-
-        // Response: { "payload": { "candles": [[ts,o,h,l,c,vol], ...] } } — Unwrap already
-        // extracts payload, so root is the payload object directly.
-        if (!root.TryGetProperty("candles", out var arr) || arr.ValueKind != JsonValueKind.Array)
-            return candles;
-
-        // Each candle is [timestamp, open, high, low, close, volume]
-        foreach (var c in arr.EnumerateArray())
+        for (var chunkStart = from; chunkStart < to; chunkStart = chunkStart.Add(maxDuration))
         {
-            if (c.ValueKind != JsonValueKind.Array) continue;
-            var items = c.EnumerateArray().ToList();
-            if (items.Count < 6) continue;
+            ct.ThrowIfCancellationRequested();
 
-            candles.Add(new CandleData(
-                Time: DateTimeOffset.FromUnixTimeSeconds(items[0].GetInt64()),
-                Open: items[1].GetDecimal(),
-                High: items[2].GetDecimal(),
-                Low: items[3].GetDecimal(),
-                Close: items[4].GetDecimal(),
-                Volume: items[5].GetInt64()));
+            var chunkEnd = chunkStart.Add(maxDuration);
+            if (chunkEnd > to)
+                chunkEnd = to;
+
+            foreach (var candle in await GetHistoricalCandleChunkAsync(
+                userId, tradingSymbol, segment, intervalMinutes, chunkStart, chunkEnd, ct))
+            {
+                candlesByTime[candle.Time] = candle;
+            }
         }
+
+        var candles = candlesByTime.Values.ToList();
 
         logger.LogInformation(
             "Groww candles fetched for {Symbol}: {Count} candles at {Interval}min interval",
@@ -296,6 +280,109 @@ public class GrowwUserApiClient(
 
         return candles;
     }
+
+    private async Task<IReadOnlyList<CandleData>> GetHistoricalCandleChunkAsync(
+        Guid userId,
+        string tradingSymbol,
+        string segment,
+        int intervalMinutes,
+        DateTime from,
+        DateTime to,
+        CancellationToken ct)
+    {
+        // Groww expects "yyyy-MM-dd HH:mm:ss" in IST, not unix timestamps.
+        var startTime = from.ToString("yyyy-MM-dd HH:mm:ss");
+        var endTime = to.ToString("yyyy-MM-dd HH:mm:ss");
+
+        var path = "/v1/historical/candle/range" +
+            $"?exchange=NSE" +
+            $"&segment={Uri.EscapeDataString(segment)}" +
+            $"&trading_symbol={Uri.EscapeDataString(tradingSymbol)}" +
+            $"&start_time={Uri.EscapeDataString(startTime)}" +
+            $"&end_time={Uri.EscapeDataString(endTime)}" +
+            $"&interval_in_minutes={intervalMinutes}";
+
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get, path, null, ct));
+        var candles = new List<CandleData>();
+
+        // Response: { "payload": { "candles": [[ts,o,h,l,c,vol], ...] } } — Unwrap already
+        // extracts payload, so root is the payload object directly.
+        if (!root.TryGetProperty("candles", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return candles;
+
+        // Each candle is [timestamp, open, high, low, close, volume].
+        foreach (var c in arr.EnumerateArray())
+        {
+            if (c.ValueKind != JsonValueKind.Array)
+                continue;
+
+            var items = c.EnumerateArray().ToList();
+            if (items.Count < 6)
+                continue;
+
+            if (!TryReadInt64(items[0], out var timestamp)
+                || !TryReadDecimal(items[1], out var open)
+                || !TryReadDecimal(items[2], out var high)
+                || !TryReadDecimal(items[3], out var low)
+                || !TryReadDecimal(items[4], out var close))
+            {
+                continue;
+            }
+
+            var volume = TryReadInt64(items[5], out var parsedVolume) ? parsedVolume : 0;
+
+            candles.Add(new CandleData(
+                Time: DateTimeOffset.FromUnixTimeSeconds(timestamp),
+                Open: open,
+                High: high,
+                Low: low,
+                Close: close,
+                Volume: volume));
+        }
+
+        return candles;
+    }
+
+    private static bool TryReadDecimal(JsonElement element, out decimal value)
+    {
+        value = 0;
+        return element.ValueKind switch
+        {
+            JsonValueKind.Number => element.TryGetDecimal(out value),
+            JsonValueKind.String => decimal.TryParse(element.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out value),
+            _ => false,
+        };
+    }
+
+    private static bool TryReadInt64(JsonElement element, out long value)
+    {
+        value = 0;
+        if (element.ValueKind == JsonValueKind.Number)
+        {
+            if (element.TryGetInt64(out value))
+                return true;
+
+            if (element.TryGetDecimal(out var decimalValue))
+            {
+                value = decimal.ToInt64(decimal.Truncate(decimalValue));
+                return true;
+            }
+        }
+
+        return element.ValueKind == JsonValueKind.String
+            && long.TryParse(element.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static int GetMaxCandleRequestDays(int intervalMinutes) => intervalMinutes switch
+    {
+        <= 1 => 7,
+        <= 5 => 15,
+        <= 30 => 30,
+        <= 60 => 150,
+        <= 240 => 365,
+        <= 1440 => 1080,
+        _ => 1080,
+    };
 
     private async Task<JsonElement> SendAsync(Guid userId, HttpMethod method, string path, object? body, CancellationToken ct)
     {

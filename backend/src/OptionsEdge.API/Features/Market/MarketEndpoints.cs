@@ -7,29 +7,27 @@ public static class MarketEndpoints
 {
     public static void MapMarketEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/market");
+        var group = app.MapGroup("/api/v1/market")
+            .RequireAuthorization();
 
         group.MapGet("/snapshot", async (HttpContext ctx, IConfiguration config, MarketService svc, IServiceProvider sp, CancellationToken ct) =>
         {
             await RefreshLiveDataAsync(ctx, config, sp, null, ct);
             return Results.Ok(svc.GetSnapshots());
-        }).WithName("GetMarketSnapshots")
-          .RequireAuthorization();
+        }).WithName("GetMarketSnapshots");
 
         group.MapGet("/snapshot/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, MarketService svc, IServiceProvider sp, CancellationToken ct) =>
         {
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
             var snap = svc.GetSnapshot(symbol);
             return snap is null ? Results.NotFound() : Results.Ok(snap);
-        }).WithName("GetMarketSnapshot")
-          .RequireAuthorization();
+        }).WithName("GetMarketSnapshot");
 
         group.MapGet("/candles/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, IServiceProvider sp, MarketService svc, CancellationToken ct) =>
         {
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
             return Results.Ok(svc.GetCandles(symbol));
-        }).WithName("GetMarketCandles")
-          .RequireAuthorization();
+        }).WithName("GetMarketCandles");
 
         group.MapGet("/status", (MarketService svc) =>
             Results.Ok(svc.GetStatus()))

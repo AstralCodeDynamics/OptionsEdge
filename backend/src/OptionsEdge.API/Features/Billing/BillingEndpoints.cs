@@ -4,7 +4,8 @@ public static class BillingEndpoints
 {
     public static void MapBillingEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/billing");
+        var group = app.MapGroup("/api/v1/billing")
+            .RequireAuthorization();
 
         // POST /api/v1/billing/topup
         // Placeholder until Razorpay integration lands — accepts the request shape

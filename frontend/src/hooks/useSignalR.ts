@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
+import { getAccessToken } from '../services/api'
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 
@@ -12,7 +13,10 @@ export function useSignalR(url: string) {
 
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(url, { skipNegotiation: false })
+      .withUrl(url, {
+        skipNegotiation: false,
+        accessTokenFactory: () => getAccessToken() ?? '',
+      })
       .withAutomaticReconnect(RETRY_DELAYS)
       .configureLogging(signalR.LogLevel.Warning)
       .build()

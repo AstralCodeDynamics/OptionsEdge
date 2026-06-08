@@ -103,6 +103,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(c => c.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(c => c.User).WithMany(u => u.ChatMessages).HasForeignKey(c => c.UserId);
             e.HasIndex(c => new { c.SessionId, c.CreatedAt });
+            e.HasIndex(c => new { c.UserId, c.SessionId, c.CreatedAt });
         });
 
         modelBuilder.Entity<AIUsageLog>(e =>
@@ -133,6 +134,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(b => b.ProfitFactor).HasColumnType("decimal(5,2)");
             e.Property(b => b.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(b => b.User).WithMany(u => u.BacktestResults).HasForeignKey(b => b.UserId);
+            e.HasIndex(b => new { b.UserId, b.CreatedAt }).IsDescending(false, true);
         });
 
         modelBuilder.Entity<GrowwCredential>(e =>

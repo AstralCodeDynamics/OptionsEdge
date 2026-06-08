@@ -222,8 +222,12 @@ export interface BacktestTradeLogEntry {
   contract: string
   entryPrice: number
   exitPrice: number
-  pnL: number
+  pnL?: number
+  pnl?: number
   exitReason: string
+  stopLossPrice?: number | null
+  target1Price?: number | null
+  target2Price?: number | null
 }
 
 export interface BacktestResult {
@@ -242,8 +246,22 @@ export interface BacktestResult {
   profitFactor: number
   avgWin: number
   avgLoss: number
+  dataSource: 'groww' | 'mock' | 'unknown'
+  candleCount: number
+  tradingDays: number
+  targetPoints?: number | null
+  stopLossPoints?: number | null
   tradeLog: BacktestTradeLogEntry[]
   createdAt: string
+}
+
+export interface BacktestHistoryResponse {
+  items: BacktestResult[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  retentionDays: number
 }
 
 export interface AuthUser {

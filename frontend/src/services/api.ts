@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type {
   MarketSnapshot, MarketStatus, Candle, IndicatorsResponse, OptionsChain, Signal, Position, Alert,
-  ChatMessage, BacktestResult, StrategyLeg, PayoffResult,
+  ChatMessage, BacktestResult, BacktestHistoryResponse, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
   UsageStats,
@@ -213,9 +213,15 @@ export const backtestApi = {
     exitCondition: string
     periodDays: number
     lots: number
+    targetPoints?: number
+    stopLossPoints?: number
   }) => api.post<BacktestResult>('/backtest/run', data).then((r) => r.data),
-  getHistory: () =>
-    api.get<BacktestResult[]>('/backtest/history').then((r) => r.data),
+  getHistory: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams()
+    q.set('page', String(params?.page ?? 1))
+    q.set('pageSize', String(params?.pageSize ?? 8))
+    return api.get<BacktestHistoryResponse>(`/backtest/history?${q}`).then((r) => r.data)
+  },
 }
 
 export const alertsApi = {

@@ -6,7 +6,9 @@ public record BacktestRunRequest(
     string EntryCondition,
     string ExitCondition,
     int PeriodDays,
-    int Lots);
+    int Lots,
+    decimal? TargetPoints = null,
+    decimal? StopLossPoints = null);
 
 public record BacktestTradeLogEntry(
     string EntryDate,
@@ -15,7 +17,10 @@ public record BacktestTradeLogEntry(
     decimal EntryPrice,
     decimal ExitPrice,
     decimal PnL,
-    string ExitReason);
+    string ExitReason,
+    decimal? StopLossPrice = null,
+    decimal? Target1Price = null,
+    decimal? Target2Price = null);
 
 public record BacktestResultResponse(
     Guid Id,
@@ -33,5 +38,18 @@ public record BacktestResultResponse(
     decimal ProfitFactor,
     decimal AvgWin,
     decimal AvgLoss,
+    string DataSource,
+    int CandleCount,
+    int TradingDays,
+    decimal? TargetPoints,
+    decimal? StopLossPoints,
     IReadOnlyList<BacktestTradeLogEntry> TradeLog,
     string CreatedAt);
+
+public record BacktestHistoryResponse(
+    IReadOnlyList<BacktestResultResponse> Items,
+    int Page,
+    int PageSize,
+    int TotalItems,
+    int TotalPages,
+    int RetentionDays);

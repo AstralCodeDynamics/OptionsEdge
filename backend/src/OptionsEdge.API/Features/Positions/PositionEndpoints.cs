@@ -10,8 +10,10 @@ public static class PositionEndpoints
 {
     public static void MapPositionEndpoints(this WebApplication app)
     {
-        var positions = app.MapGroup("/api/v1/positions");
-        var alerts    = app.MapGroup("/api/v1/alerts");
+        var positions = app.MapGroup("/api/v1/positions")
+            .RequireAuthorization();
+        var alerts = app.MapGroup("/api/v1/alerts")
+            .RequireAuthorization();
 
         // GET /api/v1/positions
         positions.MapGet("/", async (

@@ -389,6 +389,9 @@ namespace OptionsEdge.API.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId", "CreatedAt")
+                        .IsDescending(false, true);
+
                     b.ToTable("BacktestResults");
                 });
 
@@ -437,6 +440,8 @@ namespace OptionsEdge.API.Infrastructure.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.HasIndex("SessionId", "CreatedAt");
+
+                    b.HasIndex("UserId", "SessionId", "CreatedAt");
 
                     b.ToTable("ChatMessages");
                 });

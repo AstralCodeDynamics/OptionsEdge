@@ -197,8 +197,8 @@ public class AISignalService(
 
         cache.Set(cacheKey, result);
 
-        // Broadcast via SignalR
-        await hub.Clients.Group(key).SendAsync("NewSignal", result, ct);
+        // Signal results are stored per user, so live updates must stay user-scoped too.
+        await hub.Clients.User(userId.ToString()).SendAsync("NewSignal", result, ct);
 
         return (result, null);
     }
