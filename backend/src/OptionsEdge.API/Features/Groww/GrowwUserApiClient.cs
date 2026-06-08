@@ -248,17 +248,29 @@ public class GrowwUserApiClient(
     }
 
     public async Task<IReadOnlyList<CandleData>> GetHistoricalCandlesAsync(
-        Guid userId, string tradingSymbol, string segment = "CASH", string resolution = "D", int lookbackDays = 130, CancellationToken ct = default)
+        Guid userId, string tradingSymbol, string segment = "CASH", int intervalMinutes = 15, int lookbackDays = 90, CancellationToken ct = default)
     {
-        var to = DateTimeOffset.UtcNow;
+        var to = DateTime.UtcNow.AddHours(5).AddMinutes(30); // Convert to IST
         var from = to.AddDays(-lookbackDays);
 
-        var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
-            $"/v1/historical-data/candles/exchange/NSE/trading-symbol/{Uri.EscapeDataString(tradingSymbol)}" +
-            $"?segment={segment}&resolution={resolution}&from={from.ToUnixTimeSeconds()}&to={to.ToUnixTimeSeconds()}",
-            null, ct));
+        // Groww expects "yyyy-MM-dd HH:mm:ss" in IST, not unix timestamps
+        var startTime = from.ToString("yyyy-MM-dd HH:mm:ss");
+        var endTime = to.ToString("yyyy-MM-dd HH:mm:ss");
+
+        var path = "/v1/historical/candle/range" +
+            $"?exchange=NSE" +
+            $"&segment={segment}" +
+            $"&trading_symbol={Uri.EscapeDataString(tradingSymbol)}" +
+            $"&start_time={Uri.EscapeDataString(startTime)}" +
+            $"&end_time={Uri.EscapeDataString(endTime)}" +
+            $"&interval_in_minutes={intervalMinutes}";
+
+        var root = Unwrap(await SendAsync(userId, HttpMethod.Get, path, null, ct));
 
         var candles = new List<CandleData>();
+
+        // Response: { "payload": { "candles": [[ts,o,h,l,c,vol], ...] } } — Unwrap already
+        // extracts payload, so root is the payload object directly.
         if (!root.TryGetProperty("candles", out var arr) || arr.ValueKind != JsonValueKind.Array)
             return candles;
 
@@ -277,6 +289,10 @@ public class GrowwUserApiClient(
                 Close: items[4].GetDecimal(),
                 Volume: items[5].GetInt64()));
         }
+
+        logger.LogInformation(
+            "Groww candles fetched for {Symbol}: {Count} candles at {Interval}min interval",
+            tradingSymbol, candles.Count, intervalMinutes);
 
         return candles;
     }

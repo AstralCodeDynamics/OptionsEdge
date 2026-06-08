@@ -4,10 +4,20 @@ interface Props {
   snapshot: MarketSnapshot
 }
 
+const growwEnabled = import.meta.env.VITE_GROWW_ENABLED === 'true'
+
 export default function IndexCard({ snapshot }: Props) {
   const isUp = snapshot.change >= 0
   const changeColor = isUp ? 'text-emerald-400' : 'text-red-400'
   const changeBg = isUp ? 'bg-emerald-400/10' : 'bg-red-400/10'
+
+  const isLive = snapshot.dataSource === 'groww_live'
+  const sourceLabel = isLive ? 'LIVE' : growwEnabled ? 'Loading...' : 'SIMULATED'
+  const sourceDotClass = isLive
+    ? 'bg-green-500'
+    : growwEnabled
+      ? 'bg-yellow-400 animate-pulse'
+      : 'bg-gray-500'
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
@@ -27,9 +37,9 @@ export default function IndexCard({ snapshot }: Props) {
       </div>
 
       <div className="flex items-center gap-1.5 -mt-1">
-        <span className={`h-1.5 w-1.5 rounded-full ${snapshot.dataSource === 'groww_live' ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+        <span className={`h-1.5 w-1.5 rounded-full ${sourceDotClass}`} />
         <span className="text-[10px] font-medium tracking-wider text-gray-500">
-          {snapshot.dataSource === 'groww_live' ? 'LIVE' : 'SIMULATED'}
+          {sourceLabel}
         </span>
       </div>
 

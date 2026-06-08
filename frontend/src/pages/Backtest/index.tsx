@@ -13,6 +13,11 @@ const ENTRY_CONDITIONS = [
 ]
 const EXIT_CONDITIONS = ['SLHit', 'Target1Hit', 'Target2Hit', 'ThetaDecay50Pct', 'ExpiryMinus1Day']
 
+const growwEnabled = import.meta.env.VITE_GROWW_ENABLED === 'true'
+const SUBTITLE = growwEnabled
+  ? 'Backtest using 90 days of real NSE historical data from Groww'
+  : 'Simulate options strategies over 90 days of historical data'
+
 const PAGE_SIZE = 10
 
 const fmtMoney = (v: number) =>
@@ -231,7 +236,7 @@ export default function Backtest() {
       <div>
         <h1 className="text-xl font-semibold text-white">Backtest</h1>
         <p className="text-gray-400 text-sm mt-0.5">
-          Simulate options strategies over 90 days of mock historical data
+          {SUBTITLE}
         </p>
       </div>
 

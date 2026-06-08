@@ -24,9 +24,12 @@ public static class MarketEndpoints
         }).WithName("GetMarketSnapshot")
           .RequireAuthorization();
 
-        group.MapGet("/candles/{symbol}", (string symbol, MarketService svc) =>
-            Results.Ok(svc.GetCandles(symbol)))
-            .WithName("GetMarketCandles");
+        group.MapGet("/candles/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, IServiceProvider sp, MarketService svc, CancellationToken ct) =>
+        {
+            await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
+            return Results.Ok(svc.GetCandles(symbol));
+        }).WithName("GetMarketCandles")
+          .RequireAuthorization();
 
         group.MapGet("/status", (MarketService svc) =>
             Results.Ok(svc.GetStatus()))

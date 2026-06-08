@@ -20,7 +20,7 @@ public class GrowwMarketDataService(
     ILogger<GrowwMarketDataService> logger) : IMarketDataService
 {
     private static readonly string[] Symbols = ["NIFTY", "BANKNIFTY"];
-    private static readonly TimeSpan CandleTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CandleTtl = TimeSpan.FromMinutes(30);
 
     private static string SnapshotCacheKey(string symbol) => $"groww_snapshot:{symbol}";
     private static string CandleCacheKey(string symbol) => $"groww_candles:{symbol}";
@@ -75,7 +75,8 @@ public class GrowwMarketDataService(
 
             if (!cache.TryGetValue(CandleCacheKey(key), out IReadOnlyList<CandleData>? _))
             {
-                var candles = await groww.GetHistoricalCandlesAsync(userId, key, ct: ct);
+                var candles = await groww.GetHistoricalCandlesAsync(
+                    userId, key, segment: "CASH", intervalMinutes: 15, lookbackDays: 90, ct: ct);
                 cache.Set(CandleCacheKey(key), candles, CandleTtl);
             }
         }
