@@ -13,7 +13,8 @@ public record MarketSnapshotResponse(
     decimal Pcr,
     decimal FiiFlow,
     decimal DiiFlow,
-    DateTimeOffset Timestamp);
+    DateTimeOffset Timestamp,
+    string DataSource);
 
 public record CandleResponse(
     long Time,

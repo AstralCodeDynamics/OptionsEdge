@@ -12,6 +12,7 @@ export interface MarketSnapshot {
   fiiFlow: number
   diiFlow: number
   timestamp: string
+  dataSource: 'groww_live' | 'mock'
 }
 
 export interface Candle {

@@ -26,6 +26,13 @@ export default function IndexCard({ snapshot }: Props) {
         </span>
       </div>
 
+      <div className="flex items-center gap-1.5 -mt-1">
+        <span className={`h-1.5 w-1.5 rounded-full ${snapshot.dataSource === 'groww_live' ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+        <span className="text-[10px] font-medium tracking-wider text-gray-500">
+          {snapshot.dataSource === 'groww_live' ? 'LIVE' : 'SIMULATED'}
+        </span>
+      </div>
+
       <div className={`flex items-center gap-2 ${changeColor}`}>
         <span className="text-sm font-semibold tabular-nums">
           {isUp ? '+' : ''}{snapshot.change.toFixed(2)}
