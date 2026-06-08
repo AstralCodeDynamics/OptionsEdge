@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Features.Groww;
+using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Infrastructure.Groww;
@@ -19,7 +20,6 @@ public class GrowwMarketDataService(
     ILogger<GrowwMarketDataService> logger) : IMarketDataService
 {
     private static readonly string[] Symbols = ["NIFTY", "BANKNIFTY"];
-    private static readonly TimeSpan SnapshotTtl = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CandleTtl = TimeSpan.FromMinutes(5);
 
     private static string SnapshotCacheKey(string symbol) => $"groww_snapshot:{symbol}";
@@ -60,7 +60,18 @@ public class GrowwMarketDataService(
             var groww = scope.ServiceProvider.GetRequiredService<GrowwUserApiClient>();
 
             var snapshot = await groww.GetSpotSnapshotAsync(userId, key, ct);
-            cache.Set(SnapshotCacheKey(key), snapshot, SnapshotTtl);
+
+            // Outside market hours prices don't move, so the last known value can stay cached
+            // far longer than the brief during-hours TTL — it just needs to survive until the
+            // next user-triggered refresh instead of falling back to mock data.
+            var snapshotTtl = MarketHoursHelper.IsMarketOpen()
+                ? TimeSpan.FromSeconds(30)
+                : TimeSpan.FromMinutes(5);
+            cache.Set(SnapshotCacheKey(key), snapshot, snapshotTtl);
+
+            logger.LogInformation(
+                "Groww live snapshot cached for {Symbol} via user {UserId}: LTP={Ltp}",
+                key, userId, snapshot.Ltp);
 
             if (!cache.TryGetValue(CandleCacheKey(key), out IReadOnlyList<CandleData>? _))
             {
