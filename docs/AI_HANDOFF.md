@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: VerifyEmail confirmed screen visibility fix
+
+Files changed:
+
+- `frontend/src/pages/Auth/VerifyEmail.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- VerifyEmail confirmed state now waits 500ms before starting the 5-second countdown so the success screen renders visibly before redirect timing begins.
+- Countdown interval is stored in a `useRef` and cleared both on unmount and when the user clicks `Go to Login now`.
+- Confirmed screen now uses a larger success icon, stronger success copy, and prominent countdown number.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only UX fix; backend auth behavior unchanged.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Claude Code: Graceful Groww credential handling (silent skip, monitor only connected users, dashboard prompt)
 
 Files changed:

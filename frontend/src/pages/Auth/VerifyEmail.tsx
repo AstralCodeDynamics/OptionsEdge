@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../../services/api'
 import AuthLayout, { AuthError, AuthSuccess, authButtonCls, authLinkCls, extractErrorMessage } from '../../components/common/AuthLayout'
@@ -24,6 +24,7 @@ export default function VerifyEmail() {
   const [resendStatus, setResendStatus] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
   const [countdown, setCountdown] = useState(5)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!userId || !token) return
@@ -39,22 +40,26 @@ export default function VerifyEmail() {
   useEffect(() => {
     if (confirmState !== 'confirmed') return
 
-    let timerId: ReturnType<typeof setInterval>
-    timerId = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerId)
-          navigate('/login', {
-            state: { message: 'Email confirmed! You can now log in.' },
-          })
-          return 0
-        }
+    const startDelay = setTimeout(() => {
+      timerRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current)
+            navigate('/login', {
+              state: { message: 'Email confirmed! You can now log in.' },
+            })
+            return 0
+          }
 
-        return prev - 1
-      })
-    }, 1000)
+          return prev - 1
+        })
+      }, 1000)
+    }, 500)
 
-    return () => clearInterval(timerId)
+    return () => {
+      clearTimeout(startDelay)
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
   }, [confirmState, navigate])
 
   const handleResend = async () => {
@@ -81,13 +86,41 @@ export default function VerifyEmail() {
 
   if (confirmState === 'confirmed') {
     return (
-      <AuthLayout title="✅ Email Verified!">
-        <div className="space-y-4">
-          <AuthSuccess message="Your email has been confirmed successfully." />
-          <p className="text-sm text-gray-400 text-center">
-            Redirecting to login in {countdown} second{countdown !== 1 ? 's' : ''}…
-          </p>
-          <Link to="/login" className={`block text-center ${authButtonCls}`}>Go to Login now</Link>
+      <AuthLayout title="Email Verified!">
+        <div className="space-y-6 text-center">
+          <div className="flex justify-center">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-4xl">
+              ✅
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-white font-semibold text-base">
+              Your email has been confirmed!
+            </p>
+            <p className="text-gray-400 text-sm">
+              Welcome to OptionsEdge. You can now log in to your account.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-4xl font-bold text-emerald-400 tabular-nums">
+              {countdown}
+            </span>
+            <span className="text-xs text-gray-500">
+              Redirecting to login automatically…
+            </span>
+          </div>
+
+          <Link
+            to="/login"
+            onClick={() => {
+              if (timerRef.current) clearInterval(timerRef.current)
+            }}
+            className={`block ${authButtonCls}`}
+          >
+            Go to Login now
+          </Link>
         </div>
       </AuthLayout>
     )
