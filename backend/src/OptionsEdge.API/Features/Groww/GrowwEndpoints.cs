@@ -103,17 +103,17 @@ public static class GrowwEndpoints
 
             try
             {
-                using var growwCheckCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                await groww.GetOrRefreshTokenAsync(userId, growwCheckCts.Token);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await groww.GetOrRefreshTokenAsync(userId, cts.Token);
 
                 if (groww.TryConsumeImportFlag(userId))
-                    await orderService.ImportPositionsFromGrowwAsync(userId, growwCheckCts.Token);
+                    await orderService.ImportPositionsFromGrowwAsync(userId, cts.Token);
 
                 return Results.Ok(new GrowwStatusResponse(true, true, true, GrowwUserApiClient.NextTokenExpiry(), orderPlacementEnabled, null));
             }
             catch (OperationCanceledException)
             {
-                logger.LogDebug("Groww startup check timed out — will retry on first user request");
+                logger.LogDebug("Groww startup check skipped — will authenticate on first user request");
                 return Results.Ok(new GrowwStatusResponse(
                     true,
                     true,

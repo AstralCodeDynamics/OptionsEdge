@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Groww status auth check timeout wording
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Aligned the Groww auth probe with the requested dedicated timeout shape: `using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10))`.
+- `OperationCanceledException` now logs at debug as `Groww startup check skipped — will authenticate on first user request`.
+- The call still returns a non-fatal unauthenticated Groww status so the UI can retry later.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` passed with zero warnings.
+
+Caveats:
+
+- `Program.cs` still has no Groww HTTP/auth startup call; it only registers and maps Groww services/endpoints. The startup-triggered auth probe is `/api/v1/groww/status`, so the call-site fix remains in `GrowwEndpoints.cs`.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Codex: VerifyEmail countdown + Groww status timeout
 
 Files changed:
