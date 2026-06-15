@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: PositionMonitorWorker fetches real Groww LTP per position
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Background/PositionMonitorWorker.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `ProcessPositionAsync` now takes the tick's `IServiceScope` and resolves `GrowwUserApiClient`/`GrowwCredentialService` from it (both scoped, reused across all positions in the tick — no per-position scope).
+- New `GetCurrentLtpAsync`: when `Groww:Enabled` and the position's user has saved Groww credentials, calls `GrowwUserApiClient.GetOptionLtpAsync` directly for the position's trading symbol (via `GrowwSymbolHelper.FormatOptionSymbol`) and uses that LTP for P&L/alert checks.
+- Falls back to `OptionsService.GetOptionLtp` (chain cache / Black-Scholes) when Groww is disabled, the user has no credentials, the Groww call throws, or the Groww quote is `<= 0`.
+- Rate-limit pacing: `TickAsync` pauses 1.1s after every 10 positions processed (only when `Groww:Enabled`), keeping per-tick Groww calls under ~10 req/sec.
+
+Caveats:
+
+- Each position with Groww credentials makes its own live quote call every tick (60s) — for many active positions across many users this is more Groww traffic than the old shared-chain-cache approach; the 1.1s/10-position pacing only protects a single user's rate limit per tick, not across concurrent users.
+- A Groww quote of exactly `0` (e.g., illiquid strike, no LTP yet) is treated the same as "fetch failed" and falls back to chain cache/BS.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+
 ### 2026-06-15 - Codex: Position LTP source badge + auto-refresh
 
 Files changed:
