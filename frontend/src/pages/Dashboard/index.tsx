@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMarketData } from '../../hooks/useMarketData'
 import { useAppStore } from '../../store/appStore'
 import { marketApi, signalsApi, growwApi, positionsApi } from '../../services/api'
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [signalError, setSignalError]   = useState<string | null>(null)
   const [orderSignal, setOrderSignal]    = useState<Signal | null>(null)
   const [growwPrompt, setGrowwPrompt]    = useState(false)
+  const [aiKeyPrompt, setAiKeyPrompt]    = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -68,11 +69,13 @@ export default function Dashboard() {
     startTimer()
     try {
       const sig = await signalsApi.generate(activeSymbol)
+      setAiKeyPrompt(false)
       prependSignal(sig)
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { error?: string } } })?.response?.data?.error
         ?? 'Signal generation failed. Check API key and market hours.'
+      if (msg.includes('No AI API key configured')) setAiKeyPrompt(true)
       setSignalError(msg)
     } finally {
       stopTimer()
@@ -129,6 +132,28 @@ export default function Dashboard() {
           </div>
           <button
             onClick={dismissGrowwPrompt}
+            className="text-gray-500 hover:text-gray-300 text-lg leading-none flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {aiKeyPrompt && (
+        <div className="rounded-lg bg-yellow-950/40 border border-yellow-700/40 p-3 flex items-start justify-between gap-3">
+          <div className="text-xs text-yellow-300">
+            <p className="font-semibold mb-1">🤖 AI key required</p>
+            <p>
+              Go to{' '}
+              <Link to="/settings/security" className="underline text-yellow-400 hover:text-yellow-300">
+                Settings → AI Connection
+              </Link>
+              {' '}to add your Anthropic API key and enable AI signals.
+            </p>
+          </div>
+          <button
+            onClick={() => setAiKeyPrompt(false)}
             className="text-gray-500 hover:text-gray-300 text-lg leading-none flex-shrink-0"
             aria-label="Dismiss"
           >

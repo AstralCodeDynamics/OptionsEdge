@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Per-user AI key frontend
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/pages/Auth/SecuritySettings.tsx`
+- `frontend/src/pages/Dashboard/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Added `aiApi` client methods for `/api/v1/ai/credentials/status`, `POST /ai/credentials`, and `DELETE /ai/credentials`.
+- Security Settings now includes an `AI Connection (Anthropic)` card before Change Password, with status load on mount, key connect/verify, disconnect, and inline error/success states.
+- Dashboard now detects the backend `"No AI API key configured"` signal-generation error and shows a dismissible yellow prompt linking to `Settings → AI Connection`.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only; backend per-user AI key endpoints were already implemented by Claude Code.
+- No inline Groww Integration section exists in `SecuritySettings.tsx`; the AI section was placed before Change Password as requested.
+
+Claude Code active files: none currently.
+
 ### 2026-06-15 - Claude Code: Per-user Anthropic API key (backend)
 
 Files changed:

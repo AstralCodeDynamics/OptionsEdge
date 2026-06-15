@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAppStore } from '../../store/appStore'
-import { authApi } from '../../services/api'
+import { aiApi, authApi } from '../../services/api'
 import { AuthError, AuthSuccess, authInputCls, authButtonCls, extractErrorMessage } from '../../components/common/AuthLayout'
 import PasswordStrength, { isPasswordValid } from '../../components/common/PasswordStrength'
 import UsageDashboard from '../../components/usage/UsageDashboard'
@@ -202,6 +202,107 @@ function TwoFactorSection() {
   )
 }
 
+function AIConnectionSection() {
+  const [aiStatus, setAiStatus] = useState<{ hasKey: boolean; message: string } | null>(null)
+  const [aiKey, setAiKey] = useState('')
+  const [savingAiKey, setSavingAiKey] = useState(false)
+  const [aiKeyError, setAiKeyError] = useState<string | null>(null)
+  const [aiKeySuccess, setAiKeySuccess] = useState<string | null>(null)
+
+  useEffect(() => {
+    aiApi.getStatus().then(setAiStatus).catch(() => {})
+  }, [])
+
+  const handleSaveAiKey = async () => {
+    setAiKeyError(null)
+    setAiKeySuccess(null)
+    setSavingAiKey(true)
+    try {
+      const res = await aiApi.saveKey(aiKey.trim())
+      setAiKeySuccess(res.message)
+      setAiKey('')
+      const status = await aiApi.getStatus()
+      setAiStatus(status)
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status === 422) {
+        setAiKeyError('Invalid API key. Check your key at console.anthropic.com')
+      } else {
+        setAiKeyError(extractErrorMessage(e, 'Failed to save API key.'))
+      }
+    } finally {
+      setSavingAiKey(false)
+    }
+  }
+
+  const handleRemoveAiKey = async () => {
+    setAiKeyError(null)
+    setAiKeySuccess(null)
+    try {
+      await aiApi.removeKey()
+      setAiStatus({ hasKey: false, message: 'No API key set.' })
+    } catch {
+      setAiKeyError('Failed to disconnect AI key.')
+    }
+  }
+
+  return (
+    <SectionCard title="AI Connection (Anthropic)">
+      {aiStatus?.hasKey ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-950/40 border border-emerald-800/40">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-sm text-emerald-400 font-medium">AI Key Connected</span>
+            </div>
+            <button
+              onClick={handleRemoveAiKey}
+              className="text-xs text-red-400 hover:text-red-300 underline"
+            >
+              Disconnect
+            </button>
+          </div>
+          <AuthError message={aiKeyError} />
+          <AuthSuccess message={aiKeySuccess} />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400">
+            Connect your own Anthropic API key to enable AI signals and chat. You are billed directly by Anthropic - we never store payment details.
+          </p>
+          <p className="text-xs text-gray-500">
+            Get your free key at{' '}
+            <a
+              href="https://console.anthropic.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-400 underline hover:text-teal-300"
+            >
+              console.anthropic.com
+            </a>
+          </p>
+          <input
+            type="password"
+            value={aiKey}
+            onChange={(e) => setAiKey(e.target.value)}
+            placeholder="sk-ant-api03-..."
+            className={authInputCls}
+          />
+          <button
+            onClick={handleSaveAiKey}
+            disabled={savingAiKey || !aiKey.startsWith('sk-ant-')}
+            className={authButtonCls}
+          >
+            {savingAiKey ? 'Verifying key…' : 'Connect AI Key'}
+          </button>
+          <AuthError message={aiKeyError} />
+          <AuthSuccess message={aiKeySuccess} />
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
 function ChangePasswordSection() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -333,6 +434,7 @@ export default function SecuritySettings() {
       <h1 className="text-xl font-bold text-white">Security Settings</h1>
       <UsageDashboard />
       <TwoFactorSection />
+      <AIConnectionSection />
       <ChangePasswordSection />
       <AccountInfoSection />
     </div>

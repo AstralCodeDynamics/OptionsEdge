@@ -346,6 +346,15 @@ export interface PlaceOrderResult {
   quantity: number
 }
 
+export const aiApi = {
+  getStatus: () =>
+    api.get<{ hasKey: boolean; message: string }>('/ai/credentials/status').then((r) => r.data),
+  saveKey: (apiKey: string) =>
+    api.post<{ message: string }>('/ai/credentials', { apiKey }).then((r) => r.data),
+  removeKey: () =>
+    api.delete('/ai/credentials'),
+}
+
 export const growwApi = {
   getStatus: () => api.get<GrowwStatus>('/groww/status').then((r) => r.data),
   saveCredentials: (apiKey: string, apiSecret: string) =>
