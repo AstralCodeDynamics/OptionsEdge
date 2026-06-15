@@ -10,6 +10,11 @@ public static class ChatEndpoints
         var group = app.MapGroup("/api/v1/chat")
             .RequireAuthorization();
 
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+
         // POST /api/v1/chat/message — streams the assistant reply as Server-Sent Events
         group.MapPost("/message", async Task (
             ChatMessageRequest req,
@@ -42,7 +47,7 @@ public static class ChatEndpoints
             await foreach (var chunk in svc.StreamMessageAsync(userId, req.SessionId, req.Message, ct))
             {
                 await response.WriteAsync($"event: {chunk.Type}\n", ct);
-                await response.WriteAsync($"data: {JsonSerializer.Serialize(chunk)}\n\n", ct);
+                await response.WriteAsync($"data: {JsonSerializer.Serialize(chunk, jsonOptions)}\n\n", ct);
                 await response.Body.FlushAsync(ct);
             }
         }).WithName("SendChatMessage");

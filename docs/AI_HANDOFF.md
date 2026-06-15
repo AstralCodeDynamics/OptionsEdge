@@ -17,6 +17,30 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Fix ChatStreamChunk camelCase serialization
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Chat/ChatEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `MapChatEndpoints` now serializes each `ChatStreamChunk` SSE payload with `JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }` instead of default options.
+- SSE `data:` payloads now emit `{"type":"delta","text":"...",...}` (camelCase) instead of `{"Type":"delta","Text":"...",...}` (PascalCase), matching what `frontend/src/services/api.ts` already reads (`payload.text`, `payload.error`).
+- Fixes blank chat display during streaming (frontend was reading `payload.text`, which was `undefined` under PascalCase output).
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test` — 27/27 passed.
+- `npm run build` in `frontend/` — passed, no errors.
+- Verified `frontend/src/services/api.ts` already uses camelCase field access (`payload.text`, `payload.error`) — no frontend changes needed.
+
+Caveats: none.
+
+Claude Code active files: none.
+
 ### 2026-06-15 - Codex: SSE parser double-newline fix
 
 Files changed:
