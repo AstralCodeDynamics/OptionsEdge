@@ -11,13 +11,12 @@ public record ClaudeStreamChunk(string? TextDelta, int? InputTokens, int? Output
 
 public class ClaudeApiClient(
     IHttpClientFactory factory,
-    IConfiguration config,
     ILogger<ClaudeApiClient> logger)
 {
     private readonly HttpClient _http = factory.CreateClient("claude");
-    private readonly string _apiKey = config["Claude:ApiKey"] ?? "";
 
     public async Task<ClaudeResponse> CompleteAsync(
+        string apiKey,
         string model,
         string systemPrompt,
         string userMessage,
@@ -35,7 +34,7 @@ public class ClaudeApiClient(
         for (int attempt = 0; attempt <= 2; attempt++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-            request.Headers.Add("x-api-key", _apiKey);
+            request.Headers.Add("x-api-key", apiKey);
             request.Headers.Add("anthropic-version", "2023-06-01");
             request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
 
@@ -75,16 +74,18 @@ public class ClaudeApiClient(
     // Streams a completion as raw SSE (event:/data: lines), yielding text deltas as they
     // arrive and a final chunk carrying input/output token usage for cost tracking.
     public IAsyncEnumerable<ClaudeStreamChunk> StreamAsync(
+        string apiKey,
         string model,
         string systemPrompt,
         string userMessage,
         int maxTokens,
         CancellationToken ct = default) =>
-        StreamAsync(model, systemPrompt, userMessage, maxTokens, [], ct);
+        StreamAsync(apiKey, model, systemPrompt, userMessage, maxTokens, [], ct);
 
     // Overload that prepends prior turns (oldest first) to the messages array, enabling
     // multi-turn conversation memory (e.g. chat history).
     public async IAsyncEnumerable<ClaudeStreamChunk> StreamAsync(
+        string apiKey,
         string model,
         string systemPrompt,
         string userMessage,
@@ -107,7 +108,7 @@ public class ClaudeApiClient(
         });
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-        request.Headers.Add("x-api-key", _apiKey);
+        request.Headers.Add("x-api-key", apiKey);
         request.Headers.Add("anthropic-version", "2023-06-01");
         request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
 

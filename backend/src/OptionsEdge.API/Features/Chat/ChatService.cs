@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Features.AI;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Claude;
@@ -17,6 +18,7 @@ public class ChatService(
     IMarketDataService marketData,
     AppDbContext db,
     IConfiguration config,
+    UserAICredentialService aiCredentials,
     ILogger<ChatService> logger)
 {
     public async Task<string?> ValidateAsync(Guid userId, CancellationToken ct = default)
@@ -65,6 +67,14 @@ public class ChatService(
         string message,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        var apiKey = await aiCredentials.GetApiKeyAsync(userId, ct);
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            yield return new ChatStreamChunk("error",
+                Error: "No AI API key configured. Go to Settings → AI Connection to add your Anthropic key from console.anthropic.com");
+            yield break;
+        }
+
         var model = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
         var now   = DateTimeOffset.UtcNow;
 
@@ -100,7 +110,7 @@ public class ChatService(
 
         logger.LogInformation("Streaming Claude Sonnet chat reply for user {UserId} session {SessionId}", userId, sessionId);
 
-        await foreach (var chunk in claude.StreamAsync(model, systemPrompt, message, AppConstants.AiTokenLimits.SonnetMaxTokens, history, ct))
+        await foreach (var chunk in claude.StreamAsync(apiKey, model, systemPrompt, message, AppConstants.AiTokenLimits.SonnetMaxTokens, history, ct))
         {
             if (chunk.TextDelta is not null)
             {

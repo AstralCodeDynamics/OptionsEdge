@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Features.AI;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Infrastructure.Background;
@@ -22,6 +23,7 @@ public class AISignalService(
     IHubContext<MarketHub> hub,
     AppDbContext db,
     IConfiguration config,
+    UserAICredentialService aiCredentials,
     ILogger<AISignalService> logger)
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -77,12 +79,17 @@ public class AISignalService(
             return (cached with { FromCache = true }, null);
         }
 
+        var apiKey = await aiCredentials.GetApiKeyAsync(userId, ct);
+        if (string.IsNullOrEmpty(apiKey))
+            return (null!, "No AI API key configured. Go to Settings → AI Connection to add your Anthropic key from console.anthropic.com");
+
         // Build prompt
         var model  = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
         var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries);
 
         logger.LogInformation("Calling Claude Sonnet for {Symbol} signal", key);
         var claudeResp = await claude.CompleteAsync(
+            apiKey,
             model,
             SignalSystemPrompt,
             prompt,
@@ -207,11 +214,20 @@ public class AISignalService(
         Domain.Entities.Position position,
         CancellationToken ct = default)
     {
+        var apiKey = await aiCredentials.GetApiKeyAsync(position.UserId, ct);
+        if (string.IsNullOrEmpty(apiKey))
+            return new RiskCheckResponse(
+                "INFO",
+                "NO_API_KEY",
+                "No AI API key configured. Go to Settings → AI Connection to add your Anthropic key from console.anthropic.com",
+                "Add your Anthropic API key in Settings → AI Connection");
+
         var snapshot = marketData.GetSnapshot(position.Symbol);
         var model    = config["Claude:HaikuModel"] ?? AppConstants.Models.Haiku;
 
         var prompt = BuildRiskCheckPrompt(position, snapshot);
         var claudeResp = await claude.CompleteAsync(
+            apiKey,
             model,
             RiskCheckSystemPrompt,
             prompt,

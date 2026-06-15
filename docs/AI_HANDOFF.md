@@ -17,6 +17,66 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Per-user Anthropic API key (backend)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Domain/Entities/UserAICredential.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260615085707_AddUserAICredentials.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260615085707_AddUserAICredentials.Designer.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/AppDbContextModelSnapshot.cs`
+- `backend/src/OptionsEdge.API/Features/AI/UserAICredentialService.cs` (new)
+- `backend/src/OptionsEdge.API/Features/AI/AICredentialEndpoints.cs` (new)
+- `backend/src/OptionsEdge.API/Features/AI/Models.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Claude/ClaudeApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Features/Chat/ChatService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/DevDataSeeder.cs`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/appsettings.Development.json`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- New `UserAICredential` entity (`UserAICredentials` table) stores each user's Anthropic API key, AES-encrypted via the existing `IEncryptionService`, one row per user (unique `UserId`, same shape as `GrowwCredential`).
+- New `UserAICredentialService` (Scoped): `SaveAsync` (validates `sk-ant-` prefix, upserts, encrypts), `GetApiKeyAsync`, `HasKeyAsync`, `RemoveAsync` (soft delete via `IsActive=false`).
+- New endpoints under `/api/v1/ai` (all `RequireAuthorization`):
+  - `POST /api/v1/ai/credentials` — body `{ "apiKey": "sk-ant-..." }`. Rejects non-`sk-ant-` keys with `400`. Verifies the key with a 1-token test call to `https://api.anthropic.com/v1/messages`; `401` from Anthropic → `422 Unprocessable Entity`. Otherwise saves and returns `200`.
+  - `DELETE /api/v1/ai/credentials` — deactivates the current user's key, `204`.
+  - `GET /api/v1/ai/credentials/status` — `{ hasKey, message }`.
+- `ClaudeApiClient.CompleteAsync`/`StreamAsync` (both overloads) now take `apiKey` as the first parameter; the `Claude:ApiKey` config value and the client's `IConfiguration` dependency are gone entirely.
+- `AISignalService.GenerateEntrySignalAsync` fetches the calling user's key via `UserAICredentialService.GetApiKeyAsync` right before the Claude call (after the cache-hit check, so cached signals still work without a key); if missing, returns the existing `(SignalResponse, string? Error)` tuple with `Error = "No AI API key configured. Go to Settings → AI Connection to add your Anthropic key from console.anthropic.com"`. `RunPositionRiskCheckAsync` (currently unused/no callers) got the same check keyed on `position.UserId`, returning a `RiskCheckResponse` with `AlertType = "NO_API_KEY"`.
+- `ChatService.StreamMessageAsync` checks the key first thing; if missing, yields a single `ChatStreamChunk("error", Error: "No AI API key configured...")` SSE chunk and returns — no DB writes, no Claude call.
+- Config: removed `Claude:ApiKey` from both `appsettings.json` and `appsettings.Development.json`. Added `Dev:ClaudeApiKey` to `appsettings.Development.json` (still the same placeholder value, `sk-ant-YOUR-KEY`, not a real secret).
+- `DevDataSeeder` restructured so the dev-user-creation `return` no longer skips later steps: after ensuring the dev user exists, it now also seeds `UserAICredentials` for `DevUserId` from `Dev:ClaudeApiKey` (only if not already present), so AI signals/chat work in dev without touching the (not-yet-built) Settings UI.
+- As a side effect, generating this migration also resolved a pre-existing `has-pending-model-changes` drift noted in the 2026-06-08 migration fix entry: redundant single-column `IX_ChatMessages_UserId`/`IX_BacktestResults_UserId` indexes (superseded by the composite indexes added in `AddUserScopedHistoryIndexes`) are now dropped.
+
+Verified end-to-end against the dev DB (server run + curl with a real JWT from `/api/v1/auth/login`):
+
+- App startup logs `AI credentials saved for user 00000000-0000-0000-0000-000000000001` / `Dev user AI key seeded from Dev:ClaudeApiKey`.
+- `GET /api/v1/ai/credentials/status` → `{"hasKey":true,...}` for dev user.
+- `DELETE /api/v1/ai/credentials` → `204`, then status → `{"hasKey":false,...}`.
+- `POST /api/v1/signals/generate` with no key → `400 { "error": "No AI API key configured..." }`.
+- `POST /api/v1/chat/message` with no key → SSE `event: error` chunk with the same message, stream ends cleanly.
+- `POST /api/v1/ai/credentials` with `{"apiKey":"not-a-key"}` → `400 { "error": "Invalid key format. Must start with sk-ant-" }`.
+- Restarted the app afterward so `DevDataSeeder` re-seeded the dev key, restoring DB state to before testing.
+
+Caveats:
+
+- The dev placeholder key (`sk-ant-YOUR-KEY`) passes the `sk-ant-` prefix check and gets seeded/encrypted, but is not a real Anthropic key — real AI signal/chat calls in dev still need a real key set via `Dev:ClaudeApiKey` or the (future) Settings UI.
+- `POST /api/v1/ai/credentials` makes a live call to `https://api.anthropic.com/v1/messages` to validate the key (costs ~1 token on a valid key).
+- Frontend (Settings → AI Connection page, calling these three endpoints) is Codex's follow-up — not built here.
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+- `dotnet ef migrations add AddUserAICredentials` + `dotnet ef database update` — applied cleanly to dev DB.
+
+Codex active files: none.
+
 ### 2026-06-15 - Codex: Groww status cache-first auth probe
 
 Files changed:

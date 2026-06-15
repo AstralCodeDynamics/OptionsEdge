@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Features.AI;
 using OptionsEdge.API.Features.Auth;
 using OptionsEdge.API.Features.Backtest;
 using OptionsEdge.API.Features.Billing;
@@ -127,6 +128,7 @@ builder.Services.AddChatServices();
 builder.Services.AddGrowwServices();
 builder.Services.AddBacktestServices();
 builder.Services.AddUsageServices();
+builder.Services.AddAIServices();
 
 // Background workers
 builder.Services.AddHostedService<MarketDataWorker>();
@@ -160,6 +162,7 @@ app.MapGrowwEndpoints();
 app.MapBacktestEndpoints();
 app.MapUsageEndpoints();
 app.MapBillingEndpoints();
+app.MapAICredentialEndpoints();
 
 // SignalR hubs
 app.MapHub<MarketHub>("/hubs/market")

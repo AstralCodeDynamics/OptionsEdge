@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AIUsageLog> AIUsageLogs { get; set; }
     public DbSet<BacktestResult> BacktestResults { get; set; }
     public DbSet<GrowwCredential> GrowwCredentials { get; set; }
+    public DbSet<UserAICredential> UserAICredentials => Set<UserAICredential>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -147,6 +148,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(g => g.UpdatedAt).HasDefaultValueSql("now()");
             e.HasIndex(g => g.UserId).IsUnique();
             e.HasOne(g => g.User).WithOne().HasForeignKey<GrowwCredential>(g => g.UserId);
+        });
+
+        modelBuilder.Entity<UserAICredential>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.ApiKeyEncrypted).IsRequired();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.UserId).IsUnique();
+            e.HasOne(x => x.User).WithOne().HasForeignKey<UserAICredential>(x => x.UserId);
         });
     }
 }
