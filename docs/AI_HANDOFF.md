@@ -17,6 +17,28 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: GrowwSymbolHelper uses correct Groww FNO symbol format
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwSymbolHelper.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `FormatOptionSymbol` now builds `{UNDERLYING}{YY}{MMM}{STRIKE}{CE|PE}` (e.g. `BANKNIFTY26JUN51800CE`, `NIFTY26JUN24200CE`) — 3-letter month name, **no day component**. Previous format (`NIFTY26M1224200CE`, single-letter futures month code + day) was rejected by Groww with `400` on all FNO live-data quote/order calls.
+- `TryParseOptionSymbol`'s regex updated to match the new `YYMMM` format (`JAN`-`DEC`). Since the symbol no longer carries a day, the reversed expiry date is approximated as the **last Thursday of the parsed month/year** (standard NSE monthly expiry) via new `LastThursdayOfMonth`.
+- This fixes `GrowwOrderService` (order placement + portfolio position import) and `PositionMonitorWorker.GetCurrentLtpAsync` (per-position live LTP), both of which call `FormatOptionSymbol`/`TryParseOptionSymbol`.
+
+Caveats:
+
+- If a position's actual expiry isn't the last Thursday of its month (e.g. exchange holiday shifts it, or future weekly expiries on non-Thursday days), `TryParseOptionSymbol`'s reconstructed `Expiry` will be off by a few days. `FormatOptionSymbol` (the hot path for live LTP/order calls) is unaffected since Groww's symbol doesn't need the day anyway.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+
 ### 2026-06-15 - Claude Code: PositionMonitorWorker fetches real Groww LTP per position
 
 Files changed:
