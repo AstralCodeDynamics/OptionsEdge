@@ -271,45 +271,55 @@ async function streamChatMessage(
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let eventType = ''
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
-    let nlIdx = buffer.indexOf('\n')
-    while (nlIdx >= 0) {
-      const line = buffer.slice(0, nlIdx).replace(/\r$/, '')
-      buffer = buffer.slice(nlIdx + 1)
+    // Split on double newline — each SSE event ends with \n\n.
+    const events = buffer.split('\n\n')
+    buffer = events.pop() ?? ''
 
-      if (line.startsWith('event:')) {
-        eventType = line.slice('event:'.length).trim()
-      } else if (line.startsWith('data:')) {
-        const json = line.slice('data:'.length).trim()
-        if (json) {
-          const payload = JSON.parse(json) as {
-            text?: string
-            modelUsed?: string
-            inputTokens?: number
-            outputTokens?: number
-            costUsd?: number
-            error?: string
-          }
-          if (eventType === 'delta' && payload.text) {
-            handlers.onDelta(payload.text)
-          } else if (eventType === 'done') {
-            handlers.onDone(payload)
-          } else if (eventType === 'error') {
-            handlers.onError(payload.error ?? 'Something went wrong')
-            return
-          }
+    for (const event of events) {
+      if (!event.trim()) continue
+
+      const lines = event.split('\n')
+      let type = ''
+      let data = ''
+
+      for (const rawLine of lines) {
+        const line = rawLine.replace(/\r$/, '')
+        if (line.startsWith('event:')) {
+          type = line.slice('event:'.length).trim()
+        } else if (line.startsWith('data:')) {
+          data = line.slice('data:'.length).trim()
         }
-      } else if (line === '') {
-        eventType = ''
       }
 
-      nlIdx = buffer.indexOf('\n')
+      if (!type || !data) continue
+
+      try {
+        const payload = JSON.parse(data) as {
+          text?: string
+          modelUsed?: string
+          inputTokens?: number
+          outputTokens?: number
+          costUsd?: number
+          error?: string
+        }
+
+        if (type === 'delta' && payload.text) {
+          handlers.onDelta(payload.text)
+        } else if (type === 'done') {
+          handlers.onDone(payload)
+        } else if (type === 'error') {
+          handlers.onError(payload.error ?? 'Something went wrong')
+          return
+        }
+      } catch {
+        // Malformed JSON — skip this event.
+      }
     }
   }
 }

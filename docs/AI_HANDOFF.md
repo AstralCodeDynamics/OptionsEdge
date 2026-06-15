@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: SSE parser double-newline fix
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Chat SSE stream parsing now splits buffered text on `\n\n` and processes complete SSE events atomically.
+- Parser keeps the trailing incomplete event in `buffer`, so multi-event chunks and split events no longer drop `delta` payloads.
+- Malformed JSON events are skipped, and backend `error` events still render through the chat error-message path.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only parser fix; backend stream shape unchanged.
+
+Claude Code active files: none currently.
+
 ### 2026-06-15 - Codex: Chat markdown, scroll, and error stream display
 
 Files changed:
