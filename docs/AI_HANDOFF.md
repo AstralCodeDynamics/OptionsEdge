@@ -17,6 +17,37 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Auto Signal Preferences UI
+
+Files changed:
+
+- `frontend/src/components/common/Toggle.tsx` (new)
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `frontend/src/store/appStore.ts`
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/pages/Auth/SecuritySettings.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Added reusable `Toggle` switch component.
+- Added `SignalPreferenceResponse`/`SignalPreferenceRequest` types and `signalPreferenceApi` for `GET`/`PUT /signals/preferences`.
+- Security Settings now shows `Auto Signal Preferences` after AI Connection and before Change Password, with per-index toggles, conditional time inputs, save action, server-normalized reload after save, and success/error state.
+- App store now has `addSignal(signal)` for SignalR auto-signal inserts, deduping and capping the signal list at 20.
+- `useSignalR` now handles `AutoSignalGenerated`, adds the signal to the store, and shows a browser notification when permission is already granted.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only; backend endpoints and worker were implemented by Claude Code.
+- UI does not request browser notification permission; it only shows notifications if permission is already `granted`.
+
+Claude Code active files: none currently.
+
 ### 2026-06-15 - Claude Code: Auto-signal preferences (backend) — Codex frontend follow-up needed
 
 Files changed:

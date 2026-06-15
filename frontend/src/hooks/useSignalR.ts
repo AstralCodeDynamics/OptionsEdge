@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
 import { getAccessToken } from '../services/api'
+import { useAppStore } from '../store/appStore'
+import type { Signal } from '../types'
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 
@@ -24,6 +26,16 @@ export function useSignalR(url: string) {
     connection.onreconnecting(() => setConnectionState('reconnecting'))
     connection.onreconnected(() => setConnectionState('connected'))
     connection.onclose(() => setConnectionState('disconnected'))
+    connection.on('AutoSignalGenerated', (signal: Signal) => {
+      useAppStore.getState().addSignal(signal)
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('OptionsEdge Signal', {
+          body: `${signal.symbol} ${signal.signalType} - ${signal.strike} ${signal.optionType} - Confidence ${signal.confidence}%`,
+          icon: '/favicon.ico',
+        })
+      }
+    })
 
     connectionRef.current = connection
     setConnectionState('connecting')

@@ -169,6 +169,15 @@ export interface Signal {
   fromCache?: boolean
 }
 
+export interface SignalPreferenceResponse {
+  niftyAutoSignalEnabled: boolean
+  niftyAutoSignalTimes: string
+  bankNiftyAutoSignalEnabled: boolean
+  bankNiftyAutoSignalTimes: string
+}
+
+export type SignalPreferenceRequest = SignalPreferenceResponse
+
 export interface Position {
   id: string
   userId: string

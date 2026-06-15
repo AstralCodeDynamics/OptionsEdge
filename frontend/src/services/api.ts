@@ -4,7 +4,7 @@ import type {
   ChatMessage, BacktestResult, BacktestHistoryResponse, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
-  UsageStats,
+  UsageStats, SignalPreferenceRequest, SignalPreferenceResponse,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -174,6 +174,13 @@ export const signalsApi = {
   },
   getById: (id: string) =>
     api.get<Signal>(`/signals/${id}`).then((r) => r.data),
+}
+
+export const signalPreferenceApi = {
+  getPreferences: () =>
+    api.get<SignalPreferenceResponse>('/signals/preferences').then((r) => r.data),
+  savePreferences: (data: SignalPreferenceRequest) =>
+    api.put<{ message: string }>('/signals/preferences', data).then((r) => r.data),
 }
 
 export const positionsApi = {

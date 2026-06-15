@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAppStore } from '../../store/appStore'
-import { aiApi, authApi } from '../../services/api'
+import { aiApi, authApi, signalPreferenceApi } from '../../services/api'
 import { AuthError, AuthSuccess, authInputCls, authButtonCls, extractErrorMessage } from '../../components/common/AuthLayout'
 import PasswordStrength, { isPasswordValid } from '../../components/common/PasswordStrength'
 import UsageDashboard from '../../components/usage/UsageDashboard'
-import type { EnableTwoFactorResponse } from '../../types'
+import { Toggle } from '../../components/common/Toggle'
+import type { EnableTwoFactorResponse, SignalPreferenceResponse } from '../../types'
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -303,6 +304,117 @@ function AIConnectionSection() {
   )
 }
 
+function AutoSignalPreferencesSection() {
+  const [sigPref, setSigPref] = useState<SignalPreferenceResponse | null>(null)
+  const [savingSig, setSavingSig] = useState(false)
+  const [sigMsg, setSigMsg] = useState<string | null>(null)
+  const [sigError, setSigError] = useState<string | null>(null)
+
+  useEffect(() => {
+    signalPreferenceApi.getPreferences().then(setSigPref).catch(() => {})
+  }, [])
+
+  const handleSaveSigPref = async () => {
+    if (!sigPref) return
+    setSavingSig(true)
+    setSigMsg(null)
+    setSigError(null)
+    try {
+      await signalPreferenceApi.savePreferences(sigPref)
+      const normalized = await signalPreferenceApi.getPreferences()
+      setSigPref(normalized)
+      setSigMsg('Auto signal preferences saved.')
+    } catch {
+      setSigError('Failed to save preferences.')
+    } finally {
+      setSavingSig(false)
+    }
+  }
+
+  return (
+    <SectionCard title="Auto Signal Preferences">
+      <div className="space-y-5">
+        <p className="text-xs text-gray-400">
+          Automatically generate AI signals at scheduled times during market hours (9:15 AM - 3:30 PM IST). You'll receive a real-time notification for each signal.
+        </p>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-200">NIFTY 50</p>
+              <p className="text-xs text-gray-500">Weekly expiry - every Tuesday</p>
+            </div>
+            <Toggle
+              checked={sigPref?.niftyAutoSignalEnabled ?? false}
+              onChange={(v) => setSigPref((p) => (p ? { ...p, niftyAutoSignalEnabled: v } : p))}
+              disabled={!sigPref || savingSig}
+            />
+          </div>
+
+          {sigPref?.niftyAutoSignalEnabled && (
+            <div className="space-y-1 pl-1">
+              <label className="text-xs text-gray-500">Signal times IST (comma-separated)</label>
+              <input
+                type="text"
+                value={sigPref.niftyAutoSignalTimes}
+                onChange={(e) =>
+                  setSigPref((p) => (p ? { ...p, niftyAutoSignalTimes: e.target.value } : p))
+                }
+                placeholder="09:30,12:00,14:00"
+                className={authInputCls}
+              />
+              <p className="text-xs text-gray-600">Between 09:15-15:25. Max 5 times.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-800" />
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-200">BANK NIFTY</p>
+              <p className="text-xs text-gray-500">Monthly expiry - last Tuesday of month</p>
+            </div>
+            <Toggle
+              checked={sigPref?.bankNiftyAutoSignalEnabled ?? false}
+              onChange={(v) => setSigPref((p) => (p ? { ...p, bankNiftyAutoSignalEnabled: v } : p))}
+              disabled={!sigPref || savingSig}
+            />
+          </div>
+
+          {sigPref?.bankNiftyAutoSignalEnabled && (
+            <div className="space-y-1 pl-1">
+              <label className="text-xs text-gray-500">Signal times IST (comma-separated)</label>
+              <input
+                type="text"
+                value={sigPref.bankNiftyAutoSignalTimes}
+                onChange={(e) =>
+                  setSigPref((p) => (p ? { ...p, bankNiftyAutoSignalTimes: e.target.value } : p))
+                }
+                placeholder="09:30,12:00,14:00"
+                className={authInputCls}
+              />
+              <p className="text-xs text-gray-600">Between 09:15-15:25. Max 5 times.</p>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={handleSaveSigPref}
+          disabled={savingSig || !sigPref}
+          className={authButtonCls}
+        >
+          {savingSig ? 'Saving…' : 'Save Preferences'}
+        </button>
+
+        <AuthError message={sigError} />
+        <AuthSuccess message={sigMsg} />
+      </div>
+    </SectionCard>
+  )
+}
+
 function ChangePasswordSection() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -435,6 +547,7 @@ export default function SecuritySettings() {
       <UsageDashboard />
       <TwoFactorSection />
       <AIConnectionSection />
+      <AutoSignalPreferencesSection />
       <ChangePasswordSection />
       <AccountInfoSection />
     </div>

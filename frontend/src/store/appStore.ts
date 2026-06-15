@@ -14,6 +14,7 @@ interface MarketSlice {
 interface SignalsSlice {
   signals: Signal[]
   setSignals: (signals: Signal[]) => void
+  addSignal: (signal: Signal) => void
   prependSignal: (signal: Signal) => void
 }
 
@@ -70,6 +71,8 @@ export const useAppStore = create<AppStore>((set) => ({
   // Signals
   signals: [],
   setSignals: (signals) => set({ signals }),
+  addSignal: (signal) =>
+    set((s) => ({ signals: [signal, ...s.signals.filter((x) => x.id !== signal.id)].slice(0, 20) })),
   prependSignal: (signal) =>
     set((s) => ({ signals: [signal, ...s.signals.filter((x) => x.id !== signal.id)] })),
 
