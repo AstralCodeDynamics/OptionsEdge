@@ -17,6 +17,30 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Real Groww LTP for GetOptionLtp, real OI change/volume in chain
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwModels.cs`
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GrowwOptionLeg` gained `OiChange` (decimal), parsed from `oi_day_change` ?? `change_in_open_interest`. `Volume` parsing now tries `day_volume` first, then `volume`.
+- `OptionsService.GetOptionLtp` (used by Position P&L, SL/target alerts, and `PositionMonitorWorker`) now checks the cached Groww chain (`GrowwChainCacheKey`) first for the strike/leg's real `Ltp`; falls back to the existing Black-Scholes estimate if the strike isn't in the cached chain or the cached LTP is `0`/missing.
+- `OptionsService.GetChain` now overlays real `OiChange`/`Volume` per leg from the cached Groww chain when non-zero (`OiChange != 0`, `Volume > 0`); otherwise keeps the synthetic `Random()`-based estimate.
+
+Caveats:
+
+- Groww chain cache is populated only after `/api/v1/options/chain/{symbol}` has been called at least once for that symbol/expiry (`CacheGrowwChain`); until then `GetOptionLtp` and `GetChain` use fully synthetic values.
+- `OiChange` of exactly `0` (legitimately flat OI) and `Volume` of exactly `0` (no trades yet) are indistinguishable from "Groww didn't report this field" and fall back to the synthetic estimate in those cases.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+
 ### 2026-06-15 - Claude Code: Live VIX, real option chain OI/IV, FII/DII N/A when unavailable
 
 Files changed:

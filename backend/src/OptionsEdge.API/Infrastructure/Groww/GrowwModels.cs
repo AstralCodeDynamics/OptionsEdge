@@ -4,6 +4,7 @@ public record GrowwOptionLeg(
     string TradingSymbol,
     decimal Ltp,
     long OpenInterest,
+    decimal OiChange,
     long Volume,
     decimal ImpliedVolatility,
     decimal Delta,

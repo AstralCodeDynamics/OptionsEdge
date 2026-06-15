@@ -111,14 +111,29 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
             double ceIv = growwRow?.Call is { } ceLeg ? (double)ceLeg.ImpliedVolatility : Math.Round(iv * 100, 2);
             double peIv = growwRow?.Put is { } peLeg ? (double)peLeg.ImpliedVolatility : Math.Round(iv * 100, 2);
 
+            // OI change / volume: use Groww's real values when non-zero, else the synthetic estimate.
+            long ceOiChange = growwRow?.Call?.OiChange is { } ceOiChangeVal && ceOiChangeVal != 0
+                ? (long)ceOiChangeVal
+                : (long)(ceOi * (new Random(strike).NextDouble() * 0.1 - 0.05));
+            long peOiChange = growwRow?.Put?.OiChange is { } peOiChangeVal && peOiChangeVal != 0
+                ? (long)peOiChangeVal
+                : (long)(peOi * (new Random(strike + 2).NextDouble() * 0.1 - 0.05));
+
+            long ceVolume = growwRow?.Call?.Volume is > 0
+                ? growwRow.Call.Volume
+                : (long)(ceOi * 0.3 * (0.5 + new Random(strike + 1).NextDouble()));
+            long peVolume = growwRow?.Put?.Volume is > 0
+                ? growwRow.Put.Volume
+                : (long)(peOi * 0.3 * (0.5 + new Random(strike + 3).NextDouble()));
+
             rows.Add(new ChainRowResponse(
                 Strike: strike,
                 IsAtm:  isAtm,
                 Ce: new OptionLegResponse(
                     Ltp:      ceLtpFinal,
                     Oi:       ceOi,
-                    OiChange: (long)(ceOi * (new Random(strike).NextDouble() * 0.1 - 0.05)),
-                    Volume:   (long)(ceOi * 0.3 * (0.5 + new Random(strike + 1).NextDouble())),
+                    OiChange: ceOiChange,
+                    Volume:   ceVolume,
                     Iv:       ceIv,
                     Delta:    Math.Round(ceGreeks.delta, 4),
                     Gamma:    Math.Round(ceGreeks.gamma, 6),
@@ -127,8 +142,8 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
                 Pe: new OptionLegResponse(
                     Ltp:      peLtpFinal,
                     Oi:       peOi,
-                    OiChange: (long)(peOi * (new Random(strike + 2).NextDouble() * 0.1 - 0.05)),
-                    Volume:   (long)(peOi * 0.3 * (0.5 + new Random(strike + 3).NextDouble())),
+                    OiChange: peOiChange,
+                    Volume:   peVolume,
                     Iv:       peIv,
                     Delta:    Math.Round(peGreeks.delta, 4),
                     Gamma:    Math.Round(peGreeks.gamma, 6),
@@ -148,9 +163,22 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
         return new MaxPainResponse(chain.MaxPain, chain.Spot, expiry);
     }
 
+    // Used by Position P&L, SL/target alerts, and PositionMonitorWorker — prefer the latest
+    // Groww chain LTP (cached by /chain/{symbol}) over the Black-Scholes estimate when available.
     public decimal GetOptionLtp(string symbol, int strike, string optionType, string expiry)
     {
-        var key      = symbol.ToUpper();
+        var key = symbol.ToUpper();
+        bool isCall = optionType.ToUpper() == "CE";
+
+        if (cache.TryGetValue(GrowwChainCacheKey(key, expiry), out IReadOnlyList<GrowwOptionChainRow>? growwChain)
+            && growwChain is not null)
+        {
+            var row = growwChain.FirstOrDefault(r => r.Strike == strike);
+            decimal? realLtp = isCall ? row?.Call?.Ltp : row?.Put?.Ltp;
+            if (realLtp is > 0)
+                return realLtp.Value;
+        }
+
         var snapshot = marketData.GetSnapshot(key);
         double spot  = (double)snapshot.Ltp;
 
@@ -163,7 +191,6 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
         double iv        = baseIv + moneyness * 0.15 + (T < 0.03 ? 0.05 : 0);
         iv = Math.Max(0.05, iv);
 
-        bool isCall = optionType.ToUpper() == "CE";
         var (_, price) = BlackScholes(spot, strike, RiskFreeRate, T, iv, isCall);
         return Math.Round((decimal)price, 2);
     }
