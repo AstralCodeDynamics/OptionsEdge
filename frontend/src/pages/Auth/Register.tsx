@@ -4,6 +4,8 @@ import { useAuth } from '../../hooks/useAuth'
 import AuthLayout, { AuthError, authInputCls, authButtonCls, authLinkCls, extractErrorMessage } from '../../components/common/AuthLayout'
 import PasswordStrength, { isPasswordValid } from '../../components/common/PasswordStrength'
 
+const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/
+
 export default function Register() {
   const navigate = useNavigate()
   const { register } = useAuth()
@@ -19,6 +21,10 @@ export default function Register() {
     e.preventDefault()
     setError(null)
 
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address.')
+      return
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
       return
@@ -69,6 +75,11 @@ export default function Register() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => {
+              if (email && !emailRegex.test(email.trim())) {
+                setError('Please enter a valid email address.')
+              }
+            }}
             className={authInputCls}
             placeholder="you@example.com"
           />
@@ -104,6 +115,14 @@ export default function Register() {
         <button type="submit" disabled={submitting} className={authButtonCls}>
           {submitting ? 'Creating account…' : 'Create account'}
         </button>
+
+        <div className="rounded-lg bg-blue-950/40 border border-blue-800/40 p-3 text-xs text-blue-300 space-y-1">
+          <p className="font-medium">📧 Email verification required</p>
+          <p>
+            After registering, check your inbox for a confirmation email. If you don't see it within a few
+            minutes, check your <strong>spam or junk folder</strong>.
+          </p>
+        </div>
 
         <p className="text-center text-sm text-gray-400">
           Already have an account?{' '}

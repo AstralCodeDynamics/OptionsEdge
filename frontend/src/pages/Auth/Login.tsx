@@ -42,7 +42,6 @@ export default function Login() {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 403) {
         setUnconfirmed(true)
-        setError('Please verify your email first.')
       } else if (status === 423) {
         setLockedUntil('Account locked due to too many failed attempts. Try again later.')
       } else {
@@ -71,15 +70,24 @@ export default function Login() {
         <AuthError message={error} />
 
         {unconfirmed && (
-          <button
-            type="button"
-            onClick={handleResend}
-            className="text-sm text-emerald-400 hover:text-emerald-300 underline"
-          >
-            Resend confirmation email
-          </button>
+          <div className="rounded-lg bg-yellow-950/40 border border-yellow-700/40 p-3 text-xs text-yellow-300 space-y-2">
+            <p className="font-medium">
+              ⚠️ Email verification required
+            </p>
+            <p>Please check your inbox and click the confirmation link before logging in.</p>
+            <p>Don't see it? Check your spam folder, or:</p>
+            <button
+              type="button"
+              onClick={handleResend}
+              className="underline text-yellow-400 hover:text-yellow-300"
+            >
+              Resend confirmation email
+            </button>
+            {resendStatus && (
+              <p className="text-emerald-400">{resendStatus}</p>
+            )}
+          </div>
         )}
-        {resendStatus && <AuthSuccess message={resendStatus} />}
 
         <div>
           <label className="block text-xs text-gray-400 mb-1">Email</label>

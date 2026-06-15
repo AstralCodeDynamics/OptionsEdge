@@ -17,6 +17,33 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Auth verification UX improvements
+
+Files changed:
+
+- `frontend/src/pages/Auth/Register.tsx`
+- `frontend/src/pages/Auth/VerifyEmail.tsx`
+- `frontend/src/pages/Auth/Login.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Register now validates email with a stricter client-side regex on blur and before API submit.
+- Register shows an email verification note with a spam/junk folder tip below the submit button.
+- VerifyEmail confirmed state now starts a 5-second countdown and redirects to `/login` with a success message.
+- VerifyEmail idle state now explains that the confirmation email was sent, that the link expires in 24 hours, and suggests checking spam/junk.
+- Login now treats `403` as an unconfirmed-email state without a red generic error, showing a yellow verification warning with resend action and inline resend status.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only UX change; backend auth behavior unchanged.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Claude Code: Alert dedup cache survives failed SaveAlertAsync
 
 Files changed:

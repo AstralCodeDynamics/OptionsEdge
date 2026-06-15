@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../../services/api'
 import AuthLayout, { AuthError, AuthSuccess, authButtonCls, authLinkCls, extractErrorMessage } from '../../components/common/AuthLayout'
 
@@ -11,6 +11,7 @@ type ConfirmState = 'idle' | 'confirming' | 'confirmed' | 'failed'
 
 export default function VerifyEmail() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const state = location.state as LocationState | null
   const email = state?.email
@@ -22,6 +23,7 @@ export default function VerifyEmail() {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [resendStatus, setResendStatus] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
+  const [countdown, setCountdown] = useState(5)
 
   useEffect(() => {
     if (!userId || !token) return
@@ -33,6 +35,26 @@ export default function VerifyEmail() {
         setConfirmState('failed')
       })
   }, [userId, token])
+
+  useEffect(() => {
+    if (confirmState !== 'confirmed') return
+
+    const id = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(id)
+          navigate('/login', {
+            state: { message: 'Email confirmed! You can now log in.' },
+          })
+          return 0
+        }
+
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(id)
+  }, [confirmState, navigate])
 
   const handleResend = async () => {
     if (!email) return
@@ -58,10 +80,13 @@ export default function VerifyEmail() {
 
   if (confirmState === 'confirmed') {
     return (
-      <AuthLayout title="Email confirmed!">
+      <AuthLayout title="✅ Email Verified!">
         <div className="space-y-4">
-          <AuthSuccess message="Your email has been confirmed. You can now log in." />
-          <Link to="/login" className={`block text-center ${authButtonCls}`}>Log in now</Link>
+          <AuthSuccess message="Your email has been confirmed successfully." />
+          <p className="text-sm text-gray-400 text-center">
+            Redirecting to login in {countdown} second{countdown !== 1 ? 's' : ''}…
+          </p>
+          <Link to="/login" className={`block text-center ${authButtonCls}`}>Go to Login now</Link>
         </div>
       </AuthLayout>
     )
@@ -89,9 +114,15 @@ export default function VerifyEmail() {
   return (
     <AuthLayout title="Check your email" subtitle={email ? `We sent a confirmation link to ${email}` : 'We sent you a confirmation link.'}>
       <div className="space-y-4">
-        <p className="text-sm text-gray-400 text-center">
-          Click the link in the email to confirm your account, then log in.
-        </p>
+        <div className="rounded-lg bg-emerald-950/40 border border-emerald-800/40 p-3 text-xs text-emerald-300 space-y-1">
+          <p className="font-medium">
+            📧 Confirmation email sent
+          </p>
+          <p>Click the link in the email to verify your account. The link expires in 24 hours.</p>
+          <p className="text-yellow-400">
+            ⚠️ Don't see it? Check your <strong>spam or junk folder</strong>.
+          </p>
+        </div>
         {email && (
           <button onClick={handleResend} disabled={resending} className={authButtonCls}>
             {resending ? 'Sending…' : 'Resend email'}
