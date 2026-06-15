@@ -17,6 +17,37 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: ADX filter + backtest diagnostics
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Backtest/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Backtest/BacktestService.cs`
+- `frontend/src/pages/Backtest/index.tsx`
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Backtest run requests now accept `adxFilterEnabled` (default `true`) and persist `ADXFilter` state in saved run parameters.
+- Entry candidates now pass an ADX(14) + EMA20 guard before trade entry when the filter is enabled: ADX must be at least `20`, bullish entries must close above EMA20, and bearish entries must close below EMA20.
+- ADX/EMA trend values are computed from intraday candles with Skender and cached by IST trading day for simulation lookup.
+- Backtest responses now include `diagnosticSummary` with candidate signals, ADX/EMA filtered signals, entered trades, target hits, SL hits, expiry exits, and theta exits.
+- Backtest UI now includes an `ADX Filter` checkbox and shows a `Signal Diagnostics` row under result stats.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` passed with zero warnings.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Plain `dotnet build` from repo root fails with `MSB1003` because the root has no `.sln` or project file; backend project build was used.
+
+Claude Code active files: none currently.
+
 ### 2026-06-15 - Claude Code: Migration Designer.cs fix
 
 Files changed:

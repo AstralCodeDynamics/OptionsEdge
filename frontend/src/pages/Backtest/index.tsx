@@ -231,6 +231,7 @@ function ResultPanel({ result }: { result: BacktestResult }) {
   const [selectedTrade, setSelectedTrade] = useState<BacktestTradeLogEntry | null>(null)
   const targetHits = result.tradeLog.filter((t) => t.exitReason.startsWith('Target')).length
   const slHits = result.tradeLog.filter((t) => t.exitReason === 'SLHit').length
+  const diagnostics = result.diagnosticSummary
   const sourceLabel = result.dataSource === 'groww'
     ? 'Groww historical candles'
     : result.dataSource === 'mock'
@@ -285,6 +286,36 @@ function ResultPanel({ result }: { result: BacktestResult }) {
         <StatCard label="Target Hits" value={String(targetHits)} accent="pos" />
         <StatCard label="SL Hits" value={String(slHits)} accent={slHits > 0 ? 'neg' : undefined} />
       </div>
+
+      {diagnostics && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3 text-xs">
+          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">
+            Signal Diagnostics
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <p className="text-gray-500">Candidate Signals</p>
+              <p className="mt-1 font-semibold text-white">{diagnostics.candidateSignals}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Filtered Out</p>
+              <p className="mt-1 font-semibold text-amber-300">{diagnostics.filteredOut}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Trades Entered</p>
+              <p className="mt-1 font-semibold text-white">{diagnostics.tradesEntered}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Target Hits / SL Hits</p>
+              <p className="mt-1 font-semibold">
+                <span className="text-emerald-300">{diagnostics.targetHits}</span>
+                <span className="text-gray-500"> / </span>
+                <span className="text-red-300">{diagnostics.slHits}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
         <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">
@@ -423,6 +454,7 @@ export default function Backtest() {
   const [lots, setLots] = useState(1)
   const [targetPoints, setTargetPoints] = useState(30)
   const [stopLossPoints, setStopLossPoints] = useState(15)
+  const [adxFilterEnabled, setAdxFilterEnabled] = useState(true)
 
   const [running, setRunning] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -477,6 +509,7 @@ export default function Backtest() {
         lots,
         targetPoints,
         stopLossPoints,
+        adxFilterEnabled,
       })
       setResult(res)
       setSelectedId(res.id)
@@ -592,6 +625,15 @@ export default function Backtest() {
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
             />
           </div>
+          <label className="flex min-h-[42px] items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={adxFilterEnabled}
+              onChange={(e) => setAdxFilterEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-emerald-600 focus:ring-emerald-700"
+            />
+            <span>ADX Filter</span>
+          </label>
         </div>
 
         <button

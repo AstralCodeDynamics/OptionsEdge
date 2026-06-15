@@ -215,6 +215,7 @@ export const backtestApi = {
     lots: number
     targetPoints?: number
     stopLossPoints?: number
+    adxFilterEnabled?: boolean
   }) => api.post<BacktestResult>('/backtest/run', data).then((r) => r.data),
   getHistory: (params?: { page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()

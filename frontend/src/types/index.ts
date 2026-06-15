@@ -230,6 +230,16 @@ export interface BacktestTradeLogEntry {
   target2Price?: number | null
 }
 
+export interface BacktestDiagnosticSummary {
+  candidateSignals: number
+  filteredOut: number
+  tradesEntered: number
+  targetHits: number
+  slHits: number
+  expiryExits: number
+  thetaExits: number
+}
+
 export interface BacktestResult {
   id: string
   symbol: string
@@ -251,6 +261,7 @@ export interface BacktestResult {
   tradingDays: number
   targetPoints?: number | null
   stopLossPoints?: number | null
+  diagnosticSummary?: BacktestDiagnosticSummary | null
   tradeLog: BacktestTradeLogEntry[]
   createdAt: string
 }

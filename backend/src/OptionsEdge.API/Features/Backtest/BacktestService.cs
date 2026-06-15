@@ -84,7 +84,9 @@ public class BacktestService(
         if (daily.Count < 2 || intraday.Count < MinWarmupBars + 5)
             throw new InvalidOperationException("Not enough historical data to run a backtest");
 
-        var trades = Simulate(intraday, daily, req, legs, symbol, step, lotSize);
+        var simulation = Simulate(intraday, daily, req, legs, symbol, step, lotSize);
+        var trades = simulation.Trades;
+        var diagnostics = simulation.Diagnostics;
 
         var parameters = JsonSerializer.SerializeToDocument(new
         {
@@ -96,6 +98,18 @@ public class BacktestService(
             lots = req.Lots,
             targetPoints = req.TargetPoints,
             stopLossPoints = req.StopLossPoints,
+            adxFilter = "ADXFilter",
+            adxFilterEnabled = req.AdxFilterEnabled,
+            diagnosticSummary = new
+            {
+                candidateSignals = diagnostics.CandidateSignals,
+                filteredOut = diagnostics.FilteredOut,
+                tradesEntered = diagnostics.TradesEntered,
+                targetHits = diagnostics.TargetHits,
+                slHits = diagnostics.SlHits,
+                expiryExits = diagnostics.ExpiryExits,
+                thetaExits = diagnostics.ThetaExits,
+            },
             dataSource = GetDataSource(),
             candleCount = intraday.Count,
             tradingDays = daily.Count,
@@ -165,7 +179,7 @@ public class BacktestService(
     // Simulation
     // ------------------------------------------------------------------
 
-    private List<BacktestTradeLogEntry> Simulate(
+    private SimulationResult Simulate(
         IReadOnlyList<CandleData> intraday,
         IReadOnlyList<CandleData> daily,
         BacktestRunRequest req,
@@ -179,8 +193,10 @@ public class BacktestService(
         var rsi = quotes.GetRsi(14).ToList();
         var macd = quotes.GetMacd(12, 26, 9).ToList();
         var ema20 = quotes.GetEma(20).ToList();
+        var adx14 = quotes.GetAdx(14).ToList();
         var supertrend = quotes.GetSuperTrend(10, 3).ToList();
         var pivotsByDate = BuildPivotLookup(daily);
+        var trendFilterByDay = BuildTrendFilterLookup(candles, adx14, ema20);
 
         int testWindow = Math.Min(req.PeriodDays, daily.Count - 1);
         var startDate = ToIstDate(daily[^testWindow].Time);
@@ -188,6 +204,7 @@ public class BacktestService(
         int startIndex = Math.Max(MinWarmupBars, firstWindowBar < 0 ? MinWarmupBars : firstWindowBar);
 
         var trades = new List<BacktestTradeLogEntry>();
+        var diagnostics = new BacktestDiagnosticCounters();
         OpenTrade? open = null;
 
         for (int i = startIndex; i < candles.Count; i++)
@@ -199,15 +216,43 @@ public class BacktestService(
 
             if (open is null)
             {
-                if (EntrySignalFires(req.EntryCondition, i, candle, prev, rsi, macd, ema20, supertrend, pivots))
+                var entryDecision = EntrySignalFires(
+                    req.Strategy,
+                    req.EntryCondition,
+                    i,
+                    candle,
+                    prev,
+                    rsi,
+                    macd,
+                    ema20,
+                    supertrend,
+                    pivots,
+                    trendFilterByDay,
+                    req.AdxFilterEnabled);
+
+                if (entryDecision != EntrySignalDecision.NoSignal)
+                    diagnostics.CandidateSignals++;
+
+                if (entryDecision == EntrySignalDecision.FilteredOut)
+                {
+                    diagnostics.FilteredOut++;
+                    continue;
+                }
+
+                if (entryDecision == EntrySignalDecision.Accepted)
+                {
                     open = OpenPosition(symbol, req.Strategy, legs, candle, step, lotSize);
+                    diagnostics.TradesEntered++;
+                }
             }
             else
             {
                 var exit = CheckExitConditions(req.ExitCondition, open, candle, req, lotSize);
                 if (exit is not null)
                 {
-                    trades.Add(ToTradeLogEntry(open, candle.Time, exit.ExitValue, exit.PnL, exit.Reason, req));
+                    var trade = ToTradeLogEntry(open, candle.Time, exit.ExitValue, exit.PnL, exit.Reason, req);
+                    trades.Add(trade);
+                    diagnostics.CountExit(trade.ExitReason);
                     open = null;
                 }
             }
@@ -218,10 +263,12 @@ public class BacktestService(
             var last = daily[^1];
             var (netValue, _, _) = ValuePosition(open, last.Close, last.Time);
             decimal pnl = (netValue - open.EntryNetPremium) * req.Lots * lotSize;
-            trades.Add(ToTradeLogEntry(open, last.Time, netValue, pnl, "EndOfPeriod", req));
+            var trade = ToTradeLogEntry(open, last.Time, netValue, pnl, "EndOfPeriod", req);
+            trades.Add(trade);
+            diagnostics.CountExit(trade.ExitReason);
         }
 
-        return trades;
+        return new SimulationResult(trades, diagnostics.ToSummary());
     }
 
     private static BacktestTradeLogEntry ToTradeLogEntry(
@@ -246,28 +293,114 @@ public class BacktestService(
             Target2Price: Math.Round(trade.EntryNetPremium + risk.Target2Points, 2));
     }
 
-    private static bool EntrySignalFires(
-        string condition, int i, CandleData candle, CandleData prev,
+    private static EntrySignalDecision EntrySignalFires(
+        string strategy,
+        string condition,
+        int i,
+        CandleData candle,
+        CandleData prev,
         IReadOnlyList<RsiResult> rsi,
         IReadOnlyList<MacdResult> macd,
         IReadOnlyList<EmaResult> ema20,
         IReadOnlyList<SuperTrendResult> supertrend,
-        DailyPivotLevels pivots) => condition switch
+        DailyPivotLevels pivots,
+        IReadOnlyDictionary<DateOnly, IReadOnlyDictionary<int, TrendFilterValue>> trendFilterByDay,
+        bool adxFilterEnabled)
     {
-        "RSI_Oversold"         => (rsi[i].Rsi ?? 50) < 30,
-        "RSI_Overbought"       => (rsi[i].Rsi ?? 50) > 70,
-        "MACD_Bullish_Cross"   => (macd[i].Macd ?? 0) > (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) <= (macd[i - 1].Signal ?? 0),
-        "MACD_Bearish_Cross"   => (macd[i].Macd ?? 0) < (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) >= (macd[i - 1].Signal ?? 0),
-        "SupertrendBullish"    => IsSupertrendBullish(supertrend[i]),
-        "SupertrendBearish"    => !IsSupertrendBullish(supertrend[i]),
-        "PriceBreakoutAboveR1" => candle.Close > pivots.R1 && prev.Close <= pivots.R1,
-        "PriceBreakdownBelowS1" => candle.Close < pivots.S1 && prev.Close >= pivots.S1,
-        "PivotEma20Bullish"    => IsPivotEma20Bullish(i, candle, prev, ema20, pivots),
-        "PivotEma20Bearish"    => IsPivotEma20Bearish(i, candle, prev, ema20, pivots),
-        _ => false,
-    };
+        bool signalFired = condition switch
+        {
+            "RSI_Oversold"          => (rsi[i].Rsi ?? 50) < 30,
+            "RSI_Overbought"        => (rsi[i].Rsi ?? 50) > 70,
+            "MACD_Bullish_Cross"    => (macd[i].Macd ?? 0) > (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) <= (macd[i - 1].Signal ?? 0),
+            "MACD_Bearish_Cross"    => (macd[i].Macd ?? 0) < (macd[i].Signal ?? 0) && (macd[i - 1].Macd ?? 0) >= (macd[i - 1].Signal ?? 0),
+            "SupertrendBullish"     => IsSupertrendBullish(supertrend[i]),
+            "SupertrendBearish"     => !IsSupertrendBullish(supertrend[i]),
+            "PriceBreakoutAboveR1"  => candle.Close > pivots.R1 && prev.Close <= pivots.R1,
+            "PriceBreakdownBelowS1" => candle.Close < pivots.S1 && prev.Close >= pivots.S1,
+            "PivotEma20Bullish"     => IsPivotEma20Bullish(i, candle, prev, ema20, pivots),
+            "PivotEma20Bearish"     => IsPivotEma20Bearish(i, candle, prev, ema20, pivots),
+            _ => false,
+        };
+
+        if (!signalFired)
+            return EntrySignalDecision.NoSignal;
+
+        if (adxFilterEnabled && !PassesAdxFilter(strategy, condition, i, candle, trendFilterByDay))
+            return EntrySignalDecision.FilteredOut;
+
+        return EntrySignalDecision.Accepted;
+    }
 
     private static bool IsSupertrendBullish(SuperTrendResult r) => r.LowerBand.HasValue;
+
+    private static bool PassesAdxFilter(
+        string strategy,
+        string condition,
+        int index,
+        CandleData candle,
+        IReadOnlyDictionary<DateOnly, IReadOnlyDictionary<int, TrendFilterValue>> trendFilterByDay)
+    {
+        var day = ToIstDate(candle.Time);
+        if (!trendFilterByDay.TryGetValue(day, out var trendFilterByIndex)
+            || !trendFilterByIndex.TryGetValue(index, out var trendFilter))
+        {
+            return false;
+        }
+
+        if (trendFilter.Adx < 20m || trendFilter.Ema20 <= 0m)
+            return false;
+
+        return ResolveEntryBias(strategy, condition) switch
+        {
+            EntryBias.Bullish => candle.Close > trendFilter.Ema20,
+            EntryBias.Bearish => candle.Close < trendFilter.Ema20,
+            _ => true,
+        };
+    }
+
+    private static EntryBias ResolveEntryBias(string strategy, string condition)
+    {
+        if (strategy is "LongCall" or "BullCallSpread")
+            return EntryBias.Bullish;
+
+        if (strategy is "LongPut" or "BearPutSpread")
+            return EntryBias.Bearish;
+
+        return condition switch
+        {
+            "RSI_Oversold" or "MACD_Bullish_Cross" or "SupertrendBullish"
+                or "PriceBreakoutAboveR1" or "PivotEma20Bullish" => EntryBias.Bullish,
+            "RSI_Overbought" or "MACD_Bearish_Cross" or "SupertrendBearish"
+                or "PriceBreakdownBelowS1" or "PivotEma20Bearish" => EntryBias.Bearish,
+            _ => EntryBias.Neutral,
+        };
+    }
+
+    private static Dictionary<DateOnly, IReadOnlyDictionary<int, TrendFilterValue>> BuildTrendFilterLookup(
+        IReadOnlyList<CandleData> candles,
+        IReadOnlyList<AdxResult> adx14,
+        IReadOnlyList<EmaResult> ema20)
+    {
+        var lookup = new Dictionary<DateOnly, Dictionary<int, TrendFilterValue>>();
+        for (int i = 0; i < candles.Count; i++)
+        {
+            var adx = adx14[i].Adx;
+            var ema = ema20[i].Ema;
+            if (!adx.HasValue || !ema.HasValue)
+                continue;
+
+            var day = ToIstDate(candles[i].Time);
+            if (!lookup.TryGetValue(day, out var dayCache))
+            {
+                dayCache = [];
+                lookup[day] = dayCache;
+            }
+
+            dayCache[i] = new TrendFilterValue((decimal)adx.Value, (decimal)ema.Value);
+        }
+
+        return lookup.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyDictionary<int, TrendFilterValue>)kvp.Value);
+    }
 
     private static bool IsPivotEma20Bullish(
         int i,
@@ -588,6 +721,7 @@ public class BacktestService(
         int tradingDays       = TryGetInt(p, "tradingDays");
         decimal? targetPoints = TryGetNullableDecimal(p, "targetPoints");
         decimal? stopLossPoints = TryGetNullableDecimal(p, "stopLossPoints");
+        var diagnosticSummary = TryGetDiagnosticSummary(p, "diagnosticSummary");
 
         var tradeLog = r.TradeLog is not null
             ? JsonSerializer.Deserialize<List<BacktestTradeLogEntry>>(r.TradeLog.RootElement.GetRawText()) ?? []
@@ -600,7 +734,7 @@ public class BacktestService(
             r.Id, symbol, r.Strategy, entryCondition, exitCondition, periodDays, lots,
             r.WinRate, r.TotalTrades, r.NetPnl, r.MaxDrawdown, r.SharpeRatio, r.ProfitFactor,
             stats.AvgWin, stats.AvgLoss, string.IsNullOrEmpty(dataSource) ? "unknown" : dataSource,
-            candleCount, tradingDays, targetPoints, stopLossPoints, tradeLog, r.CreatedAt.ToString("O"));
+            candleCount, tradingDays, targetPoints, stopLossPoints, diagnosticSummary, tradeLog, r.CreatedAt.ToString("O"));
     }
 
     private string GetDataSource() =>
@@ -640,6 +774,24 @@ public class BacktestService(
             ? v.GetDecimal()
             : null;
 
+    private static BacktestDiagnosticSummary? TryGetDiagnosticSummary(JsonElement? element, string property)
+    {
+        if (element?.TryGetProperty(property, out var v) != true || v.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return new BacktestDiagnosticSummary(
+            CandidateSignals: TryGetInt(v, "candidateSignals"),
+            FilteredOut: TryGetInt(v, "filteredOut"),
+            TradesEntered: TryGetInt(v, "tradesEntered"),
+            TargetHits: TryGetInt(v, "targetHits"),
+            SlHits: TryGetInt(v, "slHits"),
+            ExpiryExits: TryGetInt(v, "expiryExits"),
+            ThetaExits: TryGetInt(v, "thetaExits"));
+    }
+
+    private static int TryGetInt(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
+
     private static TimeZoneInfo GetIstZone()
     {
         try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); }
@@ -651,6 +803,43 @@ public class BacktestService(
     private record DailyPivotLevels(decimal Pivot, decimal R1, decimal S1);
     private record ExitDecision(string Reason, decimal ExitValue, decimal PnL);
     private record RiskSettings(decimal StopLossPoints, decimal Target1Points, decimal Target2Points);
+    private record TrendFilterValue(decimal Adx, decimal Ema20);
+    private record SimulationResult(IReadOnlyList<BacktestTradeLogEntry> Trades, BacktestDiagnosticSummary Diagnostics);
+
+    private enum EntrySignalDecision { NoSignal, FilteredOut, Accepted }
+    private enum EntryBias { Neutral, Bullish, Bearish }
+
+    private sealed class BacktestDiagnosticCounters
+    {
+        public int CandidateSignals { get; set; }
+        public int FilteredOut { get; set; }
+        public int TradesEntered { get; set; }
+        public int TargetHits { get; set; }
+        public int SlHits { get; set; }
+        public int ExpiryExits { get; set; }
+        public int ThetaExits { get; set; }
+
+        public void CountExit(string reason)
+        {
+            if (reason is "Target1Hit" or "Target2Hit")
+                TargetHits++;
+            else if (reason == "SLHit")
+                SlHits++;
+            else if (reason is "ExpiryMinus1Day" or "EndOfPeriod")
+                ExpiryExits++;
+            else if (reason == "ThetaDecay50Pct")
+                ThetaExits++;
+        }
+
+        public BacktestDiagnosticSummary ToSummary() => new(
+            CandidateSignals,
+            FilteredOut,
+            TradesEntered,
+            TargetHits,
+            SlHits,
+            ExpiryExits,
+            ThetaExits);
+    }
 
     private record OpenTrade(
         DateTimeOffset EntryDate,

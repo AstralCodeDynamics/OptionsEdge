@@ -8,7 +8,8 @@ public record BacktestRunRequest(
     int PeriodDays,
     int Lots,
     decimal? TargetPoints = null,
-    decimal? StopLossPoints = null);
+    decimal? StopLossPoints = null,
+    bool AdxFilterEnabled = true);
 
 public record BacktestTradeLogEntry(
     string EntryDate,
@@ -43,8 +44,18 @@ public record BacktestResultResponse(
     int TradingDays,
     decimal? TargetPoints,
     decimal? StopLossPoints,
+    BacktestDiagnosticSummary? DiagnosticSummary,
     IReadOnlyList<BacktestTradeLogEntry> TradeLog,
     string CreatedAt);
+
+public record BacktestDiagnosticSummary(
+    int CandidateSignals,
+    int FilteredOut,
+    int TradesEntered,
+    int TargetHits,
+    int SlHits,
+    int ExpiryExits,
+    int ThetaExits);
 
 public record BacktestHistoryResponse(
     IReadOnlyList<BacktestResultResponse> Items,
