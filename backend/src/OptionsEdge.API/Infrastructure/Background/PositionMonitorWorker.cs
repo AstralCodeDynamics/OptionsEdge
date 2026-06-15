@@ -111,9 +111,18 @@ public class PositionMonitorWorker(
 
             cache.Set(dedupKey, true, AlertDeduplicationTtl);
 
-            var alert = await alertService.SaveAlertAsync(
-                position.Id, position.UserId, trigger.Severity, trigger.AlertType, trigger.Message, ct);
-            await alertService.BroadcastAlertAsync(alert, ct);
+            try
+            {
+                var alert = await alertService.SaveAlertAsync(
+                    position.Id, position.UserId, trigger.Severity, trigger.AlertType, trigger.Message, ct);
+                await alertService.BroadcastAlertAsync(alert, ct);
+            }
+            catch (Exception ex)
+            {
+                // Save failed — release the dedup lock so this alert can retry next tick.
+                cache.Remove(dedupKey);
+                logger.LogWarning(ex, "Alert save failed for {Key}", dedupKey);
+            }
         }
     }
 

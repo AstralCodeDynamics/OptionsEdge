@@ -17,6 +17,21 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Alert dedup cache survives failed SaveAlertAsync
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Background/PositionMonitorWorker.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `ProcessPositionAsync`'s alert loop already set the dedup cache key (`cache.Set`) before the async `SaveAlertAsync`/`BroadcastAlertAsync` calls, so a same-tick double-fire wasn't possible. Added the missing failure path: `SaveAlertAsync`/`BroadcastAlertAsync` now wrapped in try/catch — on exception, `cache.Remove(dedupKey)` releases the lock so the alert retries next tick instead of being silently swallowed by the 15-min dedup TTL.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+
 ### 2026-06-15 - Claude Code: GrowwSymbolHelper uses correct Groww FNO symbol format
 
 Files changed:
