@@ -1,4 +1,5 @@
 import type { Position, Alert } from '../../types'
+import { useAppStore } from '../../store/appStore'
 
 interface Props {
   position: Position
@@ -75,6 +76,8 @@ export default function PositionCard({
   onCancelClose,
 }: Props) {
   const lastAlerts = alerts.slice(0, 3)
+  const snapshot = useAppStore((s) => s.snapshots[p.symbol])
+  const isLive = snapshot?.dataSource === 'groww_live'
   const statusColor =
     p.status === 'active' ? 'text-green-400' : p.status === 'closed' ? 'text-gray-400' : 'text-yellow-400'
 
@@ -116,7 +119,13 @@ export default function PositionCard({
           <div className="text-white font-medium">₹{p.entryPrice}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-2">
-          <div className="text-gray-500 mb-0.5">LTP</div>
+          <div className="mb-0.5 flex items-center justify-center gap-1.5 text-gray-500">
+            <span>LTP</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-900/80 px-1.5 py-0.5 text-[9px] font-medium text-gray-300">
+              <span className={`h-1.5 w-1.5 rounded-full ${isLive ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+              {isLive ? 'LIVE LTP' : 'EST. LTP'}
+            </span>
+          </div>
           <div className={`font-medium ${PnLColor(p.pnl)}`}>
             {p.currentLtp != null ? `₹${p.currentLtp}` : '—'}
           </div>

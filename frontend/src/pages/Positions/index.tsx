@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { positionsApi, alertsApi } from '../../services/api'
 import PositionCard from '../../components/positions/PositionCard'
@@ -12,20 +12,42 @@ export default function Positions() {
   const upsertPosition = useAppStore((s) => s.upsertPosition)
   const removePosition = useAppStore((s) => s.removePosition)
   const alerts       = useAppStore((s) => s.alerts)
+  const marketStatus = useAppStore((s) => s.marketStatus)
 
   const [modalOpen, setModalOpen]   = useState(false)
   const [editTarget, setEditTarget] = useState<Position | null>(null)
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
   const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const refreshPositions = useCallback(
+    async (showError = false) => {
+      try {
+        const data = await positionsApi.getAll()
+        setPositions(data)
+        setLastUpdated(new Date())
+        if (showError) setError(null)
+      } catch {
+        if (showError) setError('Failed to load positions')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [setPositions],
+  )
 
   useEffect(() => {
-    positionsApi
-      .getAll()
-      .then(setPositions)
-      .catch(() => setError('Failed to load positions'))
-      .finally(() => setLoading(false))
-  }, [setPositions])
+    refreshPositions(true)
+
+    if (marketStatus?.isOpen === false) return undefined
+
+    const id = setInterval(() => {
+      refreshPositions()
+    }, 30_000)
+
+    return () => clearInterval(id)
+  }, [marketStatus?.isOpen, refreshPositions])
 
   const alertsByPosition = alerts.reduce<Record<string, Alert[]>>((acc, a) => {
     const id = a.positionId
@@ -37,6 +59,9 @@ export default function Positions() {
   const closedPositions = positions.filter((p) => p.status !== 'active')
 
   const totalPnL = activePositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0)
+  const lastUpdatedText = lastUpdated
+    ? lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '—'
 
   const handleAdd = async (data: Parameters<typeof positionsApi.create>[0]) => {
     const created = await positionsApi.create(data)
@@ -84,7 +109,12 @@ export default function Positions() {
     <div className="p-4 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-white">Positions</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-white">Positions</h1>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Last updated {lastUpdatedText}
+          </p>
+        </div>
         <button
           onClick={() => setModalOpen(true)}
           className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg px-4 py-2 min-h-[44px] transition-colors"

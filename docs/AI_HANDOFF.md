@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Position LTP source badge + auto-refresh
+
+Files changed:
+
+- `frontend/src/components/positions/PositionCard.tsx`
+- `frontend/src/pages/Positions/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Position cards now show an LTP source badge from the market snapshot store: green `LIVE LTP` when `dataSource === "groww_live"`, otherwise grey `EST. LTP`.
+- Positions page refreshes the full position list on mount and every 30 seconds while market status is open or unknown, so card LTP/P&L can update from latest backend values.
+- Positions header now shows the last successful refresh timestamp.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Polling uses existing `positionsApi.getAll()`; there is no `positionsApi.getPositions()` method in the current frontend API client.
+- When market status is explicitly closed, the 30-second interval is paused after the initial refresh.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Claude Code: Real Groww LTP for GetOptionLtp, real OI change/volume in chain
 
 Files changed:
