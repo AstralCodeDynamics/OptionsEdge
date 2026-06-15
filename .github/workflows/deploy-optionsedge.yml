@@ -204,7 +204,11 @@ jobs:
 
             chmod +x "${{ vars.API_DEPLOY_PATH }}/efbundle"
 
-            "${{ vars.API_DEPLOY_PATH }}/efbundle" \
+            cd "${{ vars.API_DEPLOY_PATH }}"
+
+            ASPNETCORE_ENVIRONMENT=Production \
+            DOTNET_ENVIRONMENT=Production \
+            ./efbundle \
               --connection "Host=${{ vars.DB_HOST }};Port=${{ vars.DB_PORT }};Database=${{ vars.DB_NAME }};Username=${{ vars.DB_USER }};Password=${{ secrets.OPTIONS_EDGE_DB_PASSWORD }};Pooling=true;Maximum Pool Size=${{ vars.DB_MAX_POOL_SIZE }};Minimum Pool Size=0;Connection Idle Lifetime=300"
 
             systemctl restart "${{ vars.SYSTEMD_SERVICE_NAME }}"
