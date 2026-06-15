@@ -24,6 +24,7 @@ public static class AuthEndpoints
             IOptions<AuthSettings> authSettings,
             IEmailService emailService,
             HttpContext ctx,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password) || string.IsNullOrWhiteSpace(req.DisplayName))
@@ -55,7 +56,7 @@ public static class AuthEndpoints
             else
             {
                 var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-                var link  = BuildConfirmationLink(ctx, user.Id, token);
+                var link  = BuildConfirmationLink(config, user.Id, token);
                 await emailService.SendEmailConfirmationAsync(user.Email!, user.DisplayName, link, ct);
             }
 
@@ -86,14 +87,14 @@ public static class AuthEndpoints
             ResendConfirmationRequest req,
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
-            HttpContext ctx,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             var user = await userManager.FindByEmailAsync(req.Email);
             if (user is not null && !user.EmailConfirmed)
             {
                 var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-                var link  = BuildConfirmationLink(ctx, user.Id, token);
+                var link  = BuildConfirmationLink(config, user.Id, token);
                 await emailService.SendEmailConfirmationAsync(user.Email!, user.DisplayName, link, ct);
             }
 
@@ -210,13 +211,14 @@ public static class AuthEndpoints
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             HttpContext ctx,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             var user = await userManager.FindByEmailAsync(req.Email);
             if (user is not null && user.EmailConfirmed)
             {
                 var token = await userManager.GeneratePasswordResetTokenAsync(user);
-                var link  = BuildResetLink(ctx, user.Email!, token);
+                var link  = BuildResetLink(config, user.Email!, token);
                 await emailService.SendPasswordResetAsync(user.Email!, user.DisplayName, link, ct);
             }
 
@@ -391,16 +393,25 @@ public static class AuthEndpoints
             await userManager.GetTwoFactorEnabledAsync(user));
     }
 
-    private static string BuildConfirmationLink(HttpContext ctx, Guid userId, string token)
+    private static string BuildConfirmationLink(
+        IConfiguration config, Guid userId, string token)
     {
+        var frontend = config["App:FrontendUrl"] 
+            ?? "http://localhost:5173";
         var encoded = Uri.EscapeDataString(token);
-        return $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/v1/auth/confirm-email?userId={userId}&token={encoded}";
+        return $"{frontend}/verify-email" +
+            $"?userId={userId}&token={encoded}";
     }
 
-    private static string BuildResetLink(HttpContext ctx, string email, string token)
+    private static string BuildResetLink(
+        IConfiguration config, string email, string token)
     {
+        var frontend = config["App:FrontendUrl"] 
+            ?? "http://localhost:5173";
         var encoded = Uri.EscapeDataString(token);
-        return $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/v1/auth/reset-password?email={Uri.EscapeDataString(email)}&token={encoded}";
+        return $"{frontend}/reset-password" +
+            $"?email={Uri.EscapeDataString(email)}" +
+            $"&token={encoded}";
     }
 
     private static string BuildAuthenticatorUri(string email, string unformattedKey)
