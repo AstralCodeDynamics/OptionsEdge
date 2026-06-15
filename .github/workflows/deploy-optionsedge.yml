@@ -51,7 +51,6 @@ jobs:
             --project backend/src/OptionsEdge.API/OptionsEdge.API.csproj \
             --startup-project backend/src/OptionsEdge.API/OptionsEdge.API.csproj \
             --configuration Release \
-            --self-contained false \
             --output publish/api/efbundle
 
       - name: Create production appsettings
