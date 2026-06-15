@@ -31,6 +31,18 @@ public record RiskCheckResponse(
     string Message,
     string RecommendedAction);
 
+public record SignalPreferenceResponse(
+    bool NiftyAutoSignalEnabled,
+    string NiftyAutoSignalTimes,
+    bool BankNiftyAutoSignalEnabled,
+    string BankNiftyAutoSignalTimes);
+
+public record SignalPreferenceRequest(
+    bool NiftyAutoSignalEnabled,
+    string NiftyAutoSignalTimes,
+    bool BankNiftyAutoSignalEnabled,
+    string BankNiftyAutoSignalTimes);
+
 // Raw AI output before DB save (parsed from Claude JSON)
 internal record SignalAiOutput(
     string SignalType,

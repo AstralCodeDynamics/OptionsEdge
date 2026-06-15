@@ -17,6 +17,86 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Auto-signal preferences (backend) — Codex frontend follow-up needed
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Domain/Entities/UserSignalPreference.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260615121505_AddUserSignalPreferences.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260615121505_AddUserSignalPreferences.Designer.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/AppDbContextModelSnapshot.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/UserSignalPreferenceService.cs` (new)
+- `backend/src/OptionsEdge.API/Features/Signals/SignalEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/Models.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Background/AutoSignalWorker.cs` (new)
+- `backend/src/OptionsEdge.API/Program.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- New `UserSignalPreference` entity (`UserSignalPreferences` table, one row per user, unique `UserId`, FK to `AspNetUsers`): `NiftyAutoSignalEnabled`/`NiftyAutoSignalTimes` and `BankNiftyAutoSignalEnabled`/`BankNiftyAutoSignalTimes` (comma-separated IST `HH:mm`, default `"09:30,12:00,14:00"`), plus `CreatedAt`/`UpdatedAt`.
+- New `UserSignalPreferenceService` (Scoped):
+  - `GetOrCreateAsync(userId)` — lazily creates a default row.
+  - `SaveAsync(userId, niftyEnabled, niftyTimes, bankNiftyEnabled, bankNiftyTimes)` — validates/normalizes both time strings via `ValidateTimes`.
+  - `ValidateTimes`: parses comma-separated times, keeps only `09:15`-`15:25` inclusive, normalizes to zero-padded `HH:mm`, dedups, sorts, caps at 5, falls back to `"09:30"` if nothing valid remains.
+  - `GetDueSignalsAsync()` — called every tick by `AutoSignalWorker`. Returns `(UserId, Symbol)` pairs whose schedule matches the current IST `HH:mm`, gated on `MarketHoursHelper.IsMarketOpen()`.
+- New endpoints under `/api/v1/signals` (both `RequireAuthorization`):
+  - `GET /api/v1/signals/preferences` → `SignalPreferenceResponse { niftyAutoSignalEnabled, niftyAutoSignalTimes, bankNiftyAutoSignalEnabled, bankNiftyAutoSignalTimes }` (camelCase via default minimal-API JSON options). Auto-creates the row on first call.
+  - `PUT /api/v1/signals/preferences` — body `SignalPreferenceRequest` (same shape). Returns `{ "message": "Signal preferences saved." }`. Server-side validation/normalization always applies — client does not need to pre-validate.
+- New `AutoSignalWorker` (`BackgroundService`, registered via `AddHostedService`, 60s tick): each tick calls `GetDueSignalsAsync()`, and for each due `(userId, symbol)` calls `AISignalService.GenerateEntrySignalAsync(symbol, userId, ct)`. On success, broadcasts the resulting `SignalResponse` to that user via `IHubContext<MarketHub>.Clients.User(userId).SendAsync("AutoSignalGenerated", signal, ct)`. Errors/no-API-key results are logged and skipped (no broadcast).
+
+Verified end-to-end against the dev DB (server run + curl with a real JWT):
+
+- `GET /api/v1/signals/preferences` (first call, no row yet) → defaults `{"niftyAutoSignalEnabled":false,"niftyAutoSignalTimes":"09:30,12:00,14:00","bankNiftyAutoSignalEnabled":false,"bankNiftyAutoSignalTimes":"09:30,12:00,14:00"}`.
+- `PUT` with `niftyAutoSignalEnabled=true`, `niftyAutoSignalTimes="09:20, 25:99, 14:00, 09:20"` → saved as `"09:20,14:00"` (invalid `25:99` dropped, duplicate `09:20` deduped, sorted) — confirms `ValidateTimes`.
+- Follow-up `GET` reflects the saved/normalized values.
+- Log confirms `AutoSignalWorker started` on app boot.
+- Reset the dev user's row back to all-defaults afterward to restore DB state to before testing.
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test` — 27/27 passed.
+- `dotnet ef migrations add AddUserSignalPreferences` + `dotnet ef database update` — applied cleanly to dev DB.
+
+Caveats:
+
+- `AutoSignalWorker` calls `AISignalService.GenerateEntrySignalAsync`, which requires the user to have a saved Anthropic key (see `UserAICredential`/2026-06-15 entry above). If missing, the per-user tick is logged as a warning and skipped — no broadcast, no crash.
+- Frontend has NOT been built yet — see "Codex active files" below for the full spec (this was originally STEPS 5-7 of the task spec).
+
+### Codex follow-up: Auto Signal Preferences UI (STEPS 5-7 of original spec)
+
+API contract is live now (`GET`/`PUT /api/v1/signals/preferences`, see above) and the SignalR event `"AutoSignalGenerated"` is broadcast on `MarketHub` with a `SignalResponse` payload (camelCase JSON — same shape as `POST /api/v1/signals/generate` response). Needed frontend work:
+
+1. `frontend/src/services/api.ts` — add:
+
+   ```ts
+   export const signalPreferenceApi = {
+     getPreferences: () => api.get<SignalPreferenceResponse>('/signals/preferences').then(r => r.data),
+     savePreferences: (data: SignalPreferenceRequest) => api.put('/signals/preferences', data).then(r => r.data),
+   }
+   ```
+
+2. `frontend/src/types/index.ts` — add:
+
+   ```ts
+   export interface SignalPreferenceResponse {
+     niftyAutoSignalEnabled: boolean
+     niftyAutoSignalTimes: string
+     bankNiftyAutoSignalEnabled: boolean
+     bankNiftyAutoSignalTimes: string
+   }
+   export type SignalPreferenceRequest = SignalPreferenceResponse
+   ```
+
+3. `frontend/src/hooks/useSignalR.ts` — add a handler for `"AutoSignalGenerated"` (payload: `SignalResponse`) that calls a new `addAutoSignal` action on `appStore`.
+4. `appStore` — new `autoSignals: Signal[]` slice + `addAutoSignal(signal)` that prepends and caps at 10.
+5. `frontend/src/pages/Auth/SecuritySettings.tsx` — new "Auto Signal Preferences" `SectionCard`, placed after "AI Connection" and before "Change Password". Per-symbol (NIFTY 50 / BANK NIFTY) toggle + comma-separated `HH:mm` time-input (shown only when enabled), plus a "Save Preferences" button calling `signalPreferenceApi.savePreferences`. Backend already validates/normalizes times server-side (09:15-15:25, max 5, dedup+sort), so the UI can show the server's normalized response after save without its own validation. Note for the BANKNIFTY field copy: BANKNIFTY now has monthly expiry only (see 2026-06-15 expiry-fix entry).
+6. `frontend/src/components/common/Toggle.tsx` — small reusable switch component (`{ checked, onChange }`) if one doesn't already exist in the codebase — check first.
+
+Claude Code active files: none (backend done, awaiting Codex for the above).
+
 ### 2026-06-15 - Claude Code: NIFTY/BANKNIFTY expiry regulatory fix (Tuesday weekly, BANKNIFTY monthly-only)
 
 Files changed:

@@ -111,6 +111,43 @@ public static class SignalEndpoints
                 s.ValidUntil.ToString("O"),
                 s.CreatedAt.ToString("O")));
         }).WithName("GetSignalById");
+
+        // GET /api/v1/signals/preferences — current user's NIFTY/BANKNIFTY auto-signal schedule
+        group.MapGet("/preferences", async (
+            UserSignalPreferenceService prefService,
+            IConfiguration config,
+            HttpContext ctx,
+            CancellationToken ct) =>
+        {
+            var userId = ctx.GetUserId(config);
+            var pref = await prefService.GetOrCreateAsync(userId, ct);
+
+            return Results.Ok(new SignalPreferenceResponse(
+                pref.NiftyAutoSignalEnabled,
+                pref.NiftyAutoSignalTimes,
+                pref.BankNiftyAutoSignalEnabled,
+                pref.BankNiftyAutoSignalTimes));
+        }).WithName("GetSignalPreferences");
+
+        // PUT /api/v1/signals/preferences — save the current user's auto-signal schedule
+        group.MapPut("/preferences", async (
+            SignalPreferenceRequest req,
+            UserSignalPreferenceService prefService,
+            IConfiguration config,
+            HttpContext ctx,
+            CancellationToken ct) =>
+        {
+            var userId = ctx.GetUserId(config);
+            await prefService.SaveAsync(
+                userId,
+                req.NiftyAutoSignalEnabled,
+                req.NiftyAutoSignalTimes,
+                req.BankNiftyAutoSignalEnabled,
+                req.BankNiftyAutoSignalTimes,
+                ct);
+
+            return Results.Ok(new { message = "Signal preferences saved." });
+        }).WithName("SaveSignalPreferences");
     }
 
     public static void AddSignalServices(this IServiceCollection services)
@@ -119,5 +156,6 @@ public static class SignalEndpoints
         services.AddSingleton<Infrastructure.Claude.ClaudeApiClient>();
         services.AddSingleton<SignalCacheService>();
         services.AddScoped<AISignalService>();
+        services.AddScoped<UserSignalPreferenceService>();
     }
 }

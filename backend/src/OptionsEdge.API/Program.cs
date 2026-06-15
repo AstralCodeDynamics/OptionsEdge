@@ -133,6 +133,7 @@ builder.Services.AddAIServices();
 // Background workers
 builder.Services.AddHostedService<MarketDataWorker>();
 builder.Services.AddHostedService<PositionMonitorWorker>();
+builder.Services.AddHostedService<AutoSignalWorker>();
 
 var app = builder.Build();
 

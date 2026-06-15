@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BacktestResult> BacktestResults { get; set; }
     public DbSet<GrowwCredential> GrowwCredentials { get; set; }
     public DbSet<UserAICredential> UserAICredentials => Set<UserAICredential>();
+    public DbSet<UserSignalPreference> UserSignalPreferences => Set<UserSignalPreference>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -159,6 +160,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.UserId).IsUnique();
             e.HasOne(x => x.User).WithOne().HasForeignKey<UserAICredential>(x => x.UserId);
+        });
+
+        modelBuilder.Entity<UserSignalPreference>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.NiftyAutoSignalTimes).IsRequired();
+            e.Property(x => x.BankNiftyAutoSignalTimes).IsRequired();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.UserId).IsUnique();
+            e.HasOne(x => x.User).WithOne().HasForeignKey<UserSignalPreference>(x => x.UserId);
         });
     }
 }
