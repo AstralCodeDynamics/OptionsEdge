@@ -17,6 +17,41 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: NIFTY/BANKNIFTY expiry regulatory fix (Tuesday weekly, BANKNIFTY monthly-only)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwSymbolHelper.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Features/Backtest/BacktestService.cs`
+- `docs/AI_HANDOFF.md`
+
+Regulatory context (verified via web search):
+
+- NSE moved NIFTY weekly options expiry from Thursday to **Tuesday**, effective Sep 1, 2025 (SEBI-mandated spread of weekly expiries across exchanges; first Tuesday expiry was Sep 2, 2025).
+- BANKNIFTY weekly options were discontinued in **Nov 2024** (last expiry Nov 13, 2024) — only the monthly contract (last Tuesday of month) remains.
+
+Behavior changes:
+
+- `GrowwSymbolHelper`: renamed private `LastThursdayOfMonth` → public `LastTuesdayOfMonth` (Thursday → Tuesday). Used by `TryParseOptionSymbol` (Groww position import expiry approximation) and now shared by `OptionsService` and `BacktestService` instead of each holding a duplicate copy.
+- `OptionsService.GetExpiries(symbol)`: NIFTY returns next 4 weekly Tuesdays + monthly last-Tuesdays (dedup, up to 6 total). BANKNIFTY returns monthly last-Tuesdays only (no weekly block), starting from the current month if not yet passed. This list feeds the AI signal prompt's "Available Expiries" and the options-chain/LTP fallback expiry.
+- `AISignalService.SignalSystemPrompt`: added an explicit rule that NIFTY weekly options expire every Tuesday (NSE, since Sep 2025) and BANKNIFTY has monthly-only expiry (last Tuesday), and to pick from "Available Expiries".
+- `BacktestService.OpenPosition`: synthetic contract expiry is now symbol-aware via new `GetContractExpiry`. NIFTY keeps the existing 7-day-out approximation (still valid — weekly cadence unchanged, just shifted weekday). BANKNIFTY now prices against the last Tuesday of the current/next month (its only real contract), instead of a nonexistent 7-day weekly contract.
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test` — 27/27 passed.
+- Manually traced `GetExpiries` for both symbols against 2026-06-15 (Mon) — NIFTY: 06-16/06-23/06-30/07-07 (weekly Tue) + 07-28/08-25 (monthly); BANKNIFTY: 06-30/07-28/08-25/09-29 (monthly only).
+
+Caveats:
+
+- `FormatOptionSymbol`/Groww trading-symbol format has no day component (`{SYM}{YY}{MMM}{STRIKE}{CE|PE}`), so the exact day-of-month is irrelevant to symbol generation — only `TryParseOptionSymbol`'s reverse-mapped `Expiry` date (used for position display/risk checks) is affected by the Tuesday change.
+- No frontend strings reference "Thursday" — no Codex-side follow-up needed for this change.
+
+Codex active files: none.
+
 ### 2026-06-15 - Claude Code: Fix ChatStreamChunk camelCase serialization
 
 Files changed:

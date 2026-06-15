@@ -20,8 +20,9 @@ public static partial class GrowwSymbolHelper
     }
 
     // Reverses FormatOptionSymbol — used to recognise Groww portfolio positions on import.
-    // Groww's symbol carries no day, so the expiry is approximated as the last Thursday
-    // of the parsed month/year (standard NSE monthly expiry).
+    // Groww's symbol carries no day, so the expiry is approximated as the last Tuesday
+    // of the parsed month/year (NSE monthly expiry for NIFTY and BANKNIFTY since the
+    // Sep 2025 Tuesday-expiry change and the Nov 2024 BANKNIFTY weekly discontinuation).
     public static bool TryParseOptionSymbol(string tradingSymbol, out (string Symbol, int Strike, string OptionType, DateOnly Expiry) result)
     {
         result = default;
@@ -37,14 +38,16 @@ public static partial class GrowwSymbolHelper
             match.Groups["underlying"].Value,
             int.Parse(match.Groups["strike"].Value),
             match.Groups["type"].Value,
-            LastThursdayOfMonth(year, month));
+            LastTuesdayOfMonth(year, month));
         return true;
     }
 
-    private static DateOnly LastThursdayOfMonth(int year, int month)
+    // Shared by OptionsService (expiry list) and BacktestService (BANKNIFTY contract
+    // expiry — monthly only since Nov 2024) to avoid duplicating this date math.
+    public static DateOnly LastTuesdayOfMonth(int year, int month)
     {
         var lastDay = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
-        int offset = ((int)lastDay.DayOfWeek - (int)DayOfWeek.Thursday + 7) % 7;
+        int offset = ((int)lastDay.DayOfWeek - (int)DayOfWeek.Tuesday + 7) % 7;
         return lastDay.AddDays(-offset);
     }
 }

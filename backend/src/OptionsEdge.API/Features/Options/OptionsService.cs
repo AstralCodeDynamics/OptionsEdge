@@ -32,28 +32,33 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
     public IReadOnlyList<string> GetExpiries(string symbol)
     {
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstZone);
+        var date = DateOnly.FromDateTime(now.Date);
         var expiries = new List<DateOnly>();
 
-        // Next 4 weekly Thursdays
-        var date = DateOnly.FromDateTime(now.Date);
-        int added = 0;
-        for (int i = 1; i <= 40 && added < 4; i++)
+        // NIFTY: next 4 weekly Tuesdays (NSE moved weekly expiry Thursday -> Tuesday, Sep 2025).
+        // BANKNIFTY: weekly contracts discontinued Nov 2024 — monthly only, so skip this block.
+        if (symbol.ToUpperInvariant() == "NIFTY")
         {
-            var d = date.AddDays(i);
-            if (d.DayOfWeek == DayOfWeek.Thursday)
+            int added = 0;
+            for (int i = 1; i <= 40 && added < 4; i++)
             {
-                expiries.Add(d);
-                added++;
+                var d = date.AddDays(i);
+                if (d.DayOfWeek == DayOfWeek.Tuesday)
+                {
+                    expiries.Add(d);
+                    added++;
+                }
             }
         }
 
-        // Next 2 monthly (last Thursday of next 2 months)
-        for (int m = 1; m <= 3 && expiries.Count < 6; m++)
+        // Monthly expiries (last Tuesday of month), starting this month — covers BANKNIFTY's
+        // only contract series and NIFTY's monthly (which coincides with its last weekly).
+        for (int m = 0; m <= 3 && expiries.Count < 6; m++)
         {
             var monthDate = date.AddMonths(m);
-            var lastThursday = LastThursdayOfMonth(monthDate.Year, monthDate.Month);
-            if (!expiries.Contains(lastThursday))
-                expiries.Add(lastThursday);
+            var lastTuesday = GrowwSymbolHelper.LastTuesdayOfMonth(monthDate.Year, monthDate.Month);
+            if (lastTuesday >= date && !expiries.Contains(lastTuesday))
+                expiries.Add(lastTuesday);
         }
 
         return expiries.Order().Select(d => d.ToString("yyyy-MM-dd")).ToList();
@@ -389,13 +394,6 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
         var expiryDt = new DateTime(expiry.Year, expiry.Month, expiry.Day, 15, 30, 0);
         double days = (expiryDt - istNow).TotalDays;
         return Math.Max(days, 0.001);
-    }
-
-    private static DateOnly LastThursdayOfMonth(int year, int month)
-    {
-        var lastDay = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
-        int daysBack = ((int)lastDay.DayOfWeek - (int)DayOfWeek.Thursday + 7) % 7;
-        return lastDay.AddDays(-daysBack);
     }
 
     private static double NormCdf(double x)

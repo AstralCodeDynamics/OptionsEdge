@@ -308,6 +308,10 @@ public class AISignalService(
         - confidence: realistic 55-85 range
         - rationale: 3-4 specific technical reasons
         - validUntil: end of current trading session (15:30 IST)
+        - expiry: NIFTY weekly options expire every Tuesday on NSE (effective Sep 2025).
+          BANKNIFTY weekly contracts were discontinued (Nov 2024) — only the monthly
+          expiry (last Tuesday of the month) is available. Pick the expiry from the
+          "Available Expiries" list provided in the prompt.
         """;
 
     private const string RiskCheckSystemPrompt = """

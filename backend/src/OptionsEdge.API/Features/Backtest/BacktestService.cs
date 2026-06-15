@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Skender.Stock.Indicators;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Infrastructure.Data;
+using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Backtest;
@@ -517,7 +518,7 @@ public class BacktestService(
     {
         decimal spot = entryCandle.Close;
         int atm = (int)Math.Round((double)spot / step) * step;
-        var expiry = entryCandle.Time.AddDays(7);
+        var expiry = GetContractExpiry(symbol, entryCandle.Time);
         double T = Math.Max((expiry - entryCandle.Time).TotalDays, 1) / 365.0;
 
         var tradeLegs = new List<TradeLeg>();
@@ -542,6 +543,26 @@ public class BacktestService(
         string contract = $"{symbol} {strategy} ({string.Join(" / ", tradeLegs.Select(l => $"{l.Action} {l.Strike}{l.OptionType}"))})";
 
         return new OpenTrade(entryCandle.Time, expiry, contract, tradeLegs, netPremium, extrinsic, riskCapital);
+    }
+
+    // NIFTY retains weekly expiries (Tuesday, NSE since Sep 2025) — a 7-day window is a fair
+    // approximation regardless of the exact weekday. BANKNIFTY weekly contracts were
+    // discontinued (Nov 2024); only the monthly contract (last Tuesday of month) remains,
+    // so price BANKNIFTY trades against that date instead.
+    private static DateTimeOffset GetContractExpiry(string symbol, DateTimeOffset entryTime)
+    {
+        if (symbol != "BANKNIFTY")
+            return entryTime.AddDays(7);
+
+        var entryDate = DateOnly.FromDateTime(entryTime.Date);
+        var lastTuesday = GrowwSymbolHelper.LastTuesdayOfMonth(entryDate.Year, entryDate.Month);
+        if (lastTuesday <= entryDate)
+        {
+            var nextMonth = entryDate.AddMonths(1);
+            lastTuesday = GrowwSymbolHelper.LastTuesdayOfMonth(nextMonth.Year, nextMonth.Month);
+        }
+
+        return new DateTimeOffset(lastTuesday.ToDateTime(new TimeOnly(15, 30)), entryTime.Offset);
     }
 
     private static (decimal NetValue, decimal Intrinsic, double DaysToExpiry) ValuePosition(OpenTrade trade, decimal spot, DateTimeOffset now)
