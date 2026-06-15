@@ -32,7 +32,7 @@ public class GrowwUserApiClient(
 
     public static DateTimeOffset NextTokenExpiry() => NextSixAmIst();
 
-    private static string TokenCacheKey(Guid userId) => $"groww:user_token:{userId}";
+    public static string TokenCacheKey(Guid userId) => $"groww:user_token:{userId}";
     private static string ImportPendingCacheKey(Guid userId) => $"groww:user_import_pending:{userId}";
 
     public void InvalidateToken(Guid userId)

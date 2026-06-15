@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Groww status cache-first auth probe
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Confirmed with the requested grep that `Program.cs` and `DevDataSeeder.cs` contain no Groww auth calls (`GetOrRefreshToken`, `AuthenticateAsync`, `GrowwUserApiClient`, or `groww.`).
+- `/api/v1/groww/status` now checks `IMemoryCache` for the existing per-user Groww token before calling `GetOrRefreshTokenAsync`, avoiding auth HTTP calls on repeated frontend status checks.
+- `GrowwUserApiClient.TokenCacheKey(userId)` is now public so the endpoint can use the same cache key as the client (`groww:user_token:{userId}`).
+- Groww status cancellation handling now has explicit `TaskCanceledException` and `OperationCanceledException` catches, both logging at debug and returning a non-fatal disconnected status.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` passed with zero warnings.
+
+Caveats:
+
+- `Program[0]` warning source is from `ILogger<Program>` injected into `GrowwEndpoints`, not from `Program.cs` startup code.
+- Cache-first status response skips the one-time Groww portfolio import when the token is already cached; imports still run right after a fresh token is obtained through the status path.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Codex: Groww status auth check timeout wording
 
 Files changed:

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
@@ -84,6 +85,7 @@ public static class GrowwEndpoints
             GrowwCredentialService credentialService,
             GrowwUserApiClient groww,
             GrowwOrderService orderService,
+            IMemoryCache cache,
             IConfiguration config,
             HttpContext ctx,
             ILogger<Program> logger,
@@ -101,6 +103,18 @@ public static class GrowwEndpoints
             if (!hasCredentials)
                 return Results.Ok(new GrowwStatusResponse(true, false, false, null, orderPlacementEnabled, null));
 
+            if (cache.TryGetValue(GrowwUserApiClient.TokenCacheKey(userId), out string? cachedToken)
+                && !string.IsNullOrEmpty(cachedToken))
+            {
+                return Results.Ok(new GrowwStatusResponse(
+                    true,
+                    true,
+                    true,
+                    GrowwUserApiClient.NextTokenExpiry(),
+                    orderPlacementEnabled,
+                    null));
+            }
+
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -111,9 +125,20 @@ public static class GrowwEndpoints
 
                 return Results.Ok(new GrowwStatusResponse(true, true, true, GrowwUserApiClient.NextTokenExpiry(), orderPlacementEnabled, null));
             }
+            catch (TaskCanceledException)
+            {
+                logger.LogDebug("Groww startup check timed out or cancelled — will authenticate on first user request");
+                return Results.Ok(new GrowwStatusResponse(
+                    true,
+                    true,
+                    false,
+                    null,
+                    orderPlacementEnabled,
+                    "Groww authentication check timed out. Try again shortly."));
+            }
             catch (OperationCanceledException)
             {
-                logger.LogDebug("Groww startup check skipped — will authenticate on first user request");
+                logger.LogDebug("Groww startup check timed out or cancelled — will authenticate on first user request");
                 return Results.Ok(new GrowwStatusResponse(
                     true,
                     true,
