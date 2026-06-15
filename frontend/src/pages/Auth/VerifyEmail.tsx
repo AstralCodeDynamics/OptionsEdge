@@ -39,10 +39,11 @@ export default function VerifyEmail() {
   useEffect(() => {
     if (confirmState !== 'confirmed') return
 
-    const id = setInterval(() => {
+    let timerId: ReturnType<typeof setInterval>
+    timerId = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(id)
+          clearInterval(timerId)
           navigate('/login', {
             state: { message: 'Email confirmed! You can now log in.' },
           })
@@ -53,7 +54,7 @@ export default function VerifyEmail() {
       })
     }, 1000)
 
-    return () => clearInterval(id)
+    return () => clearInterval(timerId)
   }, [confirmState, navigate])
 
   const handleResend = async () => {

@@ -78,6 +78,8 @@ export default function Register() {
             onBlur={() => {
               if (email && !emailRegex.test(email.trim())) {
                 setError('Please enter a valid email address.')
+              } else {
+                setError(null)
               }
             }}
             className={authInputCls}

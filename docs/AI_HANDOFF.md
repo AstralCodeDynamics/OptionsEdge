@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Auth email blur + countdown timer fixes
+
+Files changed:
+
+- `frontend/src/pages/Auth/Register.tsx`
+- `frontend/src/pages/Auth/VerifyEmail.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Register email blur validation now clears the stale email error when the entered email becomes valid.
+- VerifyEmail countdown interval now uses a mutable `timerId` captured by the interval callback and cleanup, avoiding stale closure issues.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Frontend-only fix; backend auth behavior unchanged.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Codex: Auth verification UX improvements
 
 Files changed:
