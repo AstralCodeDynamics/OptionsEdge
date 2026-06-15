@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Common.Constants;
+using OptionsEdge.API.Infrastructure.Background;
+using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Options;
 
-public class OptionsService(IMarketDataService marketData)
+public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
     private const double RiskFreeRate = 0.065; // 6.5% India risk-free rate
@@ -14,6 +17,17 @@ public class OptionsService(IMarketDataService marketData)
         ["NIFTY"]     = 50,
         ["BANKNIFTY"] = 100,
     };
+
+    private static string GrowwChainCacheKey(string symbol, string expiry) =>
+        $"groww_chain:{symbol.ToUpperInvariant()}:{expiry}";
+
+    // Called by the /chain/{symbol} endpoint after a live Groww option-chain fetch, so GetChain
+    // can overlay real OI/IV/LTP onto the Black-Scholes-simulated chain below.
+    public void CacheGrowwChain(string symbol, string expiry, IReadOnlyList<GrowwOptionChainRow> chain)
+    {
+        var ttl = MarketHoursHelper.IsMarketOpen() ? TimeSpan.FromSeconds(30) : TimeSpan.FromMinutes(5);
+        cache.Set(GrowwChainCacheKey(symbol, expiry), chain, ttl);
+    }
 
     public IReadOnlyList<string> GetExpiries(string symbol)
     {
@@ -57,6 +71,8 @@ public class OptionsService(IMarketDataService marketData)
         int step = StrikeStep.TryGetValue(key, out var s) ? s : 50;
         int atm  = (int)Math.Round((double)spot / step) * step;
 
+        cache.TryGetValue(GrowwChainCacheKey(key, expiry), out IReadOnlyList<GrowwOptionChainRow>? growwChain);
+
         var rows = new List<ChainRowResponse>();
         long totalCeOi = 0, totalPeOi = 0;
 
@@ -75,30 +91,45 @@ public class OptionsService(IMarketDataService marketData)
             var (ceGreeks, ceLtp) = BlackScholes((double)spot, strike, RiskFreeRate, T, iv, true);
             var (peGreeks, peLtp) = BlackScholes((double)spot, strike, RiskFreeRate, T, iv, false);
 
-            long ceOi = GenerateOi(key, strike, atm, step, isAtm, true);
-            long peOi = GenerateOi(key, strike, atm, step, isAtm, false);
+            long syntheticCeOi = GenerateOi(key, strike, atm, step, isAtm, true);
+            long syntheticPeOi = GenerateOi(key, strike, atm, step, isAtm, false);
+
+            // Overlay real OI/IV/LTP from the latest Groww option-chain fetch when available;
+            // strikes Groww didn't return (or when Groww is disabled/unreachable) keep the
+            // Black-Scholes-simulated values.
+            var growwRow = growwChain?.FirstOrDefault(r => r.Strike == strike);
+
+            long ceOi = growwRow?.Call?.OpenInterest ?? syntheticCeOi;
+            long peOi = growwRow?.Put?.OpenInterest ?? syntheticPeOi;
             totalCeOi += ceOi;
             totalPeOi += peOi;
+
+            decimal ceLtpFinal = growwRow?.Call?.Ltp ?? Math.Round((decimal)ceLtp, 2);
+            decimal peLtpFinal = growwRow?.Put?.Ltp ?? Math.Round((decimal)peLtp, 2);
+
+            // Groww reports implied volatility as a percentage, same scale as iv * 100 below.
+            double ceIv = growwRow?.Call is { } ceLeg ? (double)ceLeg.ImpliedVolatility : Math.Round(iv * 100, 2);
+            double peIv = growwRow?.Put is { } peLeg ? (double)peLeg.ImpliedVolatility : Math.Round(iv * 100, 2);
 
             rows.Add(new ChainRowResponse(
                 Strike: strike,
                 IsAtm:  isAtm,
                 Ce: new OptionLegResponse(
-                    Ltp:      Math.Round((decimal)ceLtp, 2),
+                    Ltp:      ceLtpFinal,
                     Oi:       ceOi,
                     OiChange: (long)(ceOi * (new Random(strike).NextDouble() * 0.1 - 0.05)),
                     Volume:   (long)(ceOi * 0.3 * (0.5 + new Random(strike + 1).NextDouble())),
-                    Iv:       Math.Round(iv * 100, 2),
+                    Iv:       ceIv,
                     Delta:    Math.Round(ceGreeks.delta, 4),
                     Gamma:    Math.Round(ceGreeks.gamma, 6),
                     Theta:    Math.Round(ceGreeks.theta, 2),
                     Vega:     Math.Round(ceGreeks.vega, 2)),
                 Pe: new OptionLegResponse(
-                    Ltp:      Math.Round((decimal)peLtp, 2),
+                    Ltp:      peLtpFinal,
                     Oi:       peOi,
                     OiChange: (long)(peOi * (new Random(strike + 2).NextDouble() * 0.1 - 0.05)),
                     Volume:   (long)(peOi * 0.3 * (0.5 + new Random(strike + 3).NextDouble())),
-                    Iv:       Math.Round(iv * 100, 2),
+                    Iv:       peIv,
                     Delta:    Math.Round(peGreeks.delta, 4),
                     Gamma:    Math.Round(peGreeks.gamma, 6),
                     Theta:    Math.Round(peGreeks.theta, 2),

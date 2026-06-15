@@ -11,6 +11,8 @@ public record MarketSnapshotResponse(
     decimal ChangePct,
     decimal Vix,
     decimal Pcr,
+    // FiiFlow/DiiFlow are 0 when DataSource is "groww_live" — Groww's API doesn't expose
+    // FII/DII cash-market flow data. Non-zero only for mock data.
     decimal FiiFlow,
     decimal DiiFlow,
     DateTimeOffset Timestamp,

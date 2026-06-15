@@ -207,12 +207,31 @@ public class GrowwUserApiClient(
             PreviousClose: prevClose,
             Change: change,
             ChangePct: changePct,
-            // Groww's quote API doesn't expose VIX/PCR/FII/DII flow — those need a separate data source
+            // Vix is fetched separately (GetVixAsync) and patched in by GrowwMarketDataService.
+            // PCR/FII/DII flow aren't available via Groww at all.
             Vix: 0,
             Pcr: 0,
             FiiFlow: 0,
             DiiFlow: 0,
             Timestamp: DateTimeOffset.UtcNow);
+    }
+
+    // India VIX is symbol-agnostic, so callers fetch it once (for NIFTY) and reuse the value
+    // for BANKNIFTY rather than calling Groww again. Failure is non-critical — VIX-dependent
+    // UI/IV-smile calculations fall back to 0.
+    public async Task<decimal> GetVixAsync(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
+                "/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=INDIA%20VIX",
+                null, ct));
+            return GetDecimal(root, "last_price") ?? 0m;
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 
     public async Task<decimal> GetOptionLtpAsync(Guid userId, string tradingSymbol, CancellationToken ct = default)

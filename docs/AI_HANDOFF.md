@@ -17,6 +17,42 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Live VIX, real option chain OI/IV, FII/DII N/A when unavailable
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwMarketDataService.cs`
+- `backend/src/OptionsEdge.API/Features/Market/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `frontend/src/components/market/MarketPulse.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GrowwUserApiClient.GetVixAsync` fetches India VIX (`NSE/CASH/INDIA VIX` quote); failures return `0` (non-critical).
+- `GrowwMarketDataService.RefreshForUserAsync` now patches the live `Vix` into the cached snapshot: fetched once for NIFTY, then reused from the cached NIFTY snapshot for BANKNIFTY (no extra Groww call per refresh).
+- `MarketSnapshotResponse.FiiFlow`/`DiiFlow` documented as `0` (unavailable) whenever `DataSource` is `groww_live` — Groww has no FII/DII flow data.
+- Frontend `MarketPulse` shows `N/A` for FII/DII when `dataSource === 'groww_live'` and the value is `0`, plus a small "FII/DII data not available via Groww API" note.
+- `/api/v1/options/chain/{symbol}` now triggers a Groww option-chain refresh (when `Groww:Enabled`) for the resolved expiry, caching the result via `OptionsService.CacheGrowwChain` (30s market-hours / 5min off-hours TTL, same pattern as snapshot/candle caches).
+- `OptionsService.GetChain` overlays real OI/IV/LTP from the cached Groww chain per strike (CE/PE independently); strikes/legs Groww didn't return keep the Black-Scholes-simulated values. PCR is computed from the (now real, when available) total OI.
+- Greeks (Delta/Gamma/Theta/Vega) remain Black-Scholes-computed in all cases — Groww greeks aren't used.
+
+Caveats:
+
+- If a Groww chain fetch fails on a request, `GetChain` falls back to whatever was cached from the last successful fetch (or fully synthetic if nothing cached yet) — capped by the same TTL as the snapshot cache.
+- Groww's `implied_volatility` is assumed to be a percentage (same scale as the synthetic `iv * 100`); not verified against a live response.
+- BANKNIFTY VIX reuse depends on NIFTY having refreshed first in the same cycle — true for `/api/v1/market/snapshot` (refreshes both, NIFTY first) but a BANKNIFTY-only refresh with no NIFTY cache yet falls back to `0`.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+- `npm run build` in `frontend/` passed.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Codex: ADX filter + backtest diagnostics
 
 Files changed:

@@ -1,3 +1,6 @@
+using OptionsEdge.API.Common.Extensions;
+using OptionsEdge.API.Features.Groww;
+
 namespace OptionsEdge.API.Features.Options;
 
 public static class OptionsEndpoints
@@ -7,10 +10,29 @@ public static class OptionsEndpoints
         var group = app.MapGroup("/api/v1/options")
             .RequireAuthorization();
 
-        group.MapGet("/chain/{symbol}", (string symbol, string? expiry, OptionsService svc) =>
+        group.MapGet("/chain/{symbol}", async (
+            string symbol, string? expiry,
+            HttpContext ctx, IConfiguration config, IServiceProvider sp,
+            OptionsService svc, ILogger<OptionsService> logger, CancellationToken ct) =>
         {
             var expiries = svc.GetExpiries(symbol);
             var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
+
+            if (config.GetValue<bool>("Groww:Enabled"))
+            {
+                try
+                {
+                    var growwUserApi = sp.GetRequiredService<GrowwUserApiClient>();
+                    var userId = ctx.GetUserId(config);
+                    var chain = await growwUserApi.GetOptionChainAsync(userId, symbol, selectedExpiry, ct);
+                    svc.CacheGrowwChain(symbol, selectedExpiry, chain);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Groww option chain refresh failed for {Symbol}, using synthetic", symbol);
+                }
+            }
+
             return Results.Ok(svc.GetChain(symbol, selectedExpiry));
         }).WithName("GetOptionsChain");
 

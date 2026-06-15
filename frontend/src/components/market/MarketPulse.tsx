@@ -36,7 +36,11 @@ export default function MarketPulse() {
     )
   }
 
-  const { vix, pcr, fiiFlow, diiFlow } = snapshot
+  const { vix, pcr, fiiFlow, diiFlow, dataSource } = snapshot
+
+  // Groww's API doesn't expose FII/DII cash-market flow data, so a live snapshot reports 0.
+  const fiiUnavailable = dataSource === 'groww_live' && fiiFlow === 0
+  const diiUnavailable = dataSource === 'groww_live' && diiFlow === 0
 
   const cards = [
     {
@@ -59,18 +63,31 @@ export default function MarketPulse() {
         <div className="flex flex-col gap-1 mt-1">
           <div className="flex justify-between items-center">
             <span className="text-xs text-gray-500">FII</span>
-            <span className={`text-sm font-semibold tabular-nums ${fiiFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {fiiFlow >= 0 ? '+' : ''}{fiiFlow.toFixed(0)} Cr
-            </span>
+            {fiiUnavailable ? (
+              <span className="text-sm font-semibold text-gray-500">N/A</span>
+            ) : (
+              <span className={`text-sm font-semibold tabular-nums ${fiiFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {fiiFlow >= 0 ? '+' : ''}{fiiFlow.toFixed(0)} Cr
+              </span>
+            )}
           </div>
-          <FlowBar value={fiiFlow} />
+          {!fiiUnavailable && <FlowBar value={fiiFlow} />}
           <div className="flex justify-between items-center mt-1">
             <span className="text-xs text-gray-500">DII</span>
-            <span className={`text-sm font-semibold tabular-nums ${diiFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {diiFlow >= 0 ? '+' : ''}{diiFlow.toFixed(0)} Cr
-            </span>
+            {diiUnavailable ? (
+              <span className="text-sm font-semibold text-gray-500">N/A</span>
+            ) : (
+              <span className={`text-sm font-semibold tabular-nums ${diiFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {diiFlow >= 0 ? '+' : ''}{diiFlow.toFixed(0)} Cr
+              </span>
+            )}
           </div>
-          <FlowBar value={diiFlow} />
+          {!diiUnavailable && <FlowBar value={diiFlow} />}
+          {(fiiUnavailable || diiUnavailable) && (
+            <span className="text-[10px] text-gray-600 mt-0.5" title="FII/DII data not available via Groww API">
+              FII/DII data not available via Groww API
+            </span>
+          )}
         </div>
       ),
     },

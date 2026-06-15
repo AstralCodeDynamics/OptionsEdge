@@ -61,6 +61,15 @@ public class GrowwMarketDataService(
 
             var snapshot = await groww.GetSpotSnapshotAsync(userId, key, ct);
 
+            // India VIX is fetched once for NIFTY and reused for BANKNIFTY from the cached
+            // NIFTY snapshot, avoiding a second Groww call per refresh cycle.
+            decimal vix = key == "NIFTY"
+                ? await groww.GetVixAsync(userId, ct)
+                : cache.TryGetValue(SnapshotCacheKey("NIFTY"), out MarketSnapshotData? niftySnapshot) && niftySnapshot is not null
+                    ? niftySnapshot.Vix
+                    : 0m;
+            snapshot = snapshot with { Vix = vix };
+
             // Outside market hours prices don't move, so the last known value can stay cached
             // far longer than the brief during-hours TTL — it just needs to survive until the
             // next user-triggered refresh instead of falling back to mock data.
