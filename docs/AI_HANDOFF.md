@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: VerifyEmail countdown + Groww status timeout
+
+Files changed:
+
+- `frontend/src/pages/Auth/VerifyEmail.tsx`
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- VerifyEmail confirmed countdown now starts from `6`, decrements to `0`, shows a check mark at completion, and navigates only after `next <= 0`.
+- VerifyEmail countdown effect now uses `mountedRef`/`timerRef` guards to avoid duplicate timers under React Strict Mode and still clean up interval state.
+- Groww status authentication check now uses a dedicated 10-second `CancellationTokenSource`; timeout logs at debug level and returns an unauthenticated Groww status for retry instead of warning as a generic failure.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` passed with zero warnings.
+
+Caveats:
+
+- No Groww startup check exists in `Program.cs`; the auth probe that runs on app/dashboard startup is `/api/v1/groww/status`, so the timeout fix was applied in `GrowwEndpoints.cs`.
+
+Codex active files: none currently.
+
 ### 2026-06-15 - Codex: VerifyEmail confirmed screen visibility fix
 
 Files changed:

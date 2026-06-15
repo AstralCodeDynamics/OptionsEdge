@@ -23,8 +23,9 @@ export default function VerifyEmail() {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [resendStatus, setResendStatus] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(6)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
     if (!userId || !token) return
@@ -39,19 +40,21 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     if (confirmState !== 'confirmed') return
+    if (mountedRef.current) return
+    mountedRef.current = true
 
     const startDelay = setTimeout(() => {
       timerRef.current = setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
+          const next = prev - 1
+          if (next <= 0) {
             if (timerRef.current) clearInterval(timerRef.current)
             navigate('/login', {
               state: { message: 'Email confirmed! You can now log in.' },
             })
-            return 0
           }
 
-          return prev - 1
+          return next
         })
       }, 1000)
     }, 500)
@@ -59,6 +62,8 @@ export default function VerifyEmail() {
     return () => {
       clearTimeout(startDelay)
       if (timerRef.current) clearInterval(timerRef.current)
+      timerRef.current = null
+      mountedRef.current = false
     }
   }, [confirmState, navigate])
 
@@ -105,7 +110,7 @@ export default function VerifyEmail() {
 
           <div className="flex flex-col items-center gap-1">
             <span className="text-4xl font-bold text-emerald-400 tabular-nums">
-              {countdown}
+              {countdown > 0 ? countdown : '✓'}
             </span>
             <span className="text-xs text-gray-500">
               Redirecting to login automatically…
