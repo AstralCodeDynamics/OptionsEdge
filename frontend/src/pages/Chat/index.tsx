@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { useAIChat } from '../../hooks/useAIChat'
@@ -37,9 +38,22 @@ export default function AIChat() {
     () => (location.state as { prefillMessage?: string } | null)?.prefillMessage ?? ''
   )
   const bottomRef = useRef<HTMLDivElement>(null)
+  const prevLengthRef = useRef(0)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = bottomRef.current
+    if (!el) return
+
+    if (messages.length > prevLengthRef.current) {
+      el.scrollIntoView({ behavior: 'smooth' })
+      prevLengthRef.current = messages.length
+      return
+    }
+
+    const isStreaming = messages.some((m) => m.streaming)
+    if (isStreaming) {
+      el.scrollIntoView({ behavior: 'instant' })
+    }
   }, [messages])
 
   const nifty = snapshots.NIFTY
@@ -103,13 +117,23 @@ export default function AIChat() {
               }`}
             >
               <div
-                className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words ${
+                className={`rounded-2xl px-4 py-2.5 text-sm break-words ${
                   m.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-800 text-gray-100 rounded-bl-sm'
+                    ? 'bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap'
+                    : m.isError
+                      ? 'bg-red-900/40 border border-red-700/50 text-red-300 rounded-bl-sm'
+                      : 'bg-gray-800 text-gray-100 rounded-bl-sm'
                 }`}
               >
-                {m.streaming && m.content === '' ? <TypingIndicator /> : m.content}
+                {m.streaming && m.content === '' ? (
+                  <TypingIndicator />
+                ) : m.role === 'assistant' ? (
+                  <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-table:text-xs prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1">
+                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  m.content
+                )}
               </div>
               {m.role === 'assistant' && !m.streaming && m.costUsd != null && (
                 <span className="text-[10px] text-gray-600 mt-1 px-1">

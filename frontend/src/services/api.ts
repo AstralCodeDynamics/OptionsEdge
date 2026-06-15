@@ -302,6 +302,7 @@ async function streamChatMessage(
             handlers.onDone(payload)
           } else if (eventType === 'error') {
             handlers.onError(payload.error ?? 'Something went wrong')
+            return
           }
         }
       } else if (line === '') {

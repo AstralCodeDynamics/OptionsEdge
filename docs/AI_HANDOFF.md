@@ -17,6 +17,35 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Codex: Chat markdown, scroll, and error stream display
+
+Files changed:
+
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/tailwind.config.ts`
+- `frontend/src/pages/Chat/index.tsx`
+- `frontend/src/hooks/useAIChat.ts`
+- `frontend/src/services/api.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Chat assistant responses now render Markdown via `react-markdown` with Tailwind Typography prose styling.
+- Assistant bubbles no longer use `whitespace-pre-wrap`; user bubbles still preserve whitespace.
+- Chat auto-scroll now uses smooth scrolling only when a new message is added and instant scrolling while streaming updates arrive.
+- Backend SSE `error` events now stop stream processing and render inside the assistant message as a red error bubble instead of removing the assistant message and showing only global error state.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Added frontend dependencies: `react-markdown` and `@tailwindcss/typography`.
+
+Claude Code active files: none currently.
+
 ### 2026-06-15 - Codex: Per-user AI key frontend
 
 Files changed:

@@ -13,6 +13,7 @@ export interface DisplayMessage {
   costUsd?: number
   createdAt: string
   streaming?: boolean
+  isError?: boolean
 }
 
 function loadSessionId(): string | null {
@@ -131,8 +132,18 @@ export function useAIChat() {
               )
             },
             onError: (message) => {
-              setError(message)
-              setMessages((prev) => prev.filter((m) => m.id !== assistantId))
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        content: message || 'An error occurred.',
+                        streaming: false,
+                        isError: true,
+                      }
+                    : m,
+                ),
+              )
             },
           },
           controller.signal,
