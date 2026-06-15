@@ -17,6 +17,36 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Migration Designer.cs fix
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260608195500_AddUserScopedHistoryIndexes.cs` (regen)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260608195500_AddUserScopedHistoryIndexes.Designer.cs` (new)
+- `CLAUDE.md` (dual-agent protocol added)
+
+Behavior:
+
+- Migration now has correct Designer.cs.
+- Future migrations will work without error.
+
+Caveat:
+
+- `dotnet ef migrations remove --no-build` (EF tools `10.0.3` vs runtime `10.0.8`) reverted `AppDbContextModelSnapshot.cs` to an empty model instead of the prior migration's state. Did not run `migrations add` after that — restored the snapshot via `git checkout` instead.
+- `AppDbContextModelSnapshot.cs` was already correct (it already included the two new indexes; the only thing missing was the Designer.cs). Hand-built the Designer.cs by combining the prior migration's Designer header (renamed) with the current snapshot's `BuildModel` body as `BuildTargetModel` — the two are textually identical for the latest migration.
+- Removed the stray `[DbContext]`/`[Migration]` attributes that had been manually added to the main migration `.cs` file (those belong only on `Designer.cs`; duplicate attribute was a build error).
+- `dotnet ef migrations has-pending-model-changes` still reports pending changes, but this is a pre-existing tool/runtime-version artifact (confirmed identical on the untouched pre-fix tree too, via `git stash`), not caused by this fix.
+- AppDbContextModelSnapshot.cs unchanged by this fix.
+
+Tests:
+
+- `dotnet build` zero warnings.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+- `dotnet ef migrations list` shows `20260608195500_AddUserScopedHistoryIndexes (Pending)`.
+- `dotnet ef migrations script` for this migration generates exactly the two expected `CREATE INDEX` statements.
+
+Codex active files: none currently.
+
 ### 2026-06-08 - User-scoped history indexes
 
 Files changed:

@@ -1,14 +1,10 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using OptionsEdge.API.Infrastructure.Data;
 
 #nullable disable
 
 namespace OptionsEdge.API.Infrastructure.Data.Migrations;
 
 /// <inheritdoc />
-[DbContext(typeof(AppDbContext))]
-[Migration("20260608195500_AddUserScopedHistoryIndexes")]
 public partial class AddUserScopedHistoryIndexes : Migration
 {
     /// <inheritdoc />

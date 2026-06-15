@@ -48,3 +48,17 @@ OptionsEdge/
 - Services registered in DI via extension methods in each feature folder
 - Frontend: components in PascalCase, hooks in camelCase with use prefix
 - API errors: ProblemDetails RFC 7807 format
+
+## Dual-Agent Protocol
+
+- Second agent: Codex (OpenAI)
+- Shared memory: docs/AI_HANDOFF.md
+- Read AI_HANDOFF.md BEFORE every task
+- Update AI_HANDOFF.md AFTER every task
+- Never touch files listed as "Codex active" in handoff
+- Own areas: Backend services, Infrastructure,
+  Groww integration, DB migrations, AI prompts,
+  Security layer
+- Codex owns: Backend endpoints, Tests,
+  Frontend pages, Frontend hooks, Frontend types,
+  UI components
