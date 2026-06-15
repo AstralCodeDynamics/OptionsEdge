@@ -67,7 +67,20 @@ public class PositionMonitorWorker(
         using var scope        = scopeFactory.CreateScope();
         var db                 = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var alertService       = scope.ServiceProvider.GetRequiredService<AlertService>();
-        var activePositions    = await db.Positions.Where(p => p.Status == "active").ToListAsync(ct);
+
+        // Only monitor positions for users with an active Groww connection — without it
+        // there's no live LTP source for accurate P&L/SL/target alerting.
+        var connectedUserIds = await db.GrowwCredentials
+            .Where(g => g.IsActive)
+            .Select(g => g.UserId)
+            .ToListAsync(ct);
+
+        var activePositions = await db.Positions
+            .Where(p => p.Status == "active" && connectedUserIds.Contains(p.UserId))
+            .ToListAsync(ct);
+
+        if (activePositions.Count == 0)
+            return;
 
         int growwCallCount = 0;
         foreach (var position in activePositions)

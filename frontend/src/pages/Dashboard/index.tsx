@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [signalElapsed, setSignalElapsed] = useState(0)
   const [signalError, setSignalError]   = useState<string | null>(null)
   const [orderSignal, setOrderSignal]    = useState<Signal | null>(null)
+  const [growwPrompt, setGrowwPrompt]    = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,18 @@ export default function Dashboard() {
       .then(setCandles)
       .catch(() => {})
   }, [activeSymbol])
+
+  useEffect(() => {
+    if (sessionStorage.getItem('growwPromptDismissed')) return
+    growwApi.getStatus()
+      .then((s) => { if (s.enabled && !s.connected) setGrowwPrompt(true) })
+      .catch(() => {})
+  }, [])
+
+  function dismissGrowwPrompt() {
+    setGrowwPrompt(false)
+    sessionStorage.setItem('growwPromptDismissed', '1')
+  }
 
   function startTimer() {
     setSignalElapsed(0)
@@ -105,6 +118,25 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 space-y-5 max-w-5xl mx-auto">
+      {growwPrompt && (
+        <div className="rounded-lg bg-yellow-950/40 border border-yellow-700/40 p-3 flex items-start justify-between gap-3">
+          <div className="text-xs text-yellow-300">
+            <p className="font-semibold mb-1">🔗 Connect Groww for live market data</p>
+            <p>
+              Go to <strong>Settings → Security → Groww Integration</strong> to connect your account
+              and get real-time prices and alerts.
+            </p>
+          </div>
+          <button
+            onClick={dismissGrowwPrompt}
+            className="text-gray-500 hover:text-gray-300 text-lg leading-none flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <MarketStatusBanner connectionState={connectionState} />
 
       {/* Index cards */}

@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-15 - Claude Code: Graceful Groww credential handling (silent skip, monitor only connected users, dashboard prompt)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwMarketDataService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Background/PositionMonitorWorker.cs`
+- `frontend/src/pages/Dashboard/index.tsx` (Claude edit, normally Codex-owned — flagged per explicit user request, no conflict with "Codex active files")
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GrowwMarketDataService.RefreshForUserAsync` now checks `GrowwCredentialService.HasCredentialsAsync` before calling `GetSpotSnapshotAsync`; if the user has no active Groww credentials it logs at `LogDebug` (not `LogWarning`) and returns early, leaving cached/mock data in place. This was previously an exception-driven `LogWarning` on every refresh for users without Groww.
+- `PositionMonitorWorker.TickAsync` now queries `GrowwCredentials` for users with `IsActive` credentials and only monitors `Positions` belonging to those users (`connectedUserIds.Contains(p.UserId)`); ticks with zero matching positions return early.
+- Dashboard now polls `growwApi.getStatus()` once on mount and shows a dismissible yellow banner ("Connect Groww for live market data" → Settings → Security) when `enabled && !connected`. Dismissal is remembered for the session via `sessionStorage` (`growwPromptDismissed`).
+
+Caveats:
+
+- **Behavior change**: users with active positions but no Groww credentials are no longer monitored by `PositionMonitorWorker` at all (no SL/target/risk alerts), even though `OptionsService.GetOptionLtp` would still produce a Black-Scholes-estimated LTP for them. Previously all active positions were monitored regardless of Groww connection. If risk alerting should remain available to non-Groww users on estimated prices, this query needs revisiting.
+- Dashboard's Groww-prompt fetch is independent of the existing `growwStatus` polling in `Header`/`Sidebar` (which already populates the same `GrowwStatus` via the app store) — duplicate `/groww/status` call on Dashboard mount.
+
+Tests:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` zero warnings.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` passed (27/27).
+- `npm run build` in `frontend/` passed.
+
 ### 2026-06-15 - Codex: Auth email blur + countdown timer fixes
 
 Files changed:

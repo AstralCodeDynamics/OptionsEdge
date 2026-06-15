@@ -59,6 +59,14 @@ public class GrowwMarketDataService(
             using var scope = scopeFactory.CreateScope();
             var groww = scope.ServiceProvider.GetRequiredService<GrowwUserApiClient>();
 
+            var credSvc = scope.ServiceProvider.GetRequiredService<GrowwCredentialService>();
+            if (!await credSvc.HasCredentialsAsync(userId, ct))
+            {
+                logger.LogDebug(
+                    "Groww credentials not configured for user {UserId} — using cached/mock data", userId);
+                return;
+            }
+
             var snapshot = await groww.GetSpotSnapshotAsync(userId, key, ct);
 
             // India VIX is fetched once for NIFTY and reused for BANKNIFTY from the cached
