@@ -1,0 +1,213 @@
+name: Deploy OptionsEdge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: optionsedge-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and Deploy Production
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/release'
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore backend
+        run: dotnet restore backend/src/OptionsEdge.API/OptionsEdge.API.csproj
+
+      - name: Build backend
+        run: dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj -c Release --no-restore
+
+      - name: Publish backend
+        run: |
+          rm -rf publish/api
+          mkdir -p publish/api
+
+          dotnet publish backend/src/OptionsEdge.API/OptionsEdge.API.csproj \
+            -c Release \
+            --no-build \
+            -o publish/api
+
+      - name: Create production appsettings
+        shell: bash
+        run: |
+          cat > publish/api/appsettings.Production.json <<EOF
+          {
+            "App": {
+              "FrontendUrl": "${{ vars.FRONTEND_URL }}"
+            },
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft.AspNetCore": "Warning"
+              }
+            },
+            "AllowedHosts": "*",
+            "ConnectionStrings": {
+              "DefaultConnection": "Host=${{ vars.DB_HOST }};Port=${{ vars.DB_PORT }};Database=${{ vars.DB_NAME }};Username=${{ vars.DB_USER }};Password=${{ secrets.OPTIONS_EDGE_DB_PASSWORD }};Pooling=true;Maximum Pool Size=${{ vars.DB_MAX_POOL_SIZE }};Minimum Pool Size=0;Connection Idle Lifetime=300"
+            },
+            "Claude": {
+              "HaikuModel": "claude-haiku-4-5-20251001",
+              "SonnetModel": "claude-sonnet-4-6",
+              "BypassMarketHours": false
+            },
+            "Groww": {
+              "Enabled": true,
+              "BaseUrl": "https://api.groww.in",
+              "OrderPlacementEnabled": false
+            },
+            "Backtest": {
+              "HistoryRetentionDays": 30
+            },
+            "Encryption": {
+              "Key": "${{ secrets.OPTIONS_EDGE_ENCRYPTION_KEY }}"
+            },
+            "Jwt": {
+              "Secret": "${{ secrets.OPTIONS_EDGE_JWT_SECRET }}",
+              "Issuer": "OptionsEdge",
+              "Audience": "OptionsEdge",
+              "AccessTokenMinutes": 15,
+              "RefreshTokenDays": 7
+            },
+            "AuthSettings": {
+              "RequireEmailConfirmation": true,
+              "RequireTwoFactor": true,
+              "EnableLockout": true,
+              "SendRealEmails": true
+            },
+            "Email": {
+              "SmtpHost": "${{ secrets.SMTP_HOST }}",
+              "SmtpPort": ${{ secrets.SMTP_PORT }},
+              "SmtpUsername": "${{ secrets.SMTP_USERNAME }}",
+              "SmtpPassword": "${{ secrets.SMTP_PASSWORD }}",
+              "FromAddress": "${{ secrets.SMTP_FROM_EMAIL }}",
+              "FromName": "${{ secrets.SMTP_FROM_NAME }}"
+            },
+            "Cors": {
+              "AllowedOrigins": [
+                "${{ vars.FRONTEND_URL }}"
+              ]
+            },
+            "Dev": {
+              "UserId": "00000000-0000-0000-0000-000000000001"
+            }
+          }
+          EOF
+
+      - name: Show published API files
+        run: ls -la publish/api
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_URL }}/api/v1
+          VITE_HUB_URL: ${{ vars.API_URL }}/hubs/market
+          VITE_DEV_USER_ID: 00000000-0000-0000-0000-000000000001
+          VITE_GROWW_ENABLED: true
+        run: npm run build
+
+      - name: Show frontend dist files
+        run: ls -la frontend/dist
+
+      - name: Setup SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.E2E_SSH_PRIVATE_KEY }}" > ~/.ssh/optionsedge-e2e
+          chmod 600 ~/.ssh/optionsedge-e2e
+          ssh-keyscan -H "${{ secrets.E2E_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Backup current deployment
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/optionsedge-e2e ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }} '
+            set -e
+
+            mkdir -p "${{ vars.BACKUP_PATH }}"
+
+            if [ -d "${{ vars.API_DEPLOY_PATH }}" ] && [ "$(ls -A "${{ vars.API_DEPLOY_PATH }}" 2>/dev/null)" ]; then
+              tar -czf "${{ vars.BACKUP_PATH }}/api-$(date +%Y%m%d-%H%M%S).tar.gz" \
+                -C "$(dirname "${{ vars.API_DEPLOY_PATH }}")" \
+                "$(basename "${{ vars.API_DEPLOY_PATH }}")"
+            fi
+
+            if [ -d "${{ vars.WEB_DEPLOY_PATH }}" ] && [ "$(ls -A "${{ vars.WEB_DEPLOY_PATH }}" 2>/dev/null)" ]; then
+              tar -czf "${{ vars.BACKUP_PATH }}/web-$(date +%Y%m%d-%H%M%S).tar.gz" \
+                -C "$(dirname "${{ vars.WEB_DEPLOY_PATH }}")" \
+                "$(basename "${{ vars.WEB_DEPLOY_PATH }}")"
+            fi
+          '
+
+      - name: Deploy backend
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/optionsedge-e2e" \
+            publish/api/ \
+            ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }}:${{ vars.API_DEPLOY_PATH }}/
+
+      - name: Deploy frontend
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/optionsedge-e2e" \
+            frontend/dist/ \
+            ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }}:${{ vars.WEB_DEPLOY_PATH }}/
+
+      - name: Apply permissions and restart services
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/optionsedge-e2e ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }} '
+            set -e
+
+            chown -R root:root "${{ vars.API_DEPLOY_PATH }}"
+            find "${{ vars.API_DEPLOY_PATH }}" -type d -exec chmod 755 {} \;
+            find "${{ vars.API_DEPLOY_PATH }}" -type f -exec chmod 644 {} \;
+
+            chown -R www-data:www-data "${{ vars.WEB_DEPLOY_PATH }}"
+            find "${{ vars.WEB_DEPLOY_PATH }}" -type d -exec chmod 755 {} \;
+            find "${{ vars.WEB_DEPLOY_PATH }}" -type f -exec chmod 644 {} \;
+
+            systemctl restart "${{ vars.SYSTEMD_SERVICE_NAME }}"
+            systemctl reload nginx
+          '
+
+      - name: Health check
+        shell: bash
+        run: |
+          sleep 10
+
+          ssh -i ~/.ssh/optionsedge-e2e ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }} '
+            set -e
+
+            systemctl --no-pager --failed
+            systemctl status "${{ vars.SYSTEMD_SERVICE_NAME }}" --no-pager
+
+            curl -I http://127.0.0.1:${{ vars.API_INTERNAL_PORT }} || true
+          '
+
+          curl -I "${{ vars.FRONTEND_URL }}"
+          curl -I "${{ vars.API_URL }}" || true
