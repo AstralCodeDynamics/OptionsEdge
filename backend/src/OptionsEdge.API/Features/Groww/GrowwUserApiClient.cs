@@ -226,10 +226,38 @@ public class GrowwUserApiClient(
             var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
                 "/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=INDIA%20VIX",
                 null, ct));
-            return GetDecimal(root, "last_price") ?? 0m;
+            var vix = GetDecimal(root, "last_price") ?? 0m;
+
+            if (vix > 0m)
+                return vix;
+
+            logger.LogWarning(
+                "Groww VIX quote (INDIA VIX) returned 0 or missing last_price for user {UserId}. Raw: {Response}",
+                userId, root.ToString());
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Failed to fetch India VIX (INDIA VIX) for user {UserId}", userId);
+        }
+
+        // Fallback: some Groww accounts may require "INDIAVIX" (no space)
+        try
+        {
+            var root2 = Unwrap(await SendAsync(userId, HttpMethod.Get,
+                "/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=INDIAVIX",
+                null, ct));
+            var vix2 = GetDecimal(root2, "last_price") ?? 0m;
+
+            if (vix2 == 0m)
+                logger.LogWarning(
+                    "Groww VIX fallback (INDIAVIX) also returned 0 for user {UserId}. Raw: {Response}",
+                    userId, root2.ToString());
+
+            return vix2;
+        }
+        catch (Exception ex2)
+        {
+            logger.LogWarning(ex2, "Failed to fetch India VIX (INDIAVIX fallback) for user {UserId}", userId);
             return 0m;
         }
     }

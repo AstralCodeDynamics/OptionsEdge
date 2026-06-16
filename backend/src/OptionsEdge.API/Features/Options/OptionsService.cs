@@ -40,14 +40,16 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
         if (symbol.ToUpperInvariant() == "NIFTY")
         {
             int added = 0;
-            for (int i = 1; i <= 40 && added < 4; i++)
+            for (int i = 0; i <= 40 && added < 4; i++)
             {
                 var d = date.AddDays(i);
-                if (d.DayOfWeek == DayOfWeek.Tuesday)
-                {
-                    expiries.Add(d);
-                    added++;
-                }
+                if (d.DayOfWeek != DayOfWeek.Tuesday)
+                    continue;
+                // Include today only if market hasn't closed (before 15:30 IST)
+                if (i == 0 && now.TimeOfDay >= new TimeSpan(15, 30, 0))
+                    continue;
+                expiries.Add(d);
+                added++;
             }
         }
 
@@ -78,10 +80,21 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
 
         cache.TryGetValue(GrowwChainCacheKey(key, expiry), out IReadOnlyList<GrowwOptionChainRow>? growwChain);
 
+        // PCR/MaxPain from the FULL Groww chain — not limited to the displayed strike window.
+        long fullTotalCeOi = 0, fullTotalPeOi = 0;
+        if (growwChain is { Count: > 0 })
+        {
+            foreach (var r in growwChain)
+            {
+                fullTotalCeOi += r.Call?.OpenInterest ?? 0;
+                fullTotalPeOi += r.Put?.OpenInterest ?? 0;
+            }
+        }
+
         var rows = new List<ChainRowResponse>();
         long totalCeOi = 0, totalPeOi = 0;
 
-        for (int i = -5; i <= 5; i++)
+        for (int i = -10; i <= 10; i++)
         {
             int strike = atm + i * step;
             bool isAtm = i == 0;
@@ -156,8 +169,12 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
                     Vega:     Math.Round(peGreeks.vega, 2))));
         }
 
-        decimal pcr  = totalCeOi > 0 ? Math.Round((decimal)totalPeOi / totalCeOi, 2) : 1m;
-        decimal maxPain = ComputeMaxPain(rows);
+        decimal pcr = fullTotalCeOi > 0
+            ? Math.Round((decimal)fullTotalPeOi / fullTotalCeOi, 2)
+            : (totalCeOi > 0 ? Math.Round((decimal)totalPeOi / totalCeOi, 2) : 1m);
+        decimal maxPain = growwChain is { Count: > 0 }
+            ? ComputeMaxPainFromGrowwChain(growwChain)
+            : ComputeMaxPain(rows);
 
         return new OptionsChainResponse(key, expiry, spot, pcr, maxPain, rows);
     }
@@ -377,6 +394,31 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
                 // PE writers loss if price < strike
                 if (pivot.Strike < row.Strike)
                     totalLoss += (double)(row.Strike - pivot.Strike) * row.Pe.Oi;
+            }
+            if (totalLoss < minLoss)
+            {
+                minLoss = totalLoss;
+                maxPainStrike = pivot.Strike;
+            }
+        }
+
+        return maxPainStrike;
+    }
+
+    private static decimal ComputeMaxPainFromGrowwChain(IReadOnlyList<GrowwOptionChainRow> chain)
+    {
+        decimal maxPainStrike = chain[0].Strike;
+        double minLoss = double.MaxValue;
+
+        foreach (var pivot in chain)
+        {
+            double totalLoss = 0;
+            foreach (var row in chain)
+            {
+                if (pivot.Strike > row.Strike)
+                    totalLoss += (double)(pivot.Strike - row.Strike) * (row.Call?.OpenInterest ?? 0);
+                if (pivot.Strike < row.Strike)
+                    totalLoss += (double)(row.Strike - pivot.Strike) * (row.Put?.OpenInterest ?? 0);
             }
             if (totalLoss < minLoss)
             {

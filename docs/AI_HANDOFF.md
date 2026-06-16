@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: VIX logging, full-chain PCR/MaxPain, expiry includes today
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GetVixAsync`: silent `catch { return 0m; }` replaced with proper `LogWarning` on both exception and zero-result paths. First attempt uses `INDIA%20VIX`; if that returns 0 or throws, retries with `INDIAVIX` (no space). Raw Groww response body logged on zero-result so production logs show the actual error.
+- `OptionsService.GetChain`: display loop widened from ATM ±5 (11 strikes) to ATM ±10 (21 strikes). PCR now computed from the FULL Groww chain (`fullTotalCeOi`/`fullTotalPeOi` summed over all `growwChain` rows before the display loop) — falls back to the displayed-subset totals when Groww chain unavailable. MaxPain also computed from the full Groww chain via new `ComputeMaxPainFromGrowwChain(IReadOnlyList<GrowwOptionChainRow>)` — same algorithm as `ComputeMaxPain(rows)` but iterates Groww OI directly; falls back to displayed rows when chain unavailable.
+- `OptionsService.GetExpiries` (NIFTY weekly block): loop now starts at `i = 0` (was `i = 1`). Today included when it is Tuesday AND `now.TimeOfDay < 15:30 IST`; past-close Tuesdays skip to next week.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- VIX fallback symbol `INDIAVIX` unverified against live Groww response — both attempts are now logged so the correct symbol can be confirmed from production logs.
+- `GrowwSymbolHelper.cs` has no `GetNearestNiftyExpiry` method; the expiry fix lives entirely in `OptionsService.GetExpiries`.
+
+Claude Code active files: none.
+
 ### 2026-06-15 - Codex: Auto Signal Preferences UI
 
 Files changed:
