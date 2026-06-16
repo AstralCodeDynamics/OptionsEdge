@@ -218,8 +218,9 @@ jobs:
             chown -R root:root "${{ vars.API_DEPLOY_PATH }}"
             find "${{ vars.API_DEPLOY_PATH }}" -type d -exec chmod 755 {} \;
             find "${{ vars.API_DEPLOY_PATH }}" -type f -exec chmod 644 {} \;
+
             mkdir -p "${{ vars.API_DEPLOY_PATH }}/logs"
-            chown root:root "${{ vars.API_DEPLOY_PATH }}/logs"
+            chown -R www-data:www-data "${{ vars.API_DEPLOY_PATH }}/logs"
             chmod 755 "${{ vars.API_DEPLOY_PATH }}/logs"
 
             chown -R www-data:www-data "${{ vars.WEB_DEPLOY_PATH }}"
@@ -255,3 +256,23 @@ jobs:
 
           curl -I "${{ vars.FRONTEND_URL }}"
           curl -I "${{ vars.API_URL }}" || true
+      
+      - name: Cleanup old deployment backups
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/optionsedge-e2e ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }} '
+            set -e
+
+            echo "Cleaning old OptionsEdge backups. Keeping latest 2 API and latest 2 web backups."
+
+            mkdir -p "${{ vars.BACKUP_PATH }}"
+
+            ls -1t "${{ vars.BACKUP_PATH }}"/api-*.tar.gz 2>/dev/null | tail -n +3 | xargs -r rm -f
+            ls -1t "${{ vars.BACKUP_PATH }}"/web-*.tar.gz 2>/dev/null | tail -n +3 | xargs -r rm -f
+
+            echo "Remaining backups:"
+            ls -lh "${{ vars.BACKUP_PATH }}" || true
+
+            echo "Backup folder size:"
+            du -sh "${{ vars.BACKUP_PATH }}"
+          '
