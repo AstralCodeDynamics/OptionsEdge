@@ -23,7 +23,7 @@ public class LogFileCleanupWorker(
         {
             try
             {
-                var delay = maintenanceService.GetDelayUntilNextRun(DateTimeOffset.Now);
+                var delay = maintenanceService.GetDelayUntilNextRun(DateTimeOffset.UtcNow);
                 logger.LogInformation("Next log cleanup scheduled in {Delay}", delay);
                 await Task.Delay(delay, stoppingToken);
                 await RunCleanupAsync(stoppingToken);

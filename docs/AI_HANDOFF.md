@@ -17,6 +17,36 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Backend log timestamps and cleanup schedule forced to IST
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Common/Time/IndiaTime.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/IstTimestampEnricher.cs`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/LogFileMaintenanceService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/LogFileCleanupWorker.cs`
+- `backend/tests/OptionsEdge.API.Tests/LogFileMaintenanceServiceTests.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Serilog console/file output now writes `IstTimestamp` in `Asia/Kolkata`, independent of Ubuntu server local timezone.
+- Log cleanup scheduling now calculates next run from UTC -> IST and executes at IST midnight, not server-local midnight.
+- Added shared `IndiaTime` helper for deterministic IST conversion inside app code.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj --no-build` — 33 passed.
+
+Notes:
+
+- Log event text now shows IST timestamps directly for easier production issue analysis.
+- Serilog file rolling still uses sink day boundaries; visible timestamps are IST, cleanup schedule is IST.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: Serilog backend logging, global exception handling, daily log cleanup
 
 Files changed:

@@ -52,7 +52,7 @@ public class LogFileMaintenanceServiceTests
     }
 
     [Fact]
-    public void GetDelayUntilNextRun_ReturnsTimeUntilNextLocalMidnight()
+    public void GetDelayUntilNextRun_UsesIstMidnightFromUtcClock()
     {
         var service = CreateService("/tmp/optionsedge-tests", new LogFileOptions
         {
@@ -60,7 +60,23 @@ public class LogFileMaintenanceServiceTests
             CleanupTimeLocal = "00:00:00",
         });
 
-        var delay = service.GetDelayUntilNextRun(new DateTimeOffset(2026, 6, 16, 21, 30, 0, TimeSpan.FromHours(5.5)));
+        // 2026-06-16 18:30 UTC = 2026-06-17 00:00 IST, so next cleanup is 24h away.
+        var delay = service.GetDelayUntilNextRun(new DateTimeOffset(2026, 6, 16, 18, 30, 0, TimeSpan.Zero));
+
+        Assert.Equal(TimeSpan.FromHours(24), delay);
+    }
+
+    [Fact]
+    public void GetDelayUntilNextRun_ReturnsRemainingTimeUntilIstMidnight()
+    {
+        var service = CreateService("/tmp/optionsedge-tests", new LogFileOptions
+        {
+            Directory = "logs",
+            CleanupTimeLocal = "00:00:00",
+        });
+
+        // 2026-06-16 16:00 UTC = 21:30 IST, so 2.5h remain until IST midnight.
+        var delay = service.GetDelayUntilNextRun(new DateTimeOffset(2026, 6, 16, 16, 0, 0, TimeSpan.Zero));
 
         Assert.Equal(TimeSpan.FromHours(2.5), delay);
     }

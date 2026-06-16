@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using OptionsEdge.API.Common.Options;
+using OptionsEdge.API.Common.Time;
 
 namespace OptionsEdge.API.Infrastructure.Logging;
 
@@ -13,22 +14,23 @@ public class LogFileMaintenanceService(
         return LogFilePathResolver.Resolve(hostEnvironment.ContentRootPath, options.Directory);
     }
 
-    public TimeSpan GetDelayUntilNextRun(DateTimeOffset nowLocal)
+    public TimeSpan GetDelayUntilNextRun(DateTimeOffset nowUtc)
     {
+        var nowIst = IndiaTime.ToIst(nowUtc);
         var cleanupTime = logFileOptions.CurrentValue.GetCleanupTimeLocal();
         var nextRun = new DateTimeOffset(
-            nowLocal.Year,
-            nowLocal.Month,
-            nowLocal.Day,
+            nowIst.Year,
+            nowIst.Month,
+            nowIst.Day,
             0,
             0,
             0,
-            nowLocal.Offset).Add(cleanupTime);
+            nowIst.Offset).Add(cleanupTime);
 
-        if (nextRun <= nowLocal)
+        if (nextRun <= nowIst)
             nextRun = nextRun.AddDays(1);
 
-        return nextRun - nowLocal;
+        return nextRun.ToUniversalTime() - nowUtc.ToUniversalTime();
     }
 
     public IReadOnlyList<string> DeleteExpiredFiles(DateTimeOffset nowUtc)

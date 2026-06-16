@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OptionsEdge.API.Common.Options;
+using OptionsEdge.API.Common.Time;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
 using OptionsEdge.API.Features.Auth;
@@ -35,7 +36,9 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("System", LogEventLevel.Warning)
     .Enrich.FromLogContext()
-    .WriteTo.Console()
+    .Enrich.With<IstTimestampEnricher>()
+    .WriteTo.Console(outputTemplate:
+        "[{IstTimestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateBootstrapLogger();
 
 try
@@ -52,14 +55,17 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
+        .Enrich.With<IstTimestampEnricher>()
         .Enrich.WithProperty("Application", "OptionsEdge.API")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
-        .WriteTo.Console()
+        .WriteTo.Console(outputTemplate:
+            "[{IstTimestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}")
         .WriteTo.File(
             path: Path.Combine(logDirectory, $"{logFileOptions.FileNamePrefix}-.log"),
             rollingInterval: RollingInterval.Day,
             retainedFileCountLimit: null,
             shared: true,
+            outputTemplate: "[{IstTimestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}",
             flushToDiskInterval: TimeSpan.FromSeconds(1));
 });
 
