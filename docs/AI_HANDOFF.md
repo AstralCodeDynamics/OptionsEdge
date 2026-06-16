@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: ValidUntil always-expired fix — prompt date injection, safety net, unified response
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- **Root cause**: `SignalSystemPrompt` was a `const string` with a hardcoded example `validUntil` date (`2026-06-06T15:30:00+05:30` — a past date). The AI copied that stale date as its output. Additionally, the user prompt contained no current IST date, so the AI had no anchor for "today". Result: every generated signal was born already expired.
+- **Prompt fix**: `SignalSystemPrompt` → `BuildSignalSystemPrompt(DateTime istNow)` method. The example JSON now uses `{istNow:yyyy-MM-dd}T15:30:00+05:30` (today's IST date at runtime). The rule text also explicitly states: `use TODAY's date (YYYY-MM-DD) at 15:30:00+05:30 — do NOT use any other date`.
+- **User prompt fix**: `BuildSignalPrompt` now accepts `DateTime istNow` and injects `Current date and time (IST): YYYY-MM-DD HH:mm:ss IST` as the first line — gives the AI an unambiguous anchor for date-relative calculations.
+- **Safety net**: `parsedValidUntil` hoisted to a local variable (was inline in entity initializer). If the parsed/normalized value is `<= now`, logs `LogWarning` and overrides to `now.AddHours(4)`. Belt-and-suspenders regardless of AI behavior.
+- **Unified response**: Live `SignalResponse.ValidUntil` now uses `parsedValidUntil.ToString("O")` instead of raw `aiOutput.ValidUntil`. Dashboard live card and Signal History page now always agree on expiry, both normalized to UTC ISO 8601.
+- **IstZone static field** added to `AISignalService` (same pattern as `OptionsService`).
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- The `$$"""..."""` interpolated raw string literal requires C# 11+; project already targets .NET 10, so this is fine.
+
+Claude Code active files: none.
+
 ### 2026-06-16 - Codex: Signal History padding aligned with Chain
 
 Files changed:
