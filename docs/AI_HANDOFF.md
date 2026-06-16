@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: Paginated signal history endpoint
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/SignalEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GET /api/v1/signals/history` replaced non-paginated `?symbol&limit` version with `?page=1&pageSize=20` (page clamped ≥ 1, pageSize clamped 1–50).
+- Returns `SignalHistoryResponse { Items, Page, PageSize, TotalItems, TotalPages }` — same pattern as `BacktestHistoryResponse`.
+- `SignalHistoryItem` is a lighter projection than `SignalResponse`: omits `Rationale`, `InputTokens`, `OutputTokens` — reduces payload for history list.
+- Dates materialized in memory (EF Core can't translate `DateOnly.ToString()`); `Expiry` as `yyyy-MM-dd`, `CreatedAt`/`ValidUntil` as ISO 8601 `"O"` format.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- Old `?symbol` filter param removed; Codex signal history page should filter client-side or add a new `?symbol=` query param server-side if needed.
+
+Codex active files: signal history page (pending — build `GET /api/v1/signals/history?page=1&pageSize=20`, render `SignalHistoryResponse`, per-page nav).
+
 ### 2026-06-16 - Claude Code: VIX logging, full-chain PCR/MaxPain, expiry includes today
 
 Files changed:

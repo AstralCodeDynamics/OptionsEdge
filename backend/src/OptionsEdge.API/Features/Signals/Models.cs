@@ -43,6 +43,32 @@ public record SignalPreferenceRequest(
     bool BankNiftyAutoSignalEnabled,
     string BankNiftyAutoSignalTimes);
 
+public record SignalHistoryItem(
+    Guid Id,
+    string Symbol,
+    string SignalType,
+    int Strike,
+    string OptionType,
+    string Expiry,
+    int Confidence,
+    decimal EntryLow,
+    decimal EntryHigh,
+    decimal Target1,
+    decimal? Target2,
+    decimal StopLoss,
+    decimal RiskReward,
+    string ModelUsed,
+    decimal CostUsd,
+    string CreatedAt,
+    string ValidUntil);
+
+public record SignalHistoryResponse(
+    IReadOnlyList<SignalHistoryItem> Items,
+    int Page,
+    int PageSize,
+    int TotalItems,
+    int TotalPages);
+
 // Raw AI output before DB save (parsed from Claude JSON)
 internal record SignalAiOutput(
     string SignalType,
