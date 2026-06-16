@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Signal history dark-card redesign
+
+Files changed:
+
+- `frontend/src/pages/SignalHistory/index.tsx`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Replaced Signal History table with Dashboard AI Signals-style dark cards.
+- Each history item now shows signal type badge, Active/Expired badge, contract header, confidence, 3-column Entry/Target/Stop Loss price grid, optional rationale bullets when `rationale` is present, and footer tags for R:R, model, cost, created time, and status.
+- Pagination kept in the Backtest saved-run style (`Prev`/`Next`, bordered dark buttons, `start-end of total` count).
+- Added optional `rationale?: string[]` to `SignalHistoryItem` so the UI can render rationale if the endpoint includes it later. Current backend still omits rationale by design.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Current `GET /api/v1/signals/history` response does not include rationale, so rationale bullets stay hidden until backend adds that field.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Claude Code: VIX symbol corrected, day change reads Groww fields, signal save logs ERROR
 
 Files changed:
@@ -39,7 +64,7 @@ Caveats:
 
 - `day_change_perc` field name unverified against a live Groww quote response — if still 0 after deploy, check actual response JSON via the new warning log and adjust field name.
 
-Codex active files: Signal History page redesign (pending).
+Codex active files: none.
 
 ### 2026-06-16 - Codex: Signal history table page
 

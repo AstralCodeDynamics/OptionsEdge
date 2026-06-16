@@ -183,6 +183,7 @@ export interface SignalHistoryItem {
   target2?: number | null
   confidence: number
   riskReward: number
+  rationale?: string[]
   modelUsed: string
   costUsd: number
   validUntil: string
