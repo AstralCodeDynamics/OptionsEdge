@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Suppressed fake fatal startup logs during EF design-time host aborts
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Program.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Startup now catches `HostAbortedException` separately and does not log it as fatal.
+- This removes false `FTL` noise during EF Core design-time operations such as:
+  - `dotnet ef migrations bundle`
+  - generated `efbundle` execution
+- Real unexpected startup exceptions still go through `Log.Fatal(...)`.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj --no-build` — 33 passed.
+
+Notes:
+
+- Pipeline migration behavior was not broken before; only fatal log classification was wrong.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: Backend log timestamps and cleanup schedule forced to IST
 
 Files changed:

@@ -246,6 +246,10 @@ app.MapHub<MarketHub>("/hubs/market")
 
 await app.RunAsync();
 }
+catch (HostAbortedException)
+{
+    // Expected during EF Core design-time operations such as migrations bundle creation.
+}
 catch (Exception ex)
 {
     Log.Fatal(ex, "OptionsEdge API terminated unexpectedly during startup");
