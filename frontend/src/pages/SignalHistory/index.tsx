@@ -153,24 +153,24 @@ export default function SignalHistory() {
   const end = Math.min(page * PAGE_SIZE, totalItems)
 
   return (
-    <div className="space-y-4 pb-20">
-      <div className="flex flex-wrap items-end justify-between gap-2">
+    <div className="p-4 space-y-4 max-w-6xl mx-auto">
+      <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">Signal History</h1>
-          <p className="mt-1 text-xs text-gray-500">
+          <h1 className="text-lg font-bold text-white">Signal History</h1>
+          <p className="mt-0.5 text-xs text-gray-500">
             Latest AI signals, newest first.
           </p>
         </div>
-        <p className="text-[11px] text-gray-600">{totalItems} saved</p>
+        <p className="ml-auto text-xs text-gray-500">{totalItems} saved</p>
       </div>
 
       {loading ? (
         <div className="space-y-3">
-          <div className="h-40 animate-pulse rounded-xl border border-gray-800 bg-gray-900" />
-          <div className="h-40 animate-pulse rounded-xl border border-gray-800 bg-gray-900" />
+          <div className="h-40 animate-pulse rounded-xl border border-gray-800 bg-gray-900 p-4" />
+          <div className="h-40 animate-pulse rounded-xl border border-gray-800 bg-gray-900 p-4" />
         </div>
       ) : error ? (
-        <p className="rounded-xl border border-red-800 bg-red-900/20 px-3 py-6 text-center text-xs text-red-400">
+        <p className="rounded-xl border border-red-800 bg-red-900/20 p-4 text-center text-xs text-red-400">
           {error}
         </p>
       ) : signals.length > 0 ? (
@@ -204,7 +204,7 @@ export default function SignalHistory() {
           </div>
         </>
       ) : (
-        <p className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-6 text-center text-xs text-gray-600">
+        <p className="rounded-xl border border-gray-800 bg-gray-900 p-4 text-center text-xs text-gray-600">
           No saved signals yet.
         </p>
       )}

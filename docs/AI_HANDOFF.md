@@ -17,6 +17,30 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Signal History padding aligned with Chain
+
+Files changed:
+
+- `frontend/src/pages/SignalHistory/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Signal History root wrapper now matches Chain page spacing exactly: `p-4 space-y-4 max-w-6xl mx-auto`.
+- Header now uses Chain-style `flex flex-wrap items-center gap-3` layout and `text-lg font-bold` title sizing.
+- Empty, error, and loading card states now use `p-4`, matching the SignalHistory card padding and app card spacing.
+- Responsive side padding now matches Chain on mobile and desktop.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Visual change only; no API or data-flow changes.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Claude Code: CRITICAL — DateTimeOffset UTC normalization (signal save root cause)
 
 Files changed:
