@@ -109,6 +109,7 @@ public static class AuthEndpoints
             IOptions<AuthSettings> authSettings,
             JwtService jwt,
             AppDbContext db,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             var user = await userManager.FindByEmailAsync(req.Email);
@@ -129,7 +130,10 @@ public static class AuthEndpoints
             if (await userManager.GetTwoFactorEnabledAsync(user))
                 return Results.Ok(new TwoFactorRequiredResponse(true, user.Email!));
 
-            return Results.Ok(await IssueAuthResponseAsync(user, userManager, jwt, db, ct));
+            var issued = await IssueAuthResponseAsync(user, userManager, jwt, db, ct);
+            AppendRefreshTokenCookie(ctx, issued.RefreshToken, issued.RefreshTokenExpiresAt);
+
+            return Results.Ok(issued.Response);
         }).WithName("Login");
 
         // POST /api/v1/auth/two-factor — completes login when 2FA is enabled
@@ -138,6 +142,7 @@ public static class AuthEndpoints
             UserManager<ApplicationUser> userManager,
             JwtService jwt,
             AppDbContext db,
+            HttpContext ctx,
             CancellationToken ct) =>
         {
             var user = await userManager.FindByEmailAsync(req.Email);
@@ -156,51 +161,64 @@ public static class AuthEndpoints
             if (!validToken)
                 return Results.BadRequest(new { error = "Invalid verification code." });
 
-            return Results.Ok(await IssueAuthResponseAsync(user, userManager, jwt, db, ct));
+            var issued = await IssueAuthResponseAsync(user, userManager, jwt, db, ct);
+            AppendRefreshTokenCookie(ctx, issued.RefreshToken, issued.RefreshTokenExpiresAt);
+
+            return Results.Ok(issued.Response);
         }).WithName("VerifyTwoFactor");
 
-        // POST /api/v1/auth/refresh — rotates the refresh token
+        // POST /api/v1/auth/refresh — rotates the HttpOnly refresh-token cookie
         group.MapPost("/refresh", async (
-            RefreshRequest req,
+            HttpContext ctx,
             UserManager<ApplicationUser> userManager,
             JwtService jwt,
             AppDbContext db,
             CancellationToken ct) =>
         {
-            var existing = await db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == req.RefreshToken, ct);
+            var refreshToken = ctx.Request.Cookies["refresh_token"];
+            if (string.IsNullOrEmpty(refreshToken))
+                return Results.Unauthorized();
+
+            var existing = await db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == refreshToken, ct);
             if (existing is null || existing.IsRevoked || existing.ExpiresAt < DateTimeOffset.UtcNow)
-                return Results.BadRequest(new { error = "Invalid or expired refresh token." });
+                return Results.Unauthorized();
 
             var user = await userManager.FindByIdAsync(existing.UserId.ToString());
             if (user is null)
-                return Results.BadRequest(new { error = "Invalid or expired refresh token." });
+                return Results.Unauthorized();
 
             existing.IsRevoked = true;
             db.RefreshTokens.Update(existing);
 
-            var response = await IssueAuthResponseAsync(user, userManager, jwt, db, ct);
+            var issued = await IssueAuthResponseAsync(user, userManager, jwt, db, ct);
+            AppendRefreshTokenCookie(ctx, issued.RefreshToken, issued.RefreshTokenExpiresAt);
 
-            return Results.Ok(response);
+            return Results.Ok(issued.Response);
         }).WithName("RefreshToken");
 
-        // POST /api/v1/auth/logout — revokes the supplied refresh token
+        // POST /api/v1/auth/logout — revokes the HttpOnly refresh-token cookie
         group.MapPost("/logout", async (
-            LogoutRequest req,
             AppDbContext db,
             HttpContext ctx,
             IConfiguration config,
             CancellationToken ct) =>
         {
+            var refreshToken = ctx.Request.Cookies["refresh_token"];
             var userId = ctx.GetUserId(config);
-            var existing = await db.RefreshTokens.FirstOrDefaultAsync(
-                t => t.Token == req.RefreshToken && t.UserId == userId,
-                ct);
-            if (existing is not null)
+
+            if (!string.IsNullOrEmpty(refreshToken))
             {
-                existing.IsRevoked = true;
-                await db.SaveChangesAsync(ct);
+                var existing = await db.RefreshTokens.FirstOrDefaultAsync(
+                    t => t.Token == refreshToken && t.UserId == userId,
+                    ct);
+                if (existing is not null)
+                {
+                    existing.IsRevoked = true;
+                    await db.SaveChangesAsync(ct);
+                }
             }
 
+            DeleteRefreshTokenCookie(ctx);
             return Results.Ok(new { message = "Logged out." });
         }).WithName("Logout")
           .RequireAuthorization();
@@ -360,7 +378,7 @@ public static class AuthEndpoints
           .RequireAuthorization();
     }
 
-    private static async Task<AuthResponse> IssueAuthResponseAsync(
+    private static async Task<AuthIssueResult> IssueAuthResponseAsync(
         ApplicationUser user,
         UserManager<ApplicationUser> userManager,
         JwtService jwt,
@@ -370,28 +388,61 @@ public static class AuthEndpoints
         var (accessToken, expiresAt) = jwt.GenerateAccessToken(user);
         var refreshToken = jwt.GenerateRefreshToken();
         var refreshDays  = jwt.RefreshTokenDays;
+        var now = DateTimeOffset.UtcNow;
+        var refreshTokenExpiresAt = now.AddDays(refreshDays);
 
         db.RefreshTokens.Add(new RefreshToken
         {
             Id        = Guid.NewGuid(),
             UserId    = user.Id,
             Token     = refreshToken,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(refreshDays),
+            ExpiresAt = refreshTokenExpiresAt,
             IsRevoked = false,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
         });
         await db.SaveChangesAsync(ct);
 
-        return new AuthResponse(
+        var response = new AuthResponse(
             accessToken,
-            refreshToken,
             expiresAt.ToString("O"),
             user.Id,
             user.DisplayName,
             user.Email!,
             user.SubscriptionPlan,
             await userManager.GetTwoFactorEnabledAsync(user));
+
+        return new AuthIssueResult(response, refreshToken, refreshTokenExpiresAt);
     }
+
+    private static void AppendRefreshTokenCookie(
+        HttpContext ctx,
+        string refreshToken,
+        DateTimeOffset expiresAt)
+    {
+        ctx.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = expiresAt,
+            Path = "/api/v1/auth",
+        });
+    }
+
+    private static void DeleteRefreshTokenCookie(HttpContext ctx)
+    {
+        ctx.Response.Cookies.Delete("refresh_token", new CookieOptions
+        {
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/v1/auth",
+        });
+    }
+
+    private sealed record AuthIssueResult(
+        AuthResponse Response,
+        string RefreshToken,
+        DateTimeOffset RefreshTokenExpiresAt);
 
     private static string BuildConfirmationLink(
         IConfiguration config, Guid userId, string token)

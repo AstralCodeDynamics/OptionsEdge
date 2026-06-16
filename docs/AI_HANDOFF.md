@@ -17,6 +17,47 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex acting for Claude Code: Refresh token moved to HttpOnly cookie
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Auth/AuthEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Auth/Models.cs`
+- `docs/AI_HANDOFF.md`
+
+BREAKING auth contract change:
+
+- Refresh tokens are no longer returned in `AuthResponse` JSON. `AuthResponse` now contains access token data only (`AccessToken`, `AccessTokenExpiry`, user metadata, `TwoFactorEnabled`).
+- `POST /api/v1/auth/login` and `POST /api/v1/auth/two-factor` now set `refresh_token` as an HttpOnly cookie instead of exposing it to frontend JS.
+- `POST /api/v1/auth/refresh` no longer accepts `RefreshRequest` body. It reads `refresh_token` from `ctx.Request.Cookies`, revokes it, issues a new access token, rotates the refresh token row, and sets a new refresh cookie.
+- `POST /api/v1/auth/logout` no longer accepts `LogoutRequest` body. It reads `refresh_token` from the cookie, revokes it for the current user when present, and clears the cookie.
+- `RefreshRequest` and `LogoutRequest` DTOs were removed.
+
+Cookie settings:
+
+- Name: `refresh_token`
+- `HttpOnly = true`
+- `Secure = true`
+- `SameSite = Strict`
+- `Path = "/api/v1/auth"`
+- `Expires` matches the actual stored `RefreshToken.ExpiresAt`, which is generated from `Jwt:RefreshTokenDays` (currently 7 days in appsettings).
+
+Deployment notes:
+
+- Must deploy together with matching frontend changes. Frontend must stop expecting `refreshToken` in `AuthResponse`, must call `/auth/refresh` and `/auth/logout` without body tokens, and must enable credentials on auth/API requests (`withCredentials: true`) so the cookie is sent.
+- `Program.cs` CORS already has `.AllowCredentials()` with configured allowed origins, so backend CORS is ready for credentialed cookie requests.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- Secure cookies require HTTPS in real browser use; local HTTP dev may need HTTPS backend/frontend or environment-specific handling.
+- Current frontend is expected to break until the matching cookie-based auth client change lands.
+
+Claude Code active files: none. Codex active files: auth frontend cookie migration pending.
+
 ### 2026-06-16 - Codex: Proactive token refresh and SignalR handler consolidation
 
 Files changed:
