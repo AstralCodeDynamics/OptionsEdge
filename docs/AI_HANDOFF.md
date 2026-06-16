@@ -17,6 +17,56 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: SignalR dev StrictMode negotiation stop fixed with shared connection
+
+Files changed:
+
+- `frontend/src/hooks/useSignalR.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `useSignalR` now uses a module-level shared MarketHub connection with subscriber counting instead of creating/stopping a new HubConnection per hook mount.
+- This prevents React dev StrictMode from doing mount → `connection.start()` → cleanup → `connection.stop()` while SignalR is still negotiating, which produced `Failed to start the connection: Error: The connection was stopped during negotiation.`
+- Shared connection stop is delayed by 1s and waits for any pending start promise before stopping, so quick remounts reuse the same connection.
+- MarketHub handlers remain registered once before first start, so `marketstatus`/`newsignal` messages have handlers on the live connection.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Notes:
+
+- If `No client method with the name 'marketstatus' found` still appears after browser hard refresh, suspect stale Vite bundle/HMR connection. Full page reload should clear old connection.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Codex: Console auth/SignalR errors triage and fixes
+
+Files changed:
+
+- `frontend/src/hooks/useSignalR.ts`
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `useSignalR` now refuses to start a MarketHub connection when there is no in-memory access token. This avoids negotiating with an empty bearer token during the auth bootstrap/logout window, which produced `connection was stopped during negotiation`.
+- MarketHub client handlers are now registered with lowercase method names (`marketstatus`, `newsignal`, etc.), matching the method names shown by the SignalR client warning. This should silence `No client method with the name 'marketstatus' found` when messages arrive.
+- SignalR cleanup now marks the connection as stopped, clears `connectionRef`, and ignores late async state updates from a connection that was already disposed.
+- Backend CORS allowed origins now includes both `http://localhost:5173` and `https://localhost:5173`, so local HTTPS Vite can be used with the new `Secure` refresh cookie.
+
+Console diagnosis:
+
+- `POST /api/v1/auth/refresh` returning 401 means the browser did not send a valid `refresh_token` cookie. This is expected for old sessions created before the HttpOnly-cookie migration; user must log in once to receive the cookie.
+- If 401 continues after a fresh login, check browser cookie storage and scheme. The backend intentionally sets `Secure` + `SameSite=Strict`; with frontend on `http://localhost:5173` and API on `https://localhost:5001`, strict secure-cookie behavior can block cookie use in local dev. Use a same-scheme HTTPS frontend or revisit dev-only cookie policy deliberately.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: Frontend uses HttpOnly refresh cookie and silent session bootstrap
 
 Files changed:
