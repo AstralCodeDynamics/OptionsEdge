@@ -67,6 +67,23 @@ jobs:
                 "Microsoft.AspNetCore": "Warning"
               }
             },
+            "Serilog": {
+              "MinimumLevel": {
+                "Default": "Information",
+                "Override": {
+                  "Microsoft": "Warning",
+                  "Microsoft.AspNetCore": "Warning",
+                  "Microsoft.EntityFrameworkCore": "Warning",
+                  "System": "Warning"
+                }
+              }
+            },
+            "LogFiles": {
+              "Directory": "${{ vars.API_DEPLOY_PATH }}/logs",
+              "FileNamePrefix": "optionsedge-",
+              "RetentionDays": 7,
+              "CleanupTimeLocal": "00:00:00"
+            },
             "AllowedHosts": "*",
             "ConnectionStrings": {
               "DefaultConnection": "Host=${{ vars.DB_HOST }};Port=${{ vars.DB_PORT }};Database=${{ vars.DB_NAME }};Username=${{ vars.DB_USER }};Password=${{ secrets.OPTIONS_EDGE_DB_PASSWORD }};Pooling=true;Maximum Pool Size=${{ vars.DB_MAX_POOL_SIZE }};Minimum Pool Size=0;Connection Idle Lifetime=300"
@@ -180,7 +197,7 @@ jobs:
 
       - name: Deploy backend
         run: |
-          rsync -az --delete \
+          rsync -az --delete --exclude 'logs/' \
             -e "ssh -i ~/.ssh/optionsedge-e2e" \
             publish/api/ \
             ${{ secrets.E2E_USER }}@${{ secrets.E2E_HOST }}:${{ vars.API_DEPLOY_PATH }}/
@@ -201,6 +218,9 @@ jobs:
             chown -R root:root "${{ vars.API_DEPLOY_PATH }}"
             find "${{ vars.API_DEPLOY_PATH }}" -type d -exec chmod 755 {} \;
             find "${{ vars.API_DEPLOY_PATH }}" -type f -exec chmod 644 {} \;
+            mkdir -p "${{ vars.API_DEPLOY_PATH }}/logs"
+            chown root:root "${{ vars.API_DEPLOY_PATH }}/logs"
+            chmod 755 "${{ vars.API_DEPLOY_PATH }}/logs"
 
             chown -R www-data:www-data "${{ vars.WEB_DEPLOY_PATH }}"
             find "${{ vars.WEB_DEPLOY_PATH }}" -type d -exec chmod 755 {} \;

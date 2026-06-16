@@ -17,6 +17,60 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Serilog backend logging, global exception handling, daily log cleanup
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/OptionsEdge.API.csproj`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/Common/Options/LogFileOptions.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/LogFilePathResolver.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/LogFileMaintenanceService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Logging/LogFileCleanupWorker.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Middleware/GlobalExceptionMiddleware.cs`
+- `backend/tests/OptionsEdge.API.Tests/LogFileMaintenanceServiceTests.cs`
+- `.github/workflows/deploy-optionsedge.yml`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Backend now uses Serilog for structured logging with:
+  - console sink
+  - daily rolling file sink
+  - request logging via `UseSerilogRequestLogging`
+  - log enrichment for host, scheme, path, traceId, userId, remote IP
+- Added config-driven `LogFiles` options:
+  - `Directory`
+  - `FileNamePrefix`
+  - `RetentionDays`
+  - `CleanupTimeLocal`
+- Added global exception middleware that:
+  - logs unhandled exceptions with request context and traceId
+  - returns RFC 7807 `ProblemDetails`
+  - gracefully handles bad requests / argument errors as `400`
+  - treats client-aborted requests separately
+- Added `LogFileCleanupWorker`, running once on startup and then daily at local `00:00:00`, deleting log files older than 7 days.
+
+Deployment notes:
+
+- Production workflow now writes `Serilog` + `LogFiles` settings into generated `appsettings.Production.json`.
+- Production log path is `${API_DEPLOY_PATH}/logs`.
+- Backend deploy `rsync` now excludes `logs/`; otherwise release deploys would delete accumulated runtime log files.
+- Workflow explicitly creates `${API_DEPLOY_PATH}/logs` before service restart.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj --no-build` — 33 passed.
+
+Notes:
+
+- Current retention policy uses file last-write time, not filename parsing.
+- Cleanup schedule uses server-local time. On Ubuntu production, daily cleanup runs at server local midnight unless config changes.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: Production deploy workflow now writes lot sizes into appsettings.Production.json
 
 Files changed:

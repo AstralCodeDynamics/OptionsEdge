@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -22,12 +23,49 @@ using OptionsEdge.API.Infrastructure.Auth;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
 using OptionsEdge.API.Infrastructure.Email;
+using OptionsEdge.API.Infrastructure.Logging;
+using OptionsEdge.API.Infrastructure.Middleware;
 using OptionsEdge.API.Infrastructure.Security;
 using OptionsEdge.API.Infrastructure.SignalR;
+using Serilog;
+using Serilog.Events;
 
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("System", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+{
+    var logFileOptions = context.Configuration.GetSection(LogFileOptions.SectionName).Get<LogFileOptions>() ?? new LogFileOptions();
+    var logDirectory = LogFilePathResolver.Resolve(context.HostingEnvironment.ContentRootPath, logFileOptions.Directory);
+    Directory.CreateDirectory(logDirectory);
+
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Application", "OptionsEdge.API")
+        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+        .WriteTo.Console()
+        .WriteTo.File(
+            path: Path.Combine(logDirectory, $"{logFileOptions.FileNamePrefix}-.log"),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: null,
+            shared: true,
+            flushToDiskInterval: TimeSpan.FromSeconds(1));
+});
+
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+builder.Services.Configure<LogFileOptions>(builder.Configuration.GetSection(LogFileOptions.SectionName));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -137,6 +175,8 @@ builder.Services.AddAIServices();
 builder.Services.AddHostedService<MarketDataWorker>();
 builder.Services.AddHostedService<PositionMonitorWorker>();
 builder.Services.AddHostedService<AutoSignalWorker>();
+builder.Services.AddSingleton<LogFileMaintenanceService>();
+builder.Services.AddHostedService<LogFileCleanupWorker>();
 
 var app = builder.Build();
 
@@ -146,7 +186,32 @@ if (app.Environment.IsDevelopment())
     await DevDataSeeder.SeedAsync(app.Services, app.Logger);
 }
 
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (httpContext, _, exception) =>
+    {
+        if (exception is not null || httpContext.Response.StatusCode >= StatusCodes.Status500InternalServerError)
+            return LogEventLevel.Error;
+
+        if (httpContext.Response.StatusCode >= StatusCodes.Status400BadRequest)
+            return LogEventLevel.Warning;
+
+        return LogEventLevel.Information;
+    };
+
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value ?? string.Empty);
+        diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+        diagnosticContext.Set("RequestPath", httpContext.Request.Path);
+        diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
+        diagnosticContext.Set("UserId", httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous");
+        diagnosticContext.Set("RemoteIpAddress", httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty);
+    };
+});
+
 app.UseHttpsRedirection();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -173,4 +238,13 @@ app.MapAICredentialEndpoints();
 app.MapHub<MarketHub>("/hubs/market")
    .RequireAuthorization();
 
-app.Run();
+await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "OptionsEdge API terminated unexpectedly during startup");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
