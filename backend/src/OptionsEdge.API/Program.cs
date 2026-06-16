@@ -76,7 +76,7 @@ builder.Services
             ValidIssuer              = jwtSection["Issuer"],
             ValidAudience            = jwtSection["Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ClockSkew                = TimeSpan.FromSeconds(30),
+            ClockSkew                = TimeSpan.FromMinutes(5),
         };
 
         // SignalR sends the access token via query string (?access_token=...) since browsers

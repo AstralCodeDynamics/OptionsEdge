@@ -17,6 +17,37 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: JWT token lifetime 15→60min, ClockSkew 30s→5min (fixes auth/me 401 + SignalR negotiation loop)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/appsettings.Development.json`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `docs/AI_HANDOFF.md`
+
+Investigation findings:
+
+- `OnMessageReceived` / `JwtBearerEvents` in `Program.cs` was already correctly configured — SignalR query-string token extraction was NOT missing. This was NOT the cause.
+- `AccessTokenMinutes` = 15 in both prod and dev configs — this IS the cause. 15-minute tokens expire during an active session. The frontend refreshes reactively (on 401), not proactively. Gap between token expiry and successful refresh = window where every authenticated request 401s, AND SignalR's `accessTokenFactory` returns the same expired token on reconnect → "connection stopped during negotiation" loops at 15-20s intervals (matching SignalR's reconnect backoff).
+- `ClockSkew = TimeSpan.FromSeconds(30)` was an unusually tight value (ASP.NET default is 5 min). A server with any NTP drift could reject still-valid tokens early.
+
+Changes:
+
+- `AccessTokenMinutes`: 15 → 60. Users now have a full hour before needing a refresh — covers a normal trading session without hitting the expiry loop.
+- `ClockSkew`: `TimeSpan.FromSeconds(30)` → `TimeSpan.FromMinutes(5)`. Standard default; protects against server/client clock drift.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- 60-minute access token is still short enough to limit blast radius if a token is leaked — refresh tokens (7-day) are the real long-lived credential; access tokens are used for API calls and expire.
+- Frontend should ideally implement proactive refresh (e.g., refresh when token has < 5 min remaining) as a long-term fix to eliminate any reactive-refresh gaps entirely.
+
+Claude Code active files: none.
+
 ### 2026-06-16 - Claude Code: ValidUntil always-expired fix — prompt date injection, safety net, unified response
 
 Files changed:
