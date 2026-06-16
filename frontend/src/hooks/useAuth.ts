@@ -50,7 +50,7 @@ export function useAuth() {
         return { requiresTwoFactor: true as const, email: result.email }
       }
 
-      setTokens(result.accessToken, result.refreshToken)
+      setTokens(result.accessToken, result.refreshToken, result.accessTokenExpiry)
       setUser({
         id: result.userId,
         email: result.email,
@@ -69,7 +69,7 @@ export function useAuth() {
   const completeTwoFactor = useCallback(
     async (email: string, code: string) => {
       const result = await authApi.twoFactor(email, code)
-      setTokens(result.accessToken, result.refreshToken)
+      setTokens(result.accessToken, result.refreshToken, result.accessTokenExpiry)
       setUser({
         id: result.userId,
         email: result.email,

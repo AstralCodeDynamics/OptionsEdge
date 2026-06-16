@@ -17,6 +17,36 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Proactive token refresh and SignalR handler consolidation
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/hooks/useAuth.ts`
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/hooks/useMarketData.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Frontend tokens now schedule a proactive refresh when `setTokens` runs. The timer uses `accessTokenExpiry` (falling back to JWT `exp`) and refreshes at ~80% of the token lifetime, so normal API calls and SignalR negotiation should not see stale access tokens.
+- Reactive 401 refresh remains as fallback; successful refreshes now reschedule the proactive timer with the new expiry.
+- `clearTokens` clears the proactive timer and stored expiry.
+- `useAuth` now passes `accessTokenExpiry` from login and two-factor responses into `setTokens`.
+- `useSignalR` now owns all MarketHub handlers (`PriceUpdate`, `MarketStatus`, `IndicatorUpdate`, `NewSignal`, `AutoSignalGenerated`) and registers them before `connection.start()`.
+- `useSignalR` also subscribes to `NIFTY` and `BANKNIFTY` groups immediately after initial connect and after automatic reconnect.
+- `useMarketData` no longer registers handlers on the shared connection; it only performs initial REST fetches and returns the connection state.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- The noisy backend warnings `No client method with the name 'marketstatus'` and `No client method with the name 'newsignal'` were treated as race symptoms. They should stop once this frontend is deployed because handlers are attached before start/reconnect, but this was not verified against a live running app in this turn.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Claude Code: JWT token lifetime 15→60min, ClockSkew 30s→5min (fixes auth/me 401 + SignalR negotiation loop)
 
 Files changed:

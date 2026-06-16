@@ -13,15 +13,99 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 // Tokens are kept in module-level memory only — never localStorage/sessionStorage.
 let _accessToken: string | null = null
 let _refreshToken: string | null = null
+let _accessTokenExpiryMs: number | null = null
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-export function setTokens(access: string, refresh: string): void {
+function clearRefreshTimer(): void {
+  if (_refreshTimer) {
+    clearTimeout(_refreshTimer)
+    _refreshTimer = null
+  }
+}
+
+function parseJwtPayload(token: string): { exp?: number; iat?: number } | null {
+  const [, payload] = token.split('.')
+  if (!payload) return null
+
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    return JSON.parse(atob(padded)) as { exp?: number; iat?: number }
+  } catch {
+    return null
+  }
+}
+
+function tokenExpiryMs(access: string, accessTokenExpiry?: string): number | null {
+  if (accessTokenExpiry) {
+    const parsed = Date.parse(accessTokenExpiry)
+    if (!Number.isNaN(parsed)) return parsed
+  }
+
+  const exp = parseJwtPayload(access)?.exp
+  return exp ? exp * 1000 : null
+}
+
+function scheduleProactiveRefresh(): void {
+  clearRefreshTimer()
+
+  if (!_refreshToken || !_accessToken || !_accessTokenExpiryMs) return
+
+  const now = Date.now()
+  const payload = parseJwtPayload(_accessToken)
+  const issuedAtMs = payload?.iat ? payload.iat * 1000 : now
+  const lifetimeMs = Math.max(_accessTokenExpiryMs - issuedAtMs, 0)
+  const fallbackRemainingMs = Math.max(_accessTokenExpiryMs - now, 0)
+  const refreshAtMs = lifetimeMs > 0
+    ? issuedAtMs + lifetimeMs * 0.8
+    : now + fallbackRemainingMs * 0.8
+  const delayMs = Math.max(0, refreshAtMs - now)
+
+  _refreshTimer = setTimeout(() => {
+    proactiveRefresh().catch(() => {})
+  }, delayMs)
+}
+
+async function refreshTokens(refresh: string): Promise<AuthResponse> {
+  const data = await authApi.refresh(refresh)
+  setTokens(data.accessToken, data.refreshToken, data.accessTokenExpiry)
+  return data
+}
+
+async function proactiveRefresh(): Promise<void> {
+  if (_isRefreshing) return
+
+  const refresh = getRefreshToken()
+  if (!refresh) return
+
+  _isRefreshing = true
+  try {
+    const data = await refreshTokens(refresh)
+    _refreshQueue.forEach((p) => p.resolve(data.accessToken))
+    _refreshQueue = []
+  } catch (refreshError) {
+    _refreshQueue.forEach((p) => p.reject(refreshError))
+    _refreshQueue = []
+    clearTokens()
+    useAppStore.getState().logout()
+    redirectToLogin()
+  } finally {
+    _isRefreshing = false
+  }
+}
+
+export function setTokens(access: string, refresh: string, accessTokenExpiry?: string): void {
   _accessToken = access
   _refreshToken = refresh
+  _accessTokenExpiryMs = tokenExpiryMs(access, accessTokenExpiry)
+  scheduleProactiveRefresh()
 }
 
 export function clearTokens(): void {
   _accessToken = null
   _refreshToken = null
+  _accessTokenExpiryMs = null
+  clearRefreshTimer()
 }
 
 export function getAccessToken(): string | null {
@@ -89,8 +173,7 @@ api.interceptors.response.use(
       _isRefreshing = true
 
       try {
-        const data = await authApi.refresh(refresh)
-        setTokens(data.accessToken, data.refreshToken)
+        const data = await refreshTokens(refresh)
 
         _refreshQueue.forEach((p) => p.resolve(data.accessToken))
         _refreshQueue = []

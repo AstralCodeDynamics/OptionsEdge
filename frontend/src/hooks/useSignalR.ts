@@ -1,13 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
-import { getAccessToken } from '../services/api'
+import { getAccessToken, indicatorsApi } from '../services/api'
 import { useAppStore } from '../store/appStore'
-import type { Signal } from '../types'
+import type { MacdIndicator, RsiIndicator, Signal } from '../types'
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 
 // Exponential backoff: 0, 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
 const RETRY_DELAYS = [0, 1000, 2000, 4000, 8000, 16000, 30000]
+const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
+
+interface PriceUpdateEvent {
+  symbol: string
+  ltp: number
+  change: number
+  changePct: number
+  timestamp: string
+}
+
+interface MarketStatusEvent {
+  isOpen: boolean
+  message: string
+  nextEvent: string
+}
+
+interface IndicatorUpdateEvent {
+  symbol: string
+  rsi: RsiIndicator
+  macd: MacdIndicator
+  supertrendSignal: string
+  timestamp: string
+}
+
+function subscribeToSymbols(connection: signalR.HubConnection) {
+  for (const symbol of SYMBOLS) {
+    connection.invoke('SubscribeToSymbol', symbol).catch(() => {})
+  }
+}
 
 export function useSignalR(url: string) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
@@ -24,8 +53,41 @@ export function useSignalR(url: string) {
       .build()
 
     connection.onreconnecting(() => setConnectionState('reconnecting'))
-    connection.onreconnected(() => setConnectionState('connected'))
+    connection.onreconnected(() => {
+      setConnectionState('connected')
+      subscribeToSymbols(connection)
+    })
     connection.onclose(() => setConnectionState('disconnected'))
+
+    connection.on('PriceUpdate', (event: PriceUpdateEvent) => {
+      const store = useAppStore.getState()
+      const existing = store.snapshots[event.symbol]
+
+      if (existing) {
+        store.setSnapshot({
+          ...existing,
+          ltp: event.ltp,
+          change: event.change,
+          changePct: event.changePct,
+          timestamp: event.timestamp,
+        })
+      }
+    })
+
+    connection.on('MarketStatus', (event: MarketStatusEvent) => {
+      useAppStore.getState().setMarketStatus(event)
+    })
+
+    connection.on('IndicatorUpdate', (event: IndicatorUpdateEvent) => {
+      indicatorsApi.getIndicators(event.symbol)
+        .then((data) => useAppStore.getState().setIndicators(event.symbol, data))
+        .catch(() => {})
+    })
+
+    connection.on('NewSignal', (signal: Signal) => {
+      useAppStore.getState().prependSignal(signal)
+    })
+
     connection.on('AutoSignalGenerated', (signal: Signal) => {
       useAppStore.getState().addSignal(signal)
 
@@ -42,7 +104,10 @@ export function useSignalR(url: string) {
 
     connection
       .start()
-      .then(() => setConnectionState('connected'))
+      .then(() => {
+        setConnectionState('connected')
+        subscribeToSymbols(connection)
+      })
       .catch(() => setConnectionState('disconnected'))
 
     return () => {
