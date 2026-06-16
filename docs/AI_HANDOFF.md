@@ -17,6 +17,397 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: SignalR dev StrictMode negotiation stop fixed with shared connection
+
+Files changed:
+
+- `frontend/src/hooks/useSignalR.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `useSignalR` now uses a module-level shared MarketHub connection with subscriber counting instead of creating/stopping a new HubConnection per hook mount.
+- This prevents React dev StrictMode from doing mount → `connection.start()` → cleanup → `connection.stop()` while SignalR is still negotiating, which produced `Failed to start the connection: Error: The connection was stopped during negotiation.`
+- Shared connection stop is delayed by 1s and waits for any pending start promise before stopping, so quick remounts reuse the same connection.
+- MarketHub handlers remain registered once before first start, so `marketstatus`/`newsignal` messages have handlers on the live connection.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Notes:
+
+- If `No client method with the name 'marketstatus' found` still appears after browser hard refresh, suspect stale Vite bundle/HMR connection. Full page reload should clear old connection.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Codex: Console auth/SignalR errors triage and fixes
+
+Files changed:
+
+- `frontend/src/hooks/useSignalR.ts`
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `useSignalR` now refuses to start a MarketHub connection when there is no in-memory access token. This avoids negotiating with an empty bearer token during the auth bootstrap/logout window, which produced `connection was stopped during negotiation`.
+- MarketHub client handlers are now registered with lowercase method names (`marketstatus`, `newsignal`, etc.), matching the method names shown by the SignalR client warning. This should silence `No client method with the name 'marketstatus' found` when messages arrive.
+- SignalR cleanup now marks the connection as stopped, clears `connectionRef`, and ignores late async state updates from a connection that was already disposed.
+- Backend CORS allowed origins now includes both `http://localhost:5173` and `https://localhost:5173`, so local HTTPS Vite can be used with the new `Secure` refresh cookie.
+
+Console diagnosis:
+
+- `POST /api/v1/auth/refresh` returning 401 means the browser did not send a valid `refresh_token` cookie. This is expected for old sessions created before the HttpOnly-cookie migration; user must log in once to receive the cookie.
+- If 401 continues after a fresh login, check browser cookie storage and scheme. The backend intentionally sets `Secure` + `SameSite=Strict`; with frontend on `http://localhost:5173` and API on `https://localhost:5001`, strict secure-cookie behavior can block cookie use in local dev. Use a same-scheme HTTPS frontend or revisit dev-only cookie policy deliberately.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Codex: Frontend uses HttpOnly refresh cookie and silent session bootstrap
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/hooks/useAuth.ts`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Axios client now uses `withCredentials: true`, so browser sends/receives the backend `refresh_token` HttpOnly cookie automatically.
+- Removed frontend JS refresh-token storage and API contract usage:
+  - removed `_refreshToken`
+  - removed `getRefreshToken`
+  - `setTokens` now takes only `accessToken` + optional `accessTokenExpiry`
+  - `AuthResponse` no longer has `refreshToken`
+  - `authApi.refresh()` sends no body
+  - `authApi.logout()` sends no body
+- Proactive 80%-lifetime refresh and reactive 401 retry now call cookie-backed `authApi.refresh()` with no JS-readable refresh token.
+- App-load auth bootstrap now attempts `authApi.refresh()` before `/auth/me` when no access token exists in memory. This fixes hard reload losing the JS access token while the HttpOnly refresh cookie still exists.
+- `/auth/refresh` 401 responses are excluded from the normal 401 retry loop to avoid recursive refresh attempts when the cookie is missing/expired.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Tried to run the local HTTPS API for the requested hard-reload manual test, but `dotnet run --launch-profile https` did not reach the listening state after ~90s and was stopped. Browser Cmd+R verification was not completed in this turn.
+- This frontend must deploy together with the backend cookie-auth change from the previous entry.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Codex acting for Claude Code: Refresh token moved to HttpOnly cookie
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Auth/AuthEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Auth/Models.cs`
+- `docs/AI_HANDOFF.md`
+
+BREAKING auth contract change:
+
+- Refresh tokens are no longer returned in `AuthResponse` JSON. `AuthResponse` now contains access token data only (`AccessToken`, `AccessTokenExpiry`, user metadata, `TwoFactorEnabled`).
+- `POST /api/v1/auth/login` and `POST /api/v1/auth/two-factor` now set `refresh_token` as an HttpOnly cookie instead of exposing it to frontend JS.
+- `POST /api/v1/auth/refresh` no longer accepts `RefreshRequest` body. It reads `refresh_token` from `ctx.Request.Cookies`, revokes it, issues a new access token, rotates the refresh token row, and sets a new refresh cookie.
+- `POST /api/v1/auth/logout` no longer accepts `LogoutRequest` body. It reads `refresh_token` from the cookie, revokes it for the current user when present, and clears the cookie.
+- `RefreshRequest` and `LogoutRequest` DTOs were removed.
+
+Cookie settings:
+
+- Name: `refresh_token`
+- `HttpOnly = true`
+- `Secure = true`
+- `SameSite = Strict`
+- `Path = "/api/v1/auth"`
+- `Expires` matches the actual stored `RefreshToken.ExpiresAt`, which is generated from `Jwt:RefreshTokenDays` (currently 7 days in appsettings).
+
+Deployment notes:
+
+- Must deploy together with matching frontend changes. Frontend must stop expecting `refreshToken` in `AuthResponse`, must call `/auth/refresh` and `/auth/logout` without body tokens, and must enable credentials on auth/API requests (`withCredentials: true`) so the cookie is sent.
+- `Program.cs` CORS already has `.AllowCredentials()` with configured allowed origins, so backend CORS is ready for credentialed cookie requests.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- Secure cookies require HTTPS in real browser use; local HTTP dev may need HTTPS backend/frontend or environment-specific handling.
+- Current frontend is expected to break until the matching cookie-based auth client change lands.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Codex: Proactive token refresh and SignalR handler consolidation
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/hooks/useAuth.ts`
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/hooks/useMarketData.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Frontend tokens now schedule a proactive refresh when `setTokens` runs. The timer uses `accessTokenExpiry` (falling back to JWT `exp`) and refreshes at ~80% of the token lifetime, so normal API calls and SignalR negotiation should not see stale access tokens.
+- Reactive 401 refresh remains as fallback; successful refreshes now reschedule the proactive timer with the new expiry.
+- `clearTokens` clears the proactive timer and stored expiry.
+- `useAuth` now passes `accessTokenExpiry` from login and two-factor responses into `setTokens`.
+- `useSignalR` now owns all MarketHub handlers (`PriceUpdate`, `MarketStatus`, `IndicatorUpdate`, `NewSignal`, `AutoSignalGenerated`) and registers them before `connection.start()`.
+- `useSignalR` also subscribes to `NIFTY` and `BANKNIFTY` groups immediately after initial connect and after automatic reconnect.
+- `useMarketData` no longer registers handlers on the shared connection; it only performs initial REST fetches and returns the connection state.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- The noisy backend warnings `No client method with the name 'marketstatus'` and `No client method with the name 'newsignal'` were treated as race symptoms. They should stop once this frontend is deployed because handlers are attached before start/reconnect, but this was not verified against a live running app in this turn.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Claude Code: JWT token lifetime 15→60min, ClockSkew 30s→5min (fixes auth/me 401 + SignalR negotiation loop)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/appsettings.Development.json`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `docs/AI_HANDOFF.md`
+
+Investigation findings:
+
+- `OnMessageReceived` / `JwtBearerEvents` in `Program.cs` was already correctly configured — SignalR query-string token extraction was NOT missing. This was NOT the cause.
+- `AccessTokenMinutes` = 15 in both prod and dev configs — this IS the cause. 15-minute tokens expire during an active session. The frontend refreshes reactively (on 401), not proactively. Gap between token expiry and successful refresh = window where every authenticated request 401s, AND SignalR's `accessTokenFactory` returns the same expired token on reconnect → "connection stopped during negotiation" loops at 15-20s intervals (matching SignalR's reconnect backoff).
+- `ClockSkew = TimeSpan.FromSeconds(30)` was an unusually tight value (ASP.NET default is 5 min). A server with any NTP drift could reject still-valid tokens early.
+
+Changes:
+
+- `AccessTokenMinutes`: 15 → 60. Users now have a full hour before needing a refresh — covers a normal trading session without hitting the expiry loop.
+- `ClockSkew`: `TimeSpan.FromSeconds(30)` → `TimeSpan.FromMinutes(5)`. Standard default; protects against server/client clock drift.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- 60-minute access token is still short enough to limit blast radius if a token is leaked — refresh tokens (7-day) are the real long-lived credential; access tokens are used for API calls and expire.
+- Frontend should ideally implement proactive refresh (e.g., refresh when token has < 5 min remaining) as a long-term fix to eliminate any reactive-refresh gaps entirely.
+
+Claude Code active files: none.
+
+### 2026-06-16 - Claude Code: ValidUntil always-expired fix — prompt date injection, safety net, unified response
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- **Root cause**: `SignalSystemPrompt` was a `const string` with a hardcoded example `validUntil` date (`2026-06-06T15:30:00+05:30` — a past date). The AI copied that stale date as its output. Additionally, the user prompt contained no current IST date, so the AI had no anchor for "today". Result: every generated signal was born already expired.
+- **Prompt fix**: `SignalSystemPrompt` → `BuildSignalSystemPrompt(DateTime istNow)` method. The example JSON now uses `{istNow:yyyy-MM-dd}T15:30:00+05:30` (today's IST date at runtime). The rule text also explicitly states: `use TODAY's date (YYYY-MM-DD) at 15:30:00+05:30 — do NOT use any other date`.
+- **User prompt fix**: `BuildSignalPrompt` now accepts `DateTime istNow` and injects `Current date and time (IST): YYYY-MM-DD HH:mm:ss IST` as the first line — gives the AI an unambiguous anchor for date-relative calculations.
+- **Safety net**: `parsedValidUntil` hoisted to a local variable (was inline in entity initializer). If the parsed/normalized value is `<= now`, logs `LogWarning` and overrides to `now.AddHours(4)`. Belt-and-suspenders regardless of AI behavior.
+- **Unified response**: Live `SignalResponse.ValidUntil` now uses `parsedValidUntil.ToString("O")` instead of raw `aiOutput.ValidUntil`. Dashboard live card and Signal History page now always agree on expiry, both normalized to UTC ISO 8601.
+- **IstZone static field** added to `AISignalService` (same pattern as `OptionsService`).
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- The `$$"""..."""` interpolated raw string literal requires C# 11+; project already targets .NET 10, so this is fine.
+
+Claude Code active files: none.
+
+### 2026-06-16 - Codex: Signal History padding aligned with Chain
+
+Files changed:
+
+- `frontend/src/pages/SignalHistory/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Signal History root wrapper now matches Chain page spacing exactly: `p-4 space-y-4 max-w-6xl mx-auto`.
+- Header now uses Chain-style `flex flex-wrap items-center gap-3` layout and `text-lg font-bold` title sizing.
+- Empty, error, and loading card states now use `p-4`, matching the SignalHistory card padding and app card spacing.
+- Responsive side padding now matches Chain on mobile and desktop.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Visual change only; no API or data-flow changes.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Claude Code: CRITICAL — DateTimeOffset UTC normalization (signal save root cause)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- **Root cause confirmed**: `AISignalService` built `Signal.ValidUntil` from `DateTimeOffset.TryParse(aiOutput.ValidUntil)`. Claude returns `ValidUntil` as an IST-offset string (e.g. `"2026-06-16T15:30:00+05:30"`); `TryParse` preserves the `+05:30` offset verbatim. Npgsql rejects any non-UTC `DateTimeOffset` on write to `timestamp with time zone` with `System.ArgumentException: Cannot write DateTimeOffset with Offset=05:30:00 to PostgreSQL type 'timestamp with time zone', only offset 0 (UTC) is supported`. This was the silent failure causing every signal to be shown to user but never saved to DB.
+- **Point fix**: `AISignalService.cs:157` — `? vu : now.AddHours(4)` → `? vu.ToUniversalTime() : now.AddHours(4)`. Instant unchanged; only the offset representation normalized to UTC before Npgsql writes it.
+- **Audit**: `grep -rn "DateTimeOffset.TryParse|DateTimeOffset.Parse"` found only one occurrence in the entire backend (the one above). No other call sites.
+- **Defense-in-depth**: `AppDbContext.OnModelCreating` now iterates all entity properties after existing entity configuration and attaches a `ValueConverter<DateTimeOffset, DateTimeOffset>` (and nullable variant) that calls `.ToUniversalTime()` on every write. Any future `DateTimeOffset` written through EF Core is automatically UTC-normalized, even if the call site forgets.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- The global converter in `AppDbContext` does not affect values read back from the DB (the `v => v` identity on the read side) — `DateTimeOffset` values read from Postgres come back as UTC already (Npgsql behavior), so no change on reads.
+- The global converter is applied after all entity-specific configuration, so it does not conflict with any `HasDefaultValueSql("now()")` columns (those are DB-side defaults, not written through the converter).
+
+Claude Code active files: none.
+
+### 2026-06-16 - Codex: Signal history dark-card redesign
+
+Files changed:
+
+- `frontend/src/pages/SignalHistory/index.tsx`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Replaced Signal History table with Dashboard AI Signals-style dark cards.
+- Each history item now shows signal type badge, Active/Expired badge, contract header, confidence, 3-column Entry/Target/Stop Loss price grid, optional rationale bullets when `rationale` is present, and footer tags for R:R, model, cost, created time, and status.
+- Pagination kept in the Backtest saved-run style (`Prev`/`Next`, bordered dark buttons, `start-end of total` count).
+- Added optional `rationale?: string[]` to `SignalHistoryItem` so the UI can render rationale if the endpoint includes it later. Current backend still omits rationale by design.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Current `GET /api/v1/signals/history` response does not include rationale, so rationale bullets stay hidden until backend adds that field.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Claude Code: VIX symbol corrected, day change reads Groww fields, signal save logs ERROR
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GetVixAsync`: confirmed correct trading_symbol from Groww instruments CSV (`growwapi-assets.groww.in/instruments/instrument.csv`) is `INDIAVIX` (no space, no encoding). Previous `INDIA%20VIX` always returned GA001 400. Collapsed two-try fallback structure to single attempt with `INDIAVIX`. Comment records the instrument CSV source.
+- `GetSpotSnapshotAsync`: `change` now prefers `day_change` field from Groww response, falls back to computed `ltp - prevClose`. `changePct` prefers `day_change_perc`, falls back to computed. Fixes dashboard showing `0.00 (+0.00%)` when Groww reports change directly.
+- `AISignalService.GenerateEntrySignalAsync`: signal-save `catch` upgraded from `LogWarning` (no detail) to `LogError` with `userId`, `symbol`, `strike`, `expiry` — makes silent save failures visible in production logs with enough context to diagnose root cause.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- `day_change_perc` field name unverified against a live Groww quote response — if still 0 after deploy, check actual response JSON via the new warning log and adjust field name.
+
+Codex active files: none.
+
+### 2026-06-16 - Codex: Signal history table page
+
+Files changed:
+
+- `frontend/src/App.tsx`
+- `frontend/src/pages/Dashboard/index.tsx`
+- `frontend/src/pages/SignalHistory/index.tsx` (new)
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Added `/signals/history` route with a paged signal history table.
+- Dashboard AI Signals `Full Analysis` action now opens the signal history page.
+- `signalsApi.getHistory` now calls `GET /api/v1/signals/history?page=1&pageSize=20` and returns the paged response.
+- Added `SignalHistoryItem`/`SignalHistoryResponse` frontend types. Response handling supports current backend fields (`totalItems`, `totalPages`) and the shorthand `total` shape if returned later.
+- Signal history table mirrors the Backtest trade-log table shell/classes: dark bordered rounded panel, compact text table, horizontal scroll, row hover, and Prev/Next pagination controls.
+- Columns shown: Date/Time, Symbol, Type, Strike, Confidence, Entry, Target, SL, Status. Status is derived client-side from `validUntil` (`Active` when still valid, otherwise `Expired`).
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- No symbol filter on the page because the new backend history endpoint removed `?symbol`; data is shown newest-first as sorted by backend.
+
+Claude Code active files: none. Codex active files: none.
+
+### 2026-06-16 - Claude Code: Paginated signal history endpoint
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/SignalEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GET /api/v1/signals/history` replaced non-paginated `?symbol&limit` version with `?page=1&pageSize=20` (page clamped ≥ 1, pageSize clamped 1–50).
+- Returns `SignalHistoryResponse { Items, Page, PageSize, TotalItems, TotalPages }` — same pattern as `BacktestHistoryResponse`.
+- `SignalHistoryItem` is a lighter projection than `SignalResponse`: omits `Rationale`, `InputTokens`, `OutputTokens` — reduces payload for history list.
+- Dates materialized in memory (EF Core can't translate `DateOnly.ToString()`); `Expiry` as `yyyy-MM-dd`, `CreatedAt`/`ValidUntil` as ISO 8601 `"O"` format.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- Old `?symbol` filter param removed; Codex signal history page should filter client-side or add a new `?symbol=` query param server-side if needed.
+
+Codex active files: signal history page (pending — build `GET /api/v1/signals/history?page=1&pageSize=20`, render `SignalHistoryResponse`, per-page nav).
+
+### 2026-06-16 - Claude Code: VIX logging, full-chain PCR/MaxPain, expiry includes today
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GetVixAsync`: silent `catch { return 0m; }` replaced with proper `LogWarning` on both exception and zero-result paths. First attempt uses `INDIA%20VIX`; if that returns 0 or throws, retries with `INDIAVIX` (no space). Raw Groww response body logged on zero-result so production logs show the actual error.
+- `OptionsService.GetChain`: display loop widened from ATM ±5 (11 strikes) to ATM ±10 (21 strikes). PCR now computed from the FULL Groww chain (`fullTotalCeOi`/`fullTotalPeOi` summed over all `growwChain` rows before the display loop) — falls back to the displayed-subset totals when Groww chain unavailable. MaxPain also computed from the full Groww chain via new `ComputeMaxPainFromGrowwChain(IReadOnlyList<GrowwOptionChainRow>)` — same algorithm as `ComputeMaxPain(rows)` but iterates Groww OI directly; falls back to displayed rows when chain unavailable.
+- `OptionsService.GetExpiries` (NIFTY weekly block): loop now starts at `i = 0` (was `i = 1`). Today included when it is Tuesday AND `now.TimeOfDay < 15:30 IST`; past-close Tuesdays skip to next week.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- VIX fallback symbol `INDIAVIX` unverified against live Groww response — both attempts are now logged so the correct symbol can be confirmed from production logs.
+- `GrowwSymbolHelper.cs` has no `GetNearestNiftyExpiry` method; the expiry fix lives entirely in `OptionsService.GetExpiries`.
+
+Claude Code active files: none.
+
 ### 2026-06-15 - Codex: Auto Signal Preferences UI
 
 Files changed:

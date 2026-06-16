@@ -34,47 +34,50 @@ public static class SignalEndpoints
             return Results.Ok(signal);
         }).WithName("GenerateSignal");
 
-        // GET /api/v1/signals/history?symbol=NIFTY&limit=20
+        // GET /api/v1/signals/history?page=1&pageSize=20
         group.MapGet("/history", async (
             AppDbContext db,
             IConfiguration config,
             HttpContext ctx,
-            string? symbol,
-            int limit = 20,
+            int page = 1,
+            int pageSize = 20,
             CancellationToken ct = default) =>
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
             var userId = ctx.GetUserId(config);
-            var query  = db.Signals
+            var query = db.Signals
                 .Where(s => s.UserId == userId)
-                .OrderByDescending(s => s.CreatedAt)
-                .AsQueryable();
+                .OrderByDescending(s => s.CreatedAt);
 
-            if (!string.IsNullOrEmpty(symbol))
-                query = query.Where(s => s.Symbol == symbol.ToUpper());
+            var total = await query.CountAsync(ct);
+            var signals = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
 
-            var signals = await query.Take(Math.Min(limit, 50)).ToListAsync(ct);
-
-            return Results.Ok(signals.Select(s => new SignalResponse(
+            var items = signals.Select(s => new SignalHistoryItem(
                 s.Id,
                 s.Symbol,
                 s.SignalType,
-                s.OptionType,
                 s.Strike,
+                s.OptionType,
                 s.Expiry.ToString("yyyy-MM-dd"),
+                s.Confidence,
                 s.EntryLow,
                 s.EntryHigh,
-                s.StopLoss,
                 s.Target1,
                 s.Target2,
-                s.Confidence,
+                s.StopLoss,
                 s.RiskReward,
-                s.Rationale,
                 s.ModelUsed,
-                s.InputTokens,
-                s.OutputTokens,
                 s.CostUsd,
-                s.ValidUntil.ToString("O"),
-                s.CreatedAt.ToString("O"))));
+                s.CreatedAt.ToString("O"),
+                s.ValidUntil.ToString("O"))).ToList();
+
+            var totalPages = (int)Math.Ceiling((double)total / pageSize);
+            return Results.Ok(new SignalHistoryResponse(items, page, pageSize, total, totalPages));
         }).WithName("GetSignalHistory");
 
         // GET /api/v1/signals/{id}

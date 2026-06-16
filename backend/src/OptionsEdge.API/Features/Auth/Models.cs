@@ -5,8 +5,6 @@ public record ConfirmEmailRequest(string UserId, string Token);
 public record ResendConfirmationRequest(string Email);
 public record LoginRequest(string Email, string Password);
 public record TwoFactorRequest(string Email, string Code, bool RememberMachine = false);
-public record RefreshRequest(string RefreshToken);
-public record LogoutRequest(string RefreshToken);
 public record ForgotPasswordRequest(string Email);
 public record ResetPasswordRequest(string Email, string Token, string NewPassword, string ConfirmPassword);
 public record VerifyTwoFactorSetupRequest(string Code);
@@ -15,7 +13,6 @@ public record ChangePasswordRequest(string CurrentPassword, string NewPassword, 
 
 public record AuthResponse(
     string AccessToken,
-    string RefreshToken,
     string AccessTokenExpiry,
     Guid UserId,
     string DisplayName,

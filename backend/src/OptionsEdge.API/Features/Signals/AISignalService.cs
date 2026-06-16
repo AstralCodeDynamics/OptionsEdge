@@ -31,6 +31,14 @@ public class AISignalService(
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly TimeZoneInfo IstZone = GetIstZone();
+
+    private static TimeZoneInfo GetIstZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); }
+        catch { return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); }
+    }
+
     public async Task<(SignalResponse Signal, string? Error)> GenerateEntrySignalAsync(
         string symbol,
         Guid userId,
@@ -85,13 +93,14 @@ public class AISignalService(
 
         // Build prompt
         var model  = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
-        var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries);
+        var istNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstZone);
+        var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries, istNow);
 
         logger.LogInformation("Calling Claude Sonnet for {Symbol} signal", key);
         var claudeResp = await claude.CompleteAsync(
             apiKey,
             model,
-            SignalSystemPrompt,
+            BuildSignalSystemPrompt(istNow),
             prompt,
             AppConstants.AiTokenLimits.SonnetMaxTokens,
             ct);
@@ -111,6 +120,18 @@ public class AISignalService(
 
         decimal cost = ClaudeApiClient.CalculateCost(model, claudeResp.InputTokens, claudeResp.OutputTokens);
         var now = DateTimeOffset.UtcNow;
+
+        // Normalize ValidUntil to UTC and apply safety net: a signal must never be born expired.
+        var parsedValidUntil = DateTimeOffset.TryParse(aiOutput.ValidUntil, out var vu)
+            ? vu.ToUniversalTime()
+            : now.AddHours(4);
+        if (parsedValidUntil <= now)
+        {
+            logger.LogWarning(
+                "AI returned ValidUntil ({ValidUntil}) not after now ({Now}) for user {UserId}, symbol {Symbol}. Falling back to now + 4 hours.",
+                parsedValidUntil, now, userId, aiOutput.Symbol);
+            parsedValidUntil = now.AddHours(4);
+        }
 
         // Persist signal to DB
         Guid signalId = Guid.NewGuid();
@@ -154,7 +175,7 @@ public class AISignalService(
                     InputTokens    = claudeResp.InputTokens,
                     OutputTokens   = claudeResp.OutputTokens,
                     CostUsd        = cost,
-                    ValidUntil     = DateTimeOffset.TryParse(aiOutput.ValidUntil, out var vu) ? vu : now.AddHours(4),
+                    ValidUntil     = parsedValidUntil,
                     CreatedAt      = now,
                 };
                 db.Signals.Add(signal);
@@ -176,7 +197,10 @@ public class AISignalService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to persist signal to DB, continuing");
+                logger.LogError(ex,
+                    "Failed to persist signal to DB for user {UserId}, symbol {Symbol}, " +
+                    "strike {Strike}, expiry {Expiry}. Signal was shown to user but will NOT appear in history.",
+                    userId, aiOutput.Symbol, aiOutput.Strike, aiOutput.Expiry);
             }
         }
 
@@ -199,7 +223,7 @@ public class AISignalService(
             InputTokens:  claudeResp.InputTokens,
             OutputTokens: claudeResp.OutputTokens,
             CostUsd:      cost,
-            ValidUntil:   aiOutput.ValidUntil,
+            ValidUntil:   parsedValidUntil.ToString("O"),
             CreatedAt:    now.ToString("O"));
 
         cache.Set(cacheKey, result);
@@ -252,13 +276,15 @@ public class AISignalService(
         string symbol,
         Indicators.IndicatorsResponse ind,
         MarketSnapshotData snap,
-        IReadOnlyList<string> expiries)
+        IReadOnlyList<string> expiries,
+        DateTime istNow)
     {
         var atm = symbol == "NIFTY"
             ? (int)Math.Round((double)snap.Ltp / 50) * 50
             : (int)Math.Round((double)snap.Ltp / 100) * 100;
 
         return $"""
+            Current date and time (IST): {istNow:yyyy-MM-dd HH:mm:ss} IST
             Symbol: {symbol}
             Spot: {snap.Ltp:F2} | Change: {snap.ChangePct:F2}%
             VIX: {snap.Vix:F2} | PCR: {snap.Pcr:F2}
@@ -292,13 +318,17 @@ public class AISignalService(
         Assess the risk of this position now.
         """;
 
-    private const string SignalSystemPrompt = """
+    // Not a const — must embed today's IST date in the example so the AI anchors to the
+    // correct date when computing validUntil. A stale hardcoded date in the example causes
+    // the AI to copy that past date, producing a signal that is already expired on arrival.
+    private static string BuildSignalSystemPrompt(DateTime istNow) =>
+        $$"""
         You are a professional NIFTY/BANKNIFTY options trader with deep expertise in technical analysis and options pricing.
 
         Analyze the market data and generate a precise trading signal. You MUST respond with ONLY a valid JSON object — no markdown, no code fences, no explanation, just the JSON.
 
         JSON schema (use exactly these field names):
-        {"signalType":"ENTRY","symbol":"NIFTY","strike":24200,"optionType":"CE","expiry":"2026-06-12","entryLow":180,"entryHigh":200,"stopLoss":120,"target1":300,"target2":420,"confidence":72,"riskReward":1.85,"rationale":["RSI recovering from oversold","MACD bullish crossover forming","PCR supportive for CE buying"],"validUntil":"2026-06-06T15:30:00+05:30"}
+        {"signalType":"ENTRY","symbol":"NIFTY","strike":24200,"optionType":"CE","expiry":"{{istNow:yyyy-MM-dd}}","entryLow":180,"entryHigh":200,"stopLoss":120,"target1":300,"target2":420,"confidence":72,"riskReward":1.85,"rationale":["RSI recovering from oversold","MACD bullish crossover forming","PCR supportive for CE buying"],"validUntil":"{{istNow:yyyy-MM-dd}}T15:30:00+05:30"}
 
         Rules:
         - signalType: ENTRY (new trade), HOLD (stay in), WATCH (not yet), EXIT (close)
@@ -307,7 +337,7 @@ public class AISignalService(
         - Target1 must be R:R >= 1.5 from stop loss
         - confidence: realistic 55-85 range
         - rationale: 3-4 specific technical reasons
-        - validUntil: end of current trading session (15:30 IST)
+        - validUntil: use TODAY's date ({{istNow:yyyy-MM-dd}}) at 15:30:00+05:30, which is the end of the current trading session. Use the "Current date and time (IST)" from the user prompt — do NOT use any other date.
         - expiry: NIFTY weekly options expire every Tuesday on NSE (effective Sep 2025).
           BANKNIFTY weekly contracts were discontinued (Nov 2024) — only the monthly
           expiry (last Tuesday of the month) is available. Pick the expiry from the

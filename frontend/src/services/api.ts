@@ -4,7 +4,7 @@ import type {
   ChatMessage, BacktestResult, BacktestHistoryResponse, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
-  UsageStats, SignalPreferenceRequest, SignalPreferenceResponse,
+  UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -12,28 +12,103 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
 // Tokens are kept in module-level memory only — never localStorage/sessionStorage.
 let _accessToken: string | null = null
-let _refreshToken: string | null = null
+let _accessTokenExpiryMs: number | null = null
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-export function setTokens(access: string, refresh: string): void {
+function clearRefreshTimer(): void {
+  if (_refreshTimer) {
+    clearTimeout(_refreshTimer)
+    _refreshTimer = null
+  }
+}
+
+function parseJwtPayload(token: string): { exp?: number; iat?: number } | null {
+  const [, payload] = token.split('.')
+  if (!payload) return null
+
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    return JSON.parse(atob(padded)) as { exp?: number; iat?: number }
+  } catch {
+    return null
+  }
+}
+
+function tokenExpiryMs(access: string, accessTokenExpiry?: string): number | null {
+  if (accessTokenExpiry) {
+    const parsed = Date.parse(accessTokenExpiry)
+    if (!Number.isNaN(parsed)) return parsed
+  }
+
+  const exp = parseJwtPayload(access)?.exp
+  return exp ? exp * 1000 : null
+}
+
+function scheduleProactiveRefresh(): void {
+  clearRefreshTimer()
+
+  if (!_accessToken || !_accessTokenExpiryMs) return
+
+  const now = Date.now()
+  const payload = parseJwtPayload(_accessToken)
+  const issuedAtMs = payload?.iat ? payload.iat * 1000 : now
+  const lifetimeMs = Math.max(_accessTokenExpiryMs - issuedAtMs, 0)
+  const fallbackRemainingMs = Math.max(_accessTokenExpiryMs - now, 0)
+  const refreshAtMs = lifetimeMs > 0
+    ? issuedAtMs + lifetimeMs * 0.8
+    : now + fallbackRemainingMs * 0.8
+  const delayMs = Math.max(0, refreshAtMs - now)
+
+  _refreshTimer = setTimeout(() => {
+    proactiveRefresh().catch(() => {})
+  }, delayMs)
+}
+
+async function refreshTokens(): Promise<AuthResponse> {
+  const data = await authApi.refresh()
+  setTokens(data.accessToken, data.accessTokenExpiry)
+  return data
+}
+
+async function proactiveRefresh(): Promise<void> {
+  if (_isRefreshing) return
+
+  _isRefreshing = true
+  try {
+    const data = await refreshTokens()
+    _refreshQueue.forEach((p) => p.resolve(data.accessToken))
+    _refreshQueue = []
+  } catch (refreshError) {
+    _refreshQueue.forEach((p) => p.reject(refreshError))
+    _refreshQueue = []
+    clearTokens()
+    useAppStore.getState().logout()
+    redirectToLogin()
+  } finally {
+    _isRefreshing = false
+  }
+}
+
+export function setTokens(access: string, accessTokenExpiry?: string): void {
   _accessToken = access
-  _refreshToken = refresh
+  _accessTokenExpiryMs = tokenExpiryMs(access, accessTokenExpiry)
+  scheduleProactiveRefresh()
 }
 
 export function clearTokens(): void {
   _accessToken = null
-  _refreshToken = null
+  _accessTokenExpiryMs = null
+  clearRefreshTimer()
 }
 
 export function getAccessToken(): string | null {
   return _accessToken
 }
 
-export function getRefreshToken(): string | null {
-  return _refreshToken
-}
-
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -61,16 +136,15 @@ api.interceptors.response.use(
   async (error) => {
     const status = error.response?.status
     const originalRequest = error.config
+    const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh')
+
+    if (status === 401 && isRefreshRequest) {
+      clearTokens()
+      useAppStore.getState().logout()
+      return Promise.reject(error)
+    }
 
     if (status === 401 && originalRequest && !originalRequest._retry) {
-      const refresh = getRefreshToken()
-      if (!refresh) {
-        clearTokens()
-        useAppStore.getState().logout()
-        redirectToLogin()
-        return Promise.reject(error)
-      }
-
       if (_isRefreshing) {
         return new Promise((resolve, reject) => {
           _refreshQueue.push({
@@ -89,8 +163,7 @@ api.interceptors.response.use(
       _isRefreshing = true
 
       try {
-        const data = await authApi.refresh(refresh)
-        setTokens(data.accessToken, data.refreshToken)
+        const data = await refreshTokens()
 
         _refreshQueue.forEach((p) => p.resolve(data.accessToken))
         _refreshQueue = []
@@ -166,11 +239,11 @@ export const optionsApi = {
 export const signalsApi = {
   generate: (symbol: string) =>
     api.post<Signal>('/signals/generate', { symbol }).then((r) => r.data),
-  getHistory: (symbol?: string, limit = 20) => {
-    const params = new URLSearchParams()
-    if (symbol) params.set('symbol', symbol)
-    params.set('limit', String(limit))
-    return api.get<Signal[]>(`/signals/history?${params}`).then((r) => r.data)
+  getHistory: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams()
+    q.set('page', String(params?.page ?? 1))
+    q.set('pageSize', String(params?.pageSize ?? 20))
+    return api.get<SignalHistoryResponse>(`/signals/history?${q}`).then((r) => r.data)
   },
   getById: (id: string) =>
     api.get<Signal>(`/signals/${id}`).then((r) => r.data),
@@ -413,11 +486,11 @@ export const authApi = {
   twoFactor: (email: string, code: string) =>
     api.post<AuthResponse>('/auth/two-factor', { email, code }).then((r) => r.data),
 
-  refresh: (refreshToken: string) =>
-    api.post<AuthResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
+  refresh: () =>
+    api.post<AuthResponse>('/auth/refresh').then((r) => r.data),
 
-  logout: (refreshToken: string) =>
-    api.post('/auth/logout', { refreshToken }),
+  logout: () =>
+    api.post('/auth/logout').then((r) => r.data),
 
   forgotPassword: (email: string) =>
     api.post<{ message: string }>('/auth/forgot-password', { email }).then((r) => r.data),

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/appStore'
-import { authApi, setTokens, clearTokens, getRefreshToken } from '../services/api'
+import { authApi, setTokens, clearTokens, getAccessToken } from '../services/api'
 import type { AuthResponse, AuthUser, MeResponse, TwoFactorRequiredResponse } from '../types'
 
 function toAuthUser(me: MeResponse): AuthUser {
@@ -30,6 +30,11 @@ export function useAuth() {
 
   const checkAuth = useCallback(async () => {
     try {
+      if (!getAccessToken()) {
+        const data = await authApi.refresh()
+        setTokens(data.accessToken, data.accessTokenExpiry)
+      }
+
       const me = await authApi.me()
       setUser(toAuthUser(me))
       setIsAuthenticated(true)
@@ -50,7 +55,7 @@ export function useAuth() {
         return { requiresTwoFactor: true as const, email: result.email }
       }
 
-      setTokens(result.accessToken, result.refreshToken)
+      setTokens(result.accessToken, result.accessTokenExpiry)
       setUser({
         id: result.userId,
         email: result.email,
@@ -69,7 +74,7 @@ export function useAuth() {
   const completeTwoFactor = useCallback(
     async (email: string, code: string) => {
       const result = await authApi.twoFactor(email, code)
-      setTokens(result.accessToken, result.refreshToken)
+      setTokens(result.accessToken, result.accessTokenExpiry)
       setUser({
         id: result.userId,
         email: result.email,
@@ -86,10 +91,7 @@ export function useAuth() {
   )
 
   const logout = useCallback(async () => {
-    const refreshToken = getRefreshToken()
-    if (refreshToken) {
-      await authApi.logout(refreshToken).catch(() => {})
-    }
+    await authApi.logout().catch(() => {})
     clearTokens()
     storeLogout()
     navigate('/login')

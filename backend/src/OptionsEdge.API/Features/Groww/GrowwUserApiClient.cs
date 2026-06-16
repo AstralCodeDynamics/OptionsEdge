@@ -195,8 +195,11 @@ public class GrowwUserApiClient(
         decimal high = GetDecimal(root, "high") ?? GetDecimal(root, "day_high") ?? ltp;
         decimal low = GetDecimal(root, "low") ?? GetDecimal(root, "day_low") ?? ltp;
         decimal prevClose = GetDecimal(root, "close") ?? GetDecimal(root, "prev_close") ?? GetDecimal(root, "previous_close") ?? ltp;
-        decimal change = Math.Round(ltp - prevClose, 2);
-        decimal changePct = prevClose != 0 ? Math.Round(change / prevClose * 100, 2) : 0;
+        // Prefer Groww's directly-reported day_change/day_change_perc; fall back to computed
+        // values from prevClose when Groww doesn't include them.
+        decimal change = GetDecimal(root, "day_change") ?? Math.Round(ltp - prevClose, 2);
+        decimal changePct = GetDecimal(root, "day_change_perc") ??
+            (prevClose != 0 ? Math.Round(change / prevClose * 100, 2) : 0);
 
         return new MarketSnapshotData(
             Symbol: symbol,
@@ -219,17 +222,26 @@ public class GrowwUserApiClient(
     // India VIX is symbol-agnostic, so callers fetch it once (for NIFTY) and reuse the value
     // for BANKNIFTY rather than calling Groww again. Failure is non-critical — VIX-dependent
     // UI/IV-smile calculations fall back to 0.
+    // Confirmed trading_symbol from Groww instrument CSV: "INDIAVIX" (no space, no encoding).
     public async Task<decimal> GetVixAsync(Guid userId, CancellationToken ct = default)
     {
         try
         {
             var root = Unwrap(await SendAsync(userId, HttpMethod.Get,
-                "/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=INDIA%20VIX",
+                "/v1/live-data/quote?exchange=NSE&segment=CASH&trading_symbol=INDIAVIX",
                 null, ct));
-            return GetDecimal(root, "last_price") ?? 0m;
+            var vix = GetDecimal(root, "last_price") ?? 0m;
+
+            if (vix == 0m)
+                logger.LogWarning(
+                    "Groww VIX quote returned 0 or missing last_price for user {UserId}. Raw: {Response}",
+                    userId, root.ToString());
+
+            return vix;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Failed to fetch India VIX for user {UserId}", userId);
             return 0m;
         }
     }

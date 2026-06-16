@@ -3,29 +3,7 @@ import api from '../services/api'
 import { indicatorsApi } from '../services/api'
 import { useAppStore } from '../store/appStore'
 import { useSignalR } from './useSignalR'
-import type { MarketSnapshot, MarketStatus, RsiIndicator, MacdIndicator, Signal } from '../types'
-
-interface PriceUpdateEvent {
-  symbol: string
-  ltp: number
-  change: number
-  changePct: number
-  timestamp: string
-}
-
-interface MarketStatusEvent {
-  isOpen: boolean
-  message: string
-  nextEvent: string
-}
-
-interface IndicatorUpdateEvent {
-  symbol: string
-  rsi: RsiIndicator
-  macd: MacdIndicator
-  supertrendSignal: string
-  timestamp: string
-}
+import type { MarketSnapshot, MarketStatus } from '../types'
 
 const HUB_URL = import.meta.env.VITE_HUB_URL as string
 
@@ -33,8 +11,7 @@ export function useMarketData() {
   const setSnapshot = useAppStore((s) => s.setSnapshot)
   const setMarketStatus = useAppStore((s) => s.setMarketStatus)
   const setIndicators = useAppStore((s) => s.setIndicators)
-  const prependSignal = useAppStore((s) => s.prependSignal)
-  const { connectionState, connectionRef } = useSignalR(HUB_URL)
+  const { connectionState } = useSignalR(HUB_URL)
 
   // Initial REST fetch for both symbols
   useEffect(() => {
@@ -54,58 +31,6 @@ export function useMarketData() {
         .catch(() => {})
     }
   }, [])
-
-  // Subscribe to SignalR groups and register event handlers
-  useEffect(() => {
-    const conn = connectionRef.current
-    if (!conn || connectionState !== 'connected') return
-
-    // Subscribe to both index groups
-    conn.invoke('SubscribeToSymbol', 'NIFTY').catch(() => {})
-    conn.invoke('SubscribeToSymbol', 'BANKNIFTY').catch(() => {})
-
-    const handlePriceUpdate = (event: PriceUpdateEvent) => {
-      // Merge live price into existing snapshot
-      const snapshots = useAppStore.getState().snapshots
-      const existing = snapshots[event.symbol]
-      if (existing) {
-        setSnapshot({
-          ...existing,
-          ltp: event.ltp,
-          change: event.change,
-          changePct: event.changePct,
-          timestamp: event.timestamp,
-        })
-      }
-    }
-
-    const handleMarketStatus = (event: MarketStatusEvent) => {
-      setMarketStatus(event)
-    }
-
-    const handleIndicatorUpdate = (event: IndicatorUpdateEvent) => {
-      // On tick, re-fetch full indicators (SignalR event signals freshness)
-      indicatorsApi.getIndicators(event.symbol)
-        .then((data) => setIndicators(event.symbol, data))
-        .catch(() => {})
-    }
-
-    const handleNewSignal = (signal: Signal) => {
-      prependSignal(signal)
-    }
-
-    conn.on('PriceUpdate', handlePriceUpdate)
-    conn.on('MarketStatus', handleMarketStatus)
-    conn.on('IndicatorUpdate', handleIndicatorUpdate)
-    conn.on('NewSignal', handleNewSignal)
-
-    return () => {
-      conn.off('PriceUpdate', handlePriceUpdate)
-      conn.off('MarketStatus', handleMarketStatus)
-      conn.off('IndicatorUpdate', handleIndicatorUpdate)
-      conn.off('NewSignal', handleNewSignal)
-    }
-  }, [connectionState])
 
   return { connectionState }
 }
