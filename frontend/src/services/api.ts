@@ -4,7 +4,7 @@ import type {
   ChatMessage, BacktestResult, BacktestHistoryResponse, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
-  UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse,
+  UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse, LotSizeConfig,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -203,6 +203,10 @@ export const marketApi = {
   getCandles: (symbol: string) =>
     api.get<Candle[]>(`/market/candles/${symbol}`).then((r) => r.data),
   getStatus: () => api.get<MarketStatus>('/market/status').then((r) => r.data),
+}
+
+export const configApi = {
+  getLotSizes: () => api.get<LotSizeConfig>('/config/lot-sizes').then((r) => r.data),
 }
 
 export const indicatorsApi = {

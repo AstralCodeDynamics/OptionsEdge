@@ -131,6 +131,11 @@ export interface StrategyLeg {
   vega?: number
 }
 
+export interface LotSizeConfig {
+  NIFTY: number
+  BANKNIFTY: number
+}
+
 export interface PayoffPoint {
   price: number
   pnl: number

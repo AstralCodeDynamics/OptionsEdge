@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLotSizes } from '../../hooks/useLotSizes'
 import type { Signal } from '../../types'
 
 interface Props {
@@ -9,18 +10,17 @@ interface Props {
   orderPlacementEnabled: boolean
 }
 
-const LOT_SIZE: Record<string, number> = { NIFTY: 75, BANKNIFTY: 35 }
-
 export default function OrderConfirmModal({ open, onClose, signal, onConfirm, orderPlacementEnabled }: Props) {
   const [lots, setLots] = useState(1)
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { getLotSize, loading: lotSizesLoading, error: lotSizesError } = useLotSizes()
 
   if (!open || !signal) return null
 
-  const lotSize = LOT_SIZE[signal.symbol] ?? 75
-  const quantity = lots * lotSize
-  const estimatedCost = signal.entryHigh * quantity
+  const lotSize = getLotSize(signal.symbol)
+  const quantity = lotSize === null ? null : lots * lotSize
+  const estimatedCost = quantity === null ? null : signal.entryHigh * quantity
 
   const fmt = (v: number) =>
     v.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -75,7 +75,13 @@ export default function OrderConfirmModal({ open, onClose, signal, onConfirm, or
                 onClick={() => setLots((l) => l + 1)}
                 className="w-9 h-9 flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-lg"
               >+</button>
-              <span className="text-xs text-gray-500">= {quantity} qty (lot size {lotSize})</span>
+              <span className="text-xs text-gray-500">
+                {lotSize === null
+                  ? lotSizesLoading
+                    ? 'Loading lot size...'
+                    : 'Lot size unavailable'
+                  : `= ${quantity} qty (lot size ${lotSize})`}
+              </span>
             </div>
           </div>
 
@@ -86,7 +92,11 @@ export default function OrderConfirmModal({ open, onClose, signal, onConfirm, or
             </div>
             <div className="bg-gray-800 rounded-lg p-2.5">
               <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Est. Cost</p>
-              <p className="text-sm font-bold text-white">₹{estimatedCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+              <p className="text-sm font-bold text-white">
+                {estimatedCost === null
+                  ? 'Loading...'
+                  : `₹${estimatedCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+              </p>
             </div>
             <div className="bg-gray-800 rounded-lg p-2.5">
               <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Stop Loss</p>
@@ -108,6 +118,11 @@ export default function OrderConfirmModal({ open, onClose, signal, onConfirm, or
             <p className="text-red-400 text-xs">{error}</p>
           </div>
         )}
+        {!error && lotSizesError && (
+          <div className="bg-red-900/40 border border-red-700/50 rounded-lg px-3 py-2 mb-3">
+            <p className="text-red-400 text-xs">{lotSizesError}</p>
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -119,10 +134,10 @@ export default function OrderConfirmModal({ open, onClose, signal, onConfirm, or
           {orderPlacementEnabled ? (
             <button
               onClick={handleConfirm}
-              disabled={placing}
+              disabled={placing || lotSize === null}
               className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl py-3 transition-colors"
             >
-              {placing ? 'Placing…' : 'Confirm Order'}
+              {placing ? 'Placing…' : lotSize === null ? 'Loading Config…' : 'Confirm Order'}
             </button>
           ) : (
             <button

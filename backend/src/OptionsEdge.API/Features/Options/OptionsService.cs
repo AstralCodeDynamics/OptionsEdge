@@ -1,12 +1,16 @@
 using Microsoft.Extensions.Caching.Memory;
-using OptionsEdge.API.Common.Constants;
+using Microsoft.Extensions.Options;
+using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Options;
 
-public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
+public class OptionsService(
+    IMarketDataService marketData,
+    IMemoryCache cache,
+    IOptionsMonitor<LotSizeOptions> lotSizeOptions)
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
     private const double RiskFreeRate = 0.065; // 6.5% India risk-free rate
@@ -271,7 +275,7 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
             FindBreakevens(curve));
     }
 
-    private static ResolvedLeg ResolveLeg(PayoffLegRequest leg)
+    private ResolvedLeg ResolveLeg(PayoffLegRequest leg)
     {
         var symbol = leg.Symbol.ToUpperInvariant();
         if (symbol is not ("NIFTY" or "BANKNIFTY"))
@@ -287,7 +291,7 @@ public class OptionsService(IMarketDataService marketData, IMemoryCache cache)
         if (leg.Premium < 0)
             throw new ArgumentException("Premium cannot be negative");
 
-        int lotSize = symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+        int lotSize = lotSizeOptions.CurrentValue.GetLotSize(symbol);
         return new ResolvedLeg(
             Strike:   leg.Strike,
             IsCall:   optionType == "CE",

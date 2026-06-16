@@ -39,10 +39,4 @@ public static class AppConstants
     {
         public const int SignalTtlMinutes = 5;
     }
-
-    public static class LotSizes
-    {
-        public const int Nifty = 75;
-        public const int BankNifty = 35;
-    }
 }

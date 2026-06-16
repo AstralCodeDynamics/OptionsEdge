@@ -17,6 +17,52 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: CRITICAL lot-size fix — NIFTY/BANKNIFTY now config-driven, not hardcoded
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Common/Constants/AppConstants.cs`
+- `backend/src/OptionsEdge.API/Common/Options/LotSizeOptions.cs`
+- `backend/src/OptionsEdge.API/Features/Config/ConfigEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Positions/PositionService.cs`
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwOrderService.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `backend/src/OptionsEdge.API/Features/Backtest/BacktestService.cs`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/appsettings.Development.json`
+- `frontend/src/hooks/useLotSizes.ts`
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `frontend/src/components/groww/OrderConfirmModal.tsx`
+- `frontend/src/components/strategy/StrategyBuilder.tsx`
+- `backend/tests/OptionsEdge.API.Tests/TestOptionsMonitor.cs`
+- `backend/tests/OptionsEdge.API.Tests/PositionAlertConditionTests.cs`
+- `backend/tests/OptionsEdge.API.Tests/PositionLotSizeTests.cs`
+- `backend/tests/OptionsEdge.API.Tests/LotSizeConfigurationReloadTests.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Removed stale compile-time lot-size constants (`NIFTY 75`, `BANKNIFTY 35`) from `AppConstants`. Lot sizes now live in `appsettings.json` / `appsettings.Development.json` under `LotSizes` with current values `NIFTY: 65`, `BANKNIFTY: 30`.
+- Added typed `LotSizeOptions` and wired `builder.Services.Configure<LotSizeOptions>(...)` in `Program.cs`.
+- `PositionService`, `GrowwOrderService`, `OptionsService`, and `BacktestService` now read lot sizes from `IOptionsMonitor<LotSizeOptions>`, so P&L, order quantity, payoff quantity, Groww import lot parsing, and backtests all use same runtime config source.
+- Added `GET /api/v1/config/lot-sizes`, returning uppercase keys (`NIFTY`, `BANKNIFTY`) for frontend consumers.
+- Frontend removed hardcoded lot-size maps. `OrderConfirmModal` and `StrategyBuilder` now use shared `useLotSizes` hook backed by `/api/v1/config/lot-sizes`, with cached fetch and loading/error states instead of local constants.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj --no-restore` — 31 passed.
+- `npm run build` in `frontend/` passed.
+
+Notes:
+
+- `LotSizeConfigurationReloadTests` writes a temporary `appsettings.json`, changes `NIFTY` from `65` to `75`, waits for `IOptionsMonitor` reload, and verifies same `PositionService` instance changes P&L from `650` to `750` without code changes or service recreation.
+- Future NSE/SEBI lot-size revisions should change config only; do not reintroduce hardcoded lot-size maps in backend or frontend.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: SignalR dev StrictMode negotiation stop fixed with shared connection
 
 Files changed:

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using OptionsEdge.API.Common.Constants;
+using Microsoft.Extensions.Options;
+using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Infrastructure.Data;
 using OptionsEdge.API.Infrastructure.Groww;
@@ -9,6 +10,7 @@ namespace OptionsEdge.API.Features.Groww;
 public class GrowwOrderService(
     GrowwUserApiClient groww,
     AppDbContext db,
+    IOptionsMonitor<LotSizeOptions> lotSizeOptions,
     ILogger<GrowwOrderService> logger)
 {
     public async Task<PlaceOrderResponse> PlaceOrderAsync(Guid userId, PlaceOrderRequest req, CancellationToken ct = default)
@@ -28,7 +30,7 @@ public class GrowwOrderService(
         var symbol = req.Symbol.ToUpper();
         var optionType = req.OptionType.ToUpper();
         var tradingSymbol = GrowwSymbolHelper.FormatOptionSymbol(symbol, expiry, req.Strike, optionType);
-        int lotSize = symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+        int lotSize = lotSizeOptions.CurrentValue.GetLotSize(symbol);
 
         var referenceId = req.PositionId is { } pid
             ? $"OE-{pid:N}"[..11]
@@ -92,7 +94,7 @@ public class GrowwOrderService(
                 p.Expiry == parsed.Expiry);
             if (alreadyTracked) continue;
 
-            int lotSize = parsed.Symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+            int lotSize = lotSizeOptions.CurrentValue.GetLotSize(parsed.Symbol);
             int lots = Math.Max(1, Math.Abs(gp.Quantity) / lotSize);
 
             db.Positions.Add(new Position

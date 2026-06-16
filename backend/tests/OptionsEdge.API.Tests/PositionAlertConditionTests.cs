@@ -1,4 +1,5 @@
 using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Features.Positions;
 
 namespace OptionsEdge.API.Tests;
@@ -7,7 +8,12 @@ namespace OptionsEdge.API.Tests;
 // the rule PositionMonitorWorker evaluates every tick against live LTP/spot/VIX readings.
 public class PositionAlertConditionTests
 {
-    private readonly PositionService _service = new();
+    private readonly PositionService _service = new(
+        new TestOptionsMonitor<LotSizeOptions>(new LotSizeOptions
+        {
+            NIFTY = 65,
+            BANKNIFTY = 30,
+        }));
 
     private static Position CallPosition(decimal stopLoss = 90m, decimal target1 = 130m, decimal? target2 = 150m, decimal entryPrice = 110m) => new()
     {

@@ -1,9 +1,10 @@
-using OptionsEdge.API.Common.Constants;
+using Microsoft.Extensions.Options;
 using OptionsEdge.API.Domain.Entities;
+using OptionsEdge.API.Common.Options;
 
 namespace OptionsEdge.API.Features.Positions;
 
-public class PositionService
+public class PositionService(IOptionsMonitor<LotSizeOptions> lotSizeOptions)
 {
     public decimal CalculatePnL(Position position, decimal currentLtp)
     {
@@ -116,6 +117,5 @@ public class PositionService
         return triggers;
     }
 
-    private static int GetLotSize(string symbol) =>
-        symbol.ToUpper() == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+    private int GetLotSize(string symbol) => lotSizeOptions.CurrentValue.GetLotSize(symbol);
 }

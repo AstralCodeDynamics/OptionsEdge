@@ -1,7 +1,8 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
-using OptionsEdge.API.Common.Constants;
+using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Infrastructure.Data;
 using OptionsEdge.API.Infrastructure.Groww;
 using OptionsEdge.API.Infrastructure.MockData;
@@ -17,6 +18,7 @@ public class BacktestService(
     IMarketDataService marketData,
     AppDbContext db,
     IConfiguration config,
+    IOptionsMonitor<LotSizeOptions> lotSizeOptions,
     ILogger<BacktestService> logger)
 {
     private const double RiskFreeRate = 0.065;
@@ -77,7 +79,7 @@ public class BacktestService(
         if (req.StopLossPoints is <= 0)
             throw new ArgumentException("StopLossPoints must be greater than 0");
 
-        int lotSize = symbol == "BANKNIFTY" ? AppConstants.LotSizes.BankNifty : AppConstants.LotSizes.Nifty;
+        int lotSize = lotSizeOptions.CurrentValue.GetLotSize(symbol);
         int step = StrikeStep[symbol];
 
         var intraday = marketData.GetCandles(symbol);

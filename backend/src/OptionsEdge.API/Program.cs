@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
 using OptionsEdge.API.Features.Auth;
 using OptionsEdge.API.Features.Backtest;
 using OptionsEdge.API.Features.Billing;
 using OptionsEdge.API.Features.Chat;
+using OptionsEdge.API.Features.Config;
 using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Market;
@@ -31,6 +33,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddSignalR();
+builder.Services.Configure<LotSizeOptions>(builder.Configuration.GetSection("LotSizes"));
 
 // AuthSettings drives dev-friendly toggles for email confirmation, 2FA, lockout and email sending
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("AuthSettings"));
@@ -159,6 +162,7 @@ app.MapOptionsEndpoints();
 app.MapSignalEndpoints();
 app.MapPositionEndpoints();
 app.MapChatEndpoints();
+app.MapConfigEndpoints();
 app.MapGrowwEndpoints();
 app.MapBacktestEndpoints();
 app.MapUsageEndpoints();

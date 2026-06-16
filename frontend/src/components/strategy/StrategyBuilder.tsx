@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLotSizes } from '../../hooks/useLotSizes'
 import { optionsApi, positionsApi } from '../../services/api'
 import { useAppStore } from '../../store/appStore'
 import { PayoffDiagram } from '../charts/PayoffDiagram'
@@ -10,7 +11,6 @@ interface Props {
   symbol: string
 }
 
-const LOT_SIZE: Record<string, number> = { NIFTY: 75, BANKNIFTY: 35 }
 const fmtMoney = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
 let legSeq = 0
@@ -46,7 +46,8 @@ function makeLeg(chain: OptionsChain, symbol: string): BuilderLeg {
 export function StrategyBuilder({ chain, symbol }: Props) {
   const navigate = useNavigate()
   const upsertPosition = useAppStore((s) => s.upsertPosition)
-  const lotSize = LOT_SIZE[symbol] ?? 75
+  const { getLotSize, loading: lotSizesLoading, error: lotSizesError } = useLotSizes()
+  const lotSize = getLotSize(symbol) ?? 0
 
   const [legs, setLegs] = useState<BuilderLeg[]>(() => [makeLeg(chain, symbol)])
   const [payoff, setPayoff] = useState<PayoffResult | null>(null)
@@ -158,6 +159,9 @@ export function StrategyBuilder({ chain, symbol }: Props) {
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-sm font-semibold text-white">Strategy Builder</h2>
+        <span className="text-[11px] text-gray-500">
+          {lotSize > 0 ? `Lot size ${lotSize}` : lotSizesLoading ? 'Loading lot size...' : 'Lot size unavailable'}
+        </span>
         <button
           onClick={addLeg}
           className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium transition-colors"
@@ -270,10 +274,16 @@ export function StrategyBuilder({ chain, symbol }: Props) {
           <div className="bg-gray-800/60 border border-gray-700 rounded-lg p-2.5">
             <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Net Greeks (Δ/Γ/Θ/V)</p>
             <p className="text-xs font-semibold text-gray-200">
-              {netGreeks.delta.toFixed(2)} / {netGreeks.gamma.toFixed(4)} / {netGreeks.theta.toFixed(2)} / {netGreeks.vega.toFixed(2)}
+              {lotSize > 0
+                ? `${netGreeks.delta.toFixed(2)} / ${netGreeks.gamma.toFixed(4)} / ${netGreeks.theta.toFixed(2)} / ${netGreeks.vega.toFixed(2)}`
+                : 'Loading...'}
             </p>
           </div>
         </div>
+      )}
+
+      {lotSizesError && (
+        <p className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{lotSizesError}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
