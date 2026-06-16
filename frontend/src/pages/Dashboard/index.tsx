@@ -234,7 +234,7 @@ export default function Dashboard() {
             AI Signals
           </h2>
           <button
-            onClick={() => navigate('/chat')}
+            onClick={() => navigate('/signals/history')}
             className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
           >
             Full Analysis →

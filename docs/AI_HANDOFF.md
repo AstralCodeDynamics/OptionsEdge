@@ -17,6 +17,36 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Signal history table page
+
+Files changed:
+
+- `frontend/src/App.tsx`
+- `frontend/src/pages/Dashboard/index.tsx`
+- `frontend/src/pages/SignalHistory/index.tsx` (new)
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Added `/signals/history` route with a paged signal history table.
+- Dashboard AI Signals `Full Analysis` action now opens the signal history page.
+- `signalsApi.getHistory` now calls `GET /api/v1/signals/history?page=1&pageSize=20` and returns the paged response.
+- Added `SignalHistoryItem`/`SignalHistoryResponse` frontend types. Response handling supports current backend fields (`totalItems`, `totalPages`) and the shorthand `total` shape if returned later.
+- Signal history table mirrors the Backtest trade-log table shell/classes: dark bordered rounded panel, compact text table, horizontal scroll, row hover, and Prev/Next pagination controls.
+- Columns shown: Date/Time, Symbol, Type, Strike, Confidence, Entry, Target, SL, Status. Status is derived client-side from `validUntil` (`Active` when still valid, otherwise `Expired`).
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- No symbol filter on the page because the new backend history endpoint removed `?symbol`; data is shown newest-first as sorted by backend.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Claude Code: Paginated signal history endpoint
 
 Files changed:

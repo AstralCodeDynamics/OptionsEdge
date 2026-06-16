@@ -4,7 +4,7 @@ import type {
   ChatMessage, BacktestResult, BacktestHistoryResponse, StrategyLeg, PayoffResult,
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
-  UsageStats, SignalPreferenceRequest, SignalPreferenceResponse,
+  UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -166,11 +166,11 @@ export const optionsApi = {
 export const signalsApi = {
   generate: (symbol: string) =>
     api.post<Signal>('/signals/generate', { symbol }).then((r) => r.data),
-  getHistory: (symbol?: string, limit = 20) => {
-    const params = new URLSearchParams()
-    if (symbol) params.set('symbol', symbol)
-    params.set('limit', String(limit))
-    return api.get<Signal[]>(`/signals/history?${params}`).then((r) => r.data)
+  getHistory: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams()
+    q.set('page', String(params?.page ?? 1))
+    q.set('pageSize', String(params?.pageSize ?? 20))
+    return api.get<SignalHistoryResponse>(`/signals/history?${q}`).then((r) => r.data)
   },
   getById: (id: string) =>
     api.get<Signal>(`/signals/${id}`).then((r) => r.data),

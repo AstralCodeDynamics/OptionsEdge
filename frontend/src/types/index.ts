@@ -169,6 +169,35 @@ export interface Signal {
   fromCache?: boolean
 }
 
+export interface SignalHistoryItem {
+  id: string
+  symbol: string
+  signalType: 'ENTRY' | 'EXIT' | 'HOLD' | 'WATCH'
+  optionType: 'CE' | 'PE'
+  strike: number
+  expiry: string
+  entryLow: number
+  entryHigh: number
+  stopLoss: number
+  target1: number
+  target2?: number | null
+  confidence: number
+  riskReward: number
+  modelUsed: string
+  costUsd: number
+  validUntil: string
+  createdAt: string
+}
+
+export interface SignalHistoryResponse {
+  items: SignalHistoryItem[]
+  page: number
+  pageSize: number
+  total?: number
+  totalItems?: number
+  totalPages?: number
+}
+
 export interface SignalPreferenceResponse {
   niftyAutoSignalEnabled: boolean
   niftyAutoSignalTimes: string
