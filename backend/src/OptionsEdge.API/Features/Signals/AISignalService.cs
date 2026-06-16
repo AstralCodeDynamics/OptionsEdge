@@ -154,7 +154,7 @@ public class AISignalService(
                     InputTokens    = claudeResp.InputTokens,
                     OutputTokens   = claudeResp.OutputTokens,
                     CostUsd        = cost,
-                    ValidUntil     = DateTimeOffset.TryParse(aiOutput.ValidUntil, out var vu) ? vu : now.AddHours(4),
+                    ValidUntil     = DateTimeOffset.TryParse(aiOutput.ValidUntil, out var vu) ? vu.ToUniversalTime() : now.AddHours(4),
                     CreatedAt      = now,
                 };
                 db.Signals.Add(signal);

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OptionsEdge.API.Domain.Entities;
 
 namespace OptionsEdge.API.Infrastructure.Data;
@@ -173,5 +174,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => x.UserId).IsUnique();
             e.HasOne(x => x.User).WithOne().HasForeignKey<UserSignalPreference>(x => x.UserId);
         });
+
+        // Defense-in-depth: normalize all DateTimeOffset properties to UTC before Npgsql writes
+        // them. Postgres timestamptz requires offset=0; any non-UTC offset (e.g. +05:30 from AI
+        // output) would otherwise throw ArgumentException at SaveChangesAsync.
+        var utcConverter = new ValueConverter<DateTimeOffset, DateTimeOffset>(
+            v => v.ToUniversalTime(),
+            v => v);
+        var utcConverterNullable = new ValueConverter<DateTimeOffset?, DateTimeOffset?>(
+            v => v.HasValue ? v.Value.ToUniversalTime() : v,
+            v => v);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset))
+                    property.SetValueConverter(utcConverter);
+                else if (property.ClrType == typeof(DateTimeOffset?))
+                    property.SetValueConverter(utcConverterNullable);
+            }
+        }
     }
 }

@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: CRITICAL — DateTimeOffset UTC normalization (signal save root cause)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- **Root cause confirmed**: `AISignalService` built `Signal.ValidUntil` from `DateTimeOffset.TryParse(aiOutput.ValidUntil)`. Claude returns `ValidUntil` as an IST-offset string (e.g. `"2026-06-16T15:30:00+05:30"`); `TryParse` preserves the `+05:30` offset verbatim. Npgsql rejects any non-UTC `DateTimeOffset` on write to `timestamp with time zone` with `System.ArgumentException: Cannot write DateTimeOffset with Offset=05:30:00 to PostgreSQL type 'timestamp with time zone', only offset 0 (UTC) is supported`. This was the silent failure causing every signal to be shown to user but never saved to DB.
+- **Point fix**: `AISignalService.cs:157` — `? vu : now.AddHours(4)` → `? vu.ToUniversalTime() : now.AddHours(4)`. Instant unchanged; only the offset representation normalized to UTC before Npgsql writes it.
+- **Audit**: `grep -rn "DateTimeOffset.TryParse|DateTimeOffset.Parse"` found only one occurrence in the entire backend (the one above). No other call sites.
+- **Defense-in-depth**: `AppDbContext.OnModelCreating` now iterates all entity properties after existing entity configuration and attaches a `ValueConverter<DateTimeOffset, DateTimeOffset>` (and nullable variant) that calls `.ToUniversalTime()` on every write. Any future `DateTimeOffset` written through EF Core is automatically UTC-normalized, even if the call site forgets.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- The global converter in `AppDbContext` does not affect values read back from the DB (the `v => v` identity on the read side) — `DateTimeOffset` values read from Postgres come back as UTC already (Npgsql behavior), so no change on reads.
+- The global converter is applied after all entity-specific configuration, so it does not conflict with any `HasDefaultValueSql("now()")` columns (those are DB-side defaults, not written through the converter).
+
+Claude Code active files: none.
+
 ### 2026-06-16 - Codex: Signal history dark-card redesign
 
 Files changed:
