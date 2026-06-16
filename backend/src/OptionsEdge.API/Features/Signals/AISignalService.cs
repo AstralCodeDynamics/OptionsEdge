@@ -176,7 +176,10 @@ public class AISignalService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to persist signal to DB, continuing");
+                logger.LogError(ex,
+                    "Failed to persist signal to DB for user {UserId}, symbol {Symbol}, " +
+                    "strike {Strike}, expiry {Expiry}. Signal was shown to user but will NOT appear in history.",
+                    userId, aiOutput.Symbol, aiOutput.Strike, aiOutput.Expiry);
             }
         }
 

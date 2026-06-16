@@ -17,6 +17,30 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Claude Code: VIX symbol corrected, day change reads Groww fields, signal save logs ERROR
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Groww/GrowwUserApiClient.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GetVixAsync`: confirmed correct trading_symbol from Groww instruments CSV (`growwapi-assets.groww.in/instruments/instrument.csv`) is `INDIAVIX` (no space, no encoding). Previous `INDIA%20VIX` always returned GA001 400. Collapsed two-try fallback structure to single attempt with `INDIAVIX`. Comment records the instrument CSV source.
+- `GetSpotSnapshotAsync`: `change` now prefers `day_change` field from Groww response, falls back to computed `ltp - prevClose`. `changePct` prefers `day_change_perc`, falls back to computed. Fixes dashboard showing `0.00 (+0.00%)` when Groww reports change directly.
+- `AISignalService.GenerateEntrySignalAsync`: signal-save `catch` upgraded from `LogWarning` (no detail) to `LogError` with `userId`, `symbol`, `strike`, `expiry` — makes silent save failures visible in production logs with enough context to diagnose root cause.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Caveats:
+
+- `day_change_perc` field name unverified against a live Groww quote response — if still 0 after deploy, check actual response JSON via the new warning log and adjust field name.
+
+Codex active files: Signal History page redesign (pending).
+
 ### 2026-06-16 - Codex: Signal history table page
 
 Files changed:
