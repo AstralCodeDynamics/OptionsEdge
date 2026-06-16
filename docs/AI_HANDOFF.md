@@ -17,6 +17,30 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Production deploy workflow now writes lot sizes into appsettings.Production.json
+
+Files changed:
+
+- `.github/workflows/deploy-optionsedge.yml`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- GitHub Actions deploy workflow now includes:
+  - `LotSizes.NIFTY = 65`
+  - `LotSizes.BANKNIFTY = 30`
+- This keeps production `appsettings.Production.json` aligned with backend config-driven lot sizes, so deployed pipeline output does not silently fall back to stale pre-Jan-2026 values.
+
+Tests:
+
+- Not run. YAML-only change.
+
+Notes:
+
+- Future NSE/SEBI lot-size revisions must update all config-generation surfaces together: `appsettings.json`, local `appsettings.Development.json`, and `.github/workflows/deploy-optionsedge.yml`.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: CRITICAL lot-size fix — NIFTY/BANKNIFTY now config-driven, not hardcoded
 
 Files changed:

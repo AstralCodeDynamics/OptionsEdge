@@ -84,6 +84,10 @@ jobs:
             "Backtest": {
               "HistoryRetentionDays": 30
             },
+            "LotSizes": {
+              "NIFTY": 65,
+              "BANKNIFTY": 30
+            },
             "Encryption": {
               "Key": "${{ secrets.OPTIONS_EDGE_ENCRYPTION_KEY }}"
             },
