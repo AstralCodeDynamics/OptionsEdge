@@ -91,7 +91,7 @@ jobs:
               "Secret": "${{ secrets.OPTIONS_EDGE_JWT_SECRET }}",
               "Issuer": "OptionsEdge",
               "Audience": "OptionsEdge",
-              "AccessTokenMinutes": 15,
+              "AccessTokenMinutes": 60,
               "RefreshTokenDays": 7
             },
             "AuthSettings": {
