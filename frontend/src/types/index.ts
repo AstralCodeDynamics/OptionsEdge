@@ -349,7 +349,6 @@ export interface ChangePasswordRequest {
 
 export interface AuthResponse {
   accessToken: string
-  refreshToken: string
   accessTokenExpiry: string
   userId: string
   displayName: string

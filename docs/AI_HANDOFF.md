@@ -17,6 +17,40 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-16 - Codex: Frontend uses HttpOnly refresh cookie and silent session bootstrap
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/hooks/useAuth.ts`
+- `frontend/src/types/index.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Axios client now uses `withCredentials: true`, so browser sends/receives the backend `refresh_token` HttpOnly cookie automatically.
+- Removed frontend JS refresh-token storage and API contract usage:
+  - removed `_refreshToken`
+  - removed `getRefreshToken`
+  - `setTokens` now takes only `accessToken` + optional `accessTokenExpiry`
+  - `AuthResponse` no longer has `refreshToken`
+  - `authApi.refresh()` sends no body
+  - `authApi.logout()` sends no body
+- Proactive 80%-lifetime refresh and reactive 401 retry now call cookie-backed `authApi.refresh()` with no JS-readable refresh token.
+- App-load auth bootstrap now attempts `authApi.refresh()` before `/auth/me` when no access token exists in memory. This fixes hard reload losing the JS access token while the HttpOnly refresh cookie still exists.
+- `/auth/refresh` 401 responses are excluded from the normal 401 retry loop to avoid recursive refresh attempts when the cookie is missing/expired.
+
+Tests:
+
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Tried to run the local HTTPS API for the requested hard-reload manual test, but `dotnet run --launch-profile https` did not reach the listening state after ~90s and was stopped. Browser Cmd+R verification was not completed in this turn.
+- This frontend must deploy together with the backend cookie-auth change from the previous entry.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex acting for Claude Code: Refresh token moved to HttpOnly cookie
 
 Files changed:
@@ -56,7 +90,7 @@ Caveats:
 - Secure cookies require HTTPS in real browser use; local HTTP dev may need HTTPS backend/frontend or environment-specific handling.
 - Current frontend is expected to break until the matching cookie-based auth client change lands.
 
-Claude Code active files: none. Codex active files: auth frontend cookie migration pending.
+Claude Code active files: none. Codex active files: none.
 
 ### 2026-06-16 - Codex: Proactive token refresh and SignalR handler consolidation
 

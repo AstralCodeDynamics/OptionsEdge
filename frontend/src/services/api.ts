@@ -12,7 +12,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
 // Tokens are kept in module-level memory only — never localStorage/sessionStorage.
 let _accessToken: string | null = null
-let _refreshToken: string | null = null
 let _accessTokenExpiryMs: number | null = null
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -49,7 +48,7 @@ function tokenExpiryMs(access: string, accessTokenExpiry?: string): number | nul
 function scheduleProactiveRefresh(): void {
   clearRefreshTimer()
 
-  if (!_refreshToken || !_accessToken || !_accessTokenExpiryMs) return
+  if (!_accessToken || !_accessTokenExpiryMs) return
 
   const now = Date.now()
   const payload = parseJwtPayload(_accessToken)
@@ -66,21 +65,18 @@ function scheduleProactiveRefresh(): void {
   }, delayMs)
 }
 
-async function refreshTokens(refresh: string): Promise<AuthResponse> {
-  const data = await authApi.refresh(refresh)
-  setTokens(data.accessToken, data.refreshToken, data.accessTokenExpiry)
+async function refreshTokens(): Promise<AuthResponse> {
+  const data = await authApi.refresh()
+  setTokens(data.accessToken, data.accessTokenExpiry)
   return data
 }
 
 async function proactiveRefresh(): Promise<void> {
   if (_isRefreshing) return
 
-  const refresh = getRefreshToken()
-  if (!refresh) return
-
   _isRefreshing = true
   try {
-    const data = await refreshTokens(refresh)
+    const data = await refreshTokens()
     _refreshQueue.forEach((p) => p.resolve(data.accessToken))
     _refreshQueue = []
   } catch (refreshError) {
@@ -94,16 +90,14 @@ async function proactiveRefresh(): Promise<void> {
   }
 }
 
-export function setTokens(access: string, refresh: string, accessTokenExpiry?: string): void {
+export function setTokens(access: string, accessTokenExpiry?: string): void {
   _accessToken = access
-  _refreshToken = refresh
   _accessTokenExpiryMs = tokenExpiryMs(access, accessTokenExpiry)
   scheduleProactiveRefresh()
 }
 
 export function clearTokens(): void {
   _accessToken = null
-  _refreshToken = null
   _accessTokenExpiryMs = null
   clearRefreshTimer()
 }
@@ -112,12 +106,9 @@ export function getAccessToken(): string | null {
   return _accessToken
 }
 
-export function getRefreshToken(): string | null {
-  return _refreshToken
-}
-
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -145,16 +136,15 @@ api.interceptors.response.use(
   async (error) => {
     const status = error.response?.status
     const originalRequest = error.config
+    const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh')
+
+    if (status === 401 && isRefreshRequest) {
+      clearTokens()
+      useAppStore.getState().logout()
+      return Promise.reject(error)
+    }
 
     if (status === 401 && originalRequest && !originalRequest._retry) {
-      const refresh = getRefreshToken()
-      if (!refresh) {
-        clearTokens()
-        useAppStore.getState().logout()
-        redirectToLogin()
-        return Promise.reject(error)
-      }
-
       if (_isRefreshing) {
         return new Promise((resolve, reject) => {
           _refreshQueue.push({
@@ -173,7 +163,7 @@ api.interceptors.response.use(
       _isRefreshing = true
 
       try {
-        const data = await refreshTokens(refresh)
+        const data = await refreshTokens()
 
         _refreshQueue.forEach((p) => p.resolve(data.accessToken))
         _refreshQueue = []
@@ -496,11 +486,11 @@ export const authApi = {
   twoFactor: (email: string, code: string) =>
     api.post<AuthResponse>('/auth/two-factor', { email, code }).then((r) => r.data),
 
-  refresh: (refreshToken: string) =>
-    api.post<AuthResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
+  refresh: () =>
+    api.post<AuthResponse>('/auth/refresh').then((r) => r.data),
 
-  logout: (refreshToken: string) =>
-    api.post('/auth/logout', { refreshToken }),
+  logout: () =>
+    api.post('/auth/logout').then((r) => r.data),
 
   forgotPassword: (email: string) =>
     api.post<{ message: string }>('/auth/forgot-password', { email }).then((r) => r.data),
