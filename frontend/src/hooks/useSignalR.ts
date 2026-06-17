@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
 import { getAccessToken, indicatorsApi } from '../services/api'
 import { useAppStore } from '../store/appStore'
-import type { MacdIndicator, RsiIndicator, Signal } from '../types'
+import type { Alert, MacdIndicator, RsiIndicator, Signal } from '../types'
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 
@@ -104,6 +104,10 @@ function createConnection(url: string) {
 
   connection.on('newsignal', (signal: Signal) => {
     useAppStore.getState().prependSignal(signal)
+  })
+
+  connection.on('newalert', (alert: Alert) => {
+    useAppStore.getState().addAlert(alert)
   })
 
   connection.on('autosignalgenerated', (signal: Signal) => {

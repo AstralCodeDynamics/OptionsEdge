@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-17 - Codex: useAlerts now shares the single MarketHub SignalR connection
+
+Files changed:
+
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/hooks/useAlerts.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `useAlerts` no longer creates its own `HubConnectionBuilder` connection to MarketHub.
+- `useSignalR` now registers the `newalert` client handler on the shared MarketHub connection alongside `priceupdate`, `marketstatus`, `indicatorupdate`, `newsignal`, and `autosignalgenerated`.
+- `useAlerts` reuses `useSignalR(hubUrl)`, invokes `SubscribeToAlerts` when the shared connection reaches `connected`, and keeps the 30-second REST polling fallback only while SignalR is disconnected.
+- This prevents the old second alert-only connection from receiving server broadcasts like `MarketStatus` without handlers, which caused production console warnings: `No client method with the name 'marketstatus' found`.
+
+Tests:
+
+- `grep -rn "HubConnectionBuilder" frontend/src --include="*.ts" --include="*.tsx"` now returns only `frontend/src/hooks/useSignalR.ts`.
+- `npm run build` in `frontend/` passed.
+
+Notes:
+
+- Future alert changes must keep alerts on the shared `useSignalR` connection. Do not reintroduce a second `HubConnectionBuilder` for the same MarketHub URL.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-16 - Codex: Suppressed fake fatal startup logs during EF design-time host aborts
 
 Files changed:
