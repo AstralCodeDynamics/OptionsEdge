@@ -158,11 +158,15 @@ public static class PositionEndpoints
             IConfiguration config,
             HttpContext ctx,
             bool? unread = null,
-            int limit = 50,
+            int page = 1,
+            int pageSize = 20,
             CancellationToken ct = default) =>
         {
             var userId = ctx.GetUserId(config);
-            var query  = db.Alerts
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = db.Alerts
                 .Where(a => a.UserId == userId)
                 .OrderByDescending(a => a.CreatedAt)
                 .AsQueryable();
@@ -170,8 +174,19 @@ public static class PositionEndpoints
             if (unread == true)
                 query = query.Where(a => !a.IsRead);
 
-            var list = await query.Take(Math.Min(limit, 100)).ToListAsync(ct);
-            return Results.Ok(list.Select(ToAlertResponse));
+            var total = await query.CountAsync(ct);
+            var list = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            return Results.Ok(new
+            {
+                Items = list.Select(ToAlertResponse),
+                Page = page,
+                PageSize = pageSize,
+                Total = total,
+            });
         }).WithName("GetAlerts");
 
         // PUT /api/v1/alerts/{id}/read

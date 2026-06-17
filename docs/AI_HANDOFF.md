@@ -17,6 +17,42 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-17 - Claude Code: BREAKING — GET /api/v1/alerts paginated (page/pageSize/total), bare-array response removed
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Positions/PositionEndpoints.cs`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `GET /api/v1/alerts` now accepts `?page=1&pageSize=20&unread=true|false` query params.
+- `page` clamped ≥ 1; `pageSize` clamped 1–100.
+- Response shape changed from a **bare array** to a wrapped object:
+  ```json
+  { "items": [...], "page": 1, "pageSize": 20, "total": 47 }
+  ```
+- Returns descending `CreatedAt` order, same as before.
+- `?limit=` param removed; use `pageSize` instead.
+
+**⚠ BREAKING — CODEX MUST UPDATE ALL THREE CALLERS TOGETHER:**
+
+| Caller | File | What to change |
+|---|---|---|
+| `useAlerts` hook | `frontend/src/hooks/useAlerts.ts` | Read `response.data.items` not `response.data` for REST poll |
+| `AlertBanner` component | `frontend/src/components/alerts/AlertBanner.tsx` (or similar path) | Same — consumes `useAlerts`, verify it handles the new shape |
+| `NotificationHistory` page | `frontend/src/pages/NotificationHistory/index.tsx` (new, Codex builds this) | Use `items`, `page`, `pageSize`, `total` for pagination UI |
+
+Do NOT update only the new history page and leave `useAlerts`/`AlertBanner` on the old bare-array shape — the banner will throw on deploy.
+
+Pattern mirrors `GET /api/v1/signals/history` (`SignalHistoryResponse`): same field names, same clamp logic.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+
+Claude Code active files: none. Codex active files: `useAlerts.ts`, `AlertBanner.tsx`, new `NotificationHistory` page (all three must ship together).
+
 ### 2026-06-17 - Codex: useAlerts now shares the single MarketHub SignalR connection
 
 Files changed:
