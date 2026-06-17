@@ -39,4 +39,31 @@ public static class AppConstants
     {
         public const int SignalTtlMinutes = 5;
     }
+
+    public static class IndicatorThresholds
+    {
+        public const int RsiPeriod = 14;
+        public const int RsiOverbought = 70;
+        public const int RsiOversold = 30;
+
+        public const int MacdFastPeriod = 12;
+        public const int MacdSlowPeriod = 26;
+        public const int MacdSignalPeriod = 9;
+
+        public const int BollingerPeriod = 20;
+        public const double BollingerStdDev = 2.0;
+        public const double BollingerSqueezeBandwidth = 0.04;
+
+        public const int AdxPeriod = 14;
+        public const int AdxWeakThreshold = 20;
+        public const int AdxStrongThreshold = 40;
+
+        public const int Ema9Period = 9;
+        public const int Ema20Period = 20;
+        public const int Ema50Period = 50;
+        public const int Ema200Period = 200;
+
+        public const int SupertrendPeriod = 10;
+        public const double SupertrendMultiplier = 3.0;
+    }
 }

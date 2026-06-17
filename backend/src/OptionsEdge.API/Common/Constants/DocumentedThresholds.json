@@ -1,0 +1,21 @@
+{
+  "_comment": "Manu-maintained reference. Update this file when you intentionally change a threshold in AppConstants.IndicatorThresholds. The WeeklyConsistencyCheckWorker compares these values against runtime code constants and flags any drift as NEEDS_REVIEW.",
+  "RsiPeriod": 14,
+  "RsiOverbought": 70,
+  "RsiOversold": 30,
+  "MacdFastPeriod": 12,
+  "MacdSlowPeriod": 26,
+  "MacdSignalPeriod": 9,
+  "BollingerPeriod": 20,
+  "BollingerStdDev": 2.0,
+  "BollingerSqueezeBandwidth": 0.04,
+  "AdxPeriod": 14,
+  "AdxWeakThreshold": 20,
+  "AdxStrongThreshold": 40,
+  "Ema9Period": 9,
+  "Ema20Period": 20,
+  "Ema50Period": 50,
+  "Ema200Period": 200,
+  "SupertrendPeriod": 10,
+  "SupertrendMultiplier": 3.0
+}

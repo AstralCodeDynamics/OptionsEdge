@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<GrowwCredential> GrowwCredentials { get; set; }
     public DbSet<UserAICredential> UserAICredentials => Set<UserAICredential>();
     public DbSet<UserSignalPreference> UserSignalPreferences => Set<UserSignalPreference>();
+    public DbSet<ConsistencyCheckRun> ConsistencyCheckRuns { get; set; }
+    public DbSet<ConsistencyFinding> ConsistencyFindings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -173,6 +175,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.UserId).IsUnique();
             e.HasOne(x => x.User).WithOne().HasForeignKey<UserSignalPreference>(x => x.UserId);
+        });
+
+        modelBuilder.Entity<ConsistencyCheckRun>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).HasDefaultValueSql("gen_random_uuid()");
+        });
+
+        modelBuilder.Entity<ConsistencyFinding>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(f => f.CheckName).HasMaxLength(100).IsRequired();
+            e.Property(f => f.Status).HasMaxLength(20).IsRequired();
+            e.Property(f => f.Detail).HasColumnType("text");
+            e.Property(f => f.SuggestedAction).HasColumnType("text");
+            e.HasOne(f => f.Run)
+             .WithMany(r => r.Findings)
+             .HasForeignKey(f => f.ConsistencyCheckRunId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(f => f.ConsistencyCheckRunId);
         });
 
         // Defense-in-depth: normalize all DateTimeOffset properties to UTC before Npgsql writes

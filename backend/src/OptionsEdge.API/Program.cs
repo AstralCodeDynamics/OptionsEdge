@@ -181,6 +181,7 @@ builder.Services.AddAIServices();
 builder.Services.AddHostedService<MarketDataWorker>();
 builder.Services.AddHostedService<PositionMonitorWorker>();
 builder.Services.AddHostedService<AutoSignalWorker>();
+builder.Services.AddHostedService<WeeklyConsistencyCheckWorker>();
 builder.Services.AddSingleton<LogFileMaintenanceService>();
 builder.Services.AddHostedService<LogFileCleanupWorker>();
 

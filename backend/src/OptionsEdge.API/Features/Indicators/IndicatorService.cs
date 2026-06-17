@@ -1,3 +1,4 @@
+using OptionsEdge.API.Common.Constants;
 using Skender.Stock.Indicators;
 using OptionsEdge.API.Infrastructure.MockData;
 
@@ -42,15 +43,19 @@ public class IndicatorService(IMarketDataService marketData)
     // ------------------------------------------------------------------
     private static RsiResponse ComputeRsi(List<Quote> quotes)
     {
-        var result = quotes.GetRsi(14).LastOrDefault(r => r.Rsi.HasValue);
+        var result = quotes.GetRsi(AppConstants.IndicatorThresholds.RsiPeriod).LastOrDefault(r => r.Rsi.HasValue);
         double value = result?.Rsi ?? 50;
-        string signal = value >= 70 ? "Overbought" : value <= 30 ? "Oversold" : "Neutral";
+        string signal = value >= AppConstants.IndicatorThresholds.RsiOverbought ? "Overbought"
+            : value <= AppConstants.IndicatorThresholds.RsiOversold ? "Oversold" : "Neutral";
         return new RsiResponse(Math.Round(value, 2), signal);
     }
 
     private static MacdResponse ComputeMacd(List<Quote> quotes)
     {
-        var results = quotes.GetMacd(12, 26, 9).ToList();
+        var results = quotes.GetMacd(
+            AppConstants.IndicatorThresholds.MacdFastPeriod,
+            AppConstants.IndicatorThresholds.MacdSlowPeriod,
+            AppConstants.IndicatorThresholds.MacdSignalPeriod).ToList();
         var cur  = results.LastOrDefault(r => r.Macd.HasValue);
         var prev = results.Where(r => r.Macd.HasValue).TakeLast(2).FirstOrDefault();
 
@@ -71,12 +76,14 @@ public class IndicatorService(IMarketDataService marketData)
 
     private static BollingerBandsResponse ComputeBollingerBands(List<Quote> quotes, decimal price)
     {
-        var result = quotes.GetBollingerBands(20, 2).LastOrDefault(r => r.UpperBand.HasValue);
+        var result = quotes.GetBollingerBands(
+            AppConstants.IndicatorThresholds.BollingerPeriod,
+            AppConstants.IndicatorThresholds.BollingerStdDev).LastOrDefault(r => r.UpperBand.HasValue);
         double upper  = result?.UpperBand ?? (double)price * 1.02;
         double lower  = result?.LowerBand ?? (double)price * 0.98;
         double middle = result?.Sma       ?? (double)price;
         double width  = middle > 0 ? (upper - lower) / middle : 0;
-        bool squeeze  = width < 0.04; // bandwidth < 4% → squeeze
+        bool squeeze  = width < AppConstants.IndicatorThresholds.BollingerSqueezeBandwidth;
 
         return new BollingerBandsResponse(
             Math.Round(upper, 2), Math.Round(middle, 2), Math.Round(lower, 2), squeeze);
@@ -84,9 +91,10 @@ public class IndicatorService(IMarketDataService marketData)
 
     private static AdxResponse ComputeAdx(List<Quote> quotes)
     {
-        var result = quotes.GetAdx(14).LastOrDefault(r => r.Adx.HasValue);
+        var result = quotes.GetAdx(AppConstants.IndicatorThresholds.AdxPeriod).LastOrDefault(r => r.Adx.HasValue);
         double value    = result?.Adx ?? 20;
-        string strength = value < 20 ? "Weak" : value <= 40 ? "Moderate" : "Strong";
+        string strength = value < AppConstants.IndicatorThresholds.AdxWeakThreshold ? "Weak"
+            : value <= AppConstants.IndicatorThresholds.AdxStrongThreshold ? "Moderate" : "Strong";
         return new AdxResponse(Math.Round(value, 2), strength);
     }
 
@@ -98,10 +106,10 @@ public class IndicatorService(IMarketDataService marketData)
             return r?.Ema ?? (double)price;
         }
 
-        double ema9   = Math.Round(Get(9),   2);
-        double ema20  = Math.Round(Get(20),  2);
-        double ema50  = Math.Round(Get(50),  2);
-        double ema200 = Math.Round(Get(200), 2);
+        double ema9   = Math.Round(Get(AppConstants.IndicatorThresholds.Ema9Period),   2);
+        double ema20  = Math.Round(Get(AppConstants.IndicatorThresholds.Ema20Period),  2);
+        double ema50  = Math.Round(Get(AppConstants.IndicatorThresholds.Ema50Period),  2);
+        double ema200 = Math.Round(Get(AppConstants.IndicatorThresholds.Ema200Period), 2);
         double p = (double)price;
 
         return new EmaResponse(ema9, ema20, ema50, ema200, p > ema20, p > ema50);
@@ -109,7 +117,9 @@ public class IndicatorService(IMarketDataService marketData)
 
     private static SupertrendResponse ComputeSupertrend(List<Quote> quotes, decimal price)
     {
-        var result = quotes.GetSuperTrend(10, 3).LastOrDefault(r => r.SuperTrend.HasValue);
+        var result = quotes.GetSuperTrend(
+            AppConstants.IndicatorThresholds.SupertrendPeriod,
+            AppConstants.IndicatorThresholds.SupertrendMultiplier).LastOrDefault(r => r.SuperTrend.HasValue);
         double value    = (double)(result?.SuperTrend ?? price);
         bool isBullish  = result?.LowerBand.HasValue ?? price > (decimal)value;
         return new SupertrendResponse(Math.Round(value, 2), isBullish);

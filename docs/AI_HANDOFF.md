@@ -17,6 +17,60 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-17 - Claude Code: Weekly consistency check job — DB-persisted findings, email with Markdown attachment
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Domain/Entities/ConsistencyCheckRun.cs` (new)
+- `backend/src/OptionsEdge.API/Domain/Entities/ConsistencyFinding.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/AddConsistencyCheckTables` (new)
+- `backend/src/OptionsEdge.API/Common/Constants/AppConstants.cs` — added `IndicatorThresholds` nested class
+- `backend/src/OptionsEdge.API/Common/Constants/DocumentedThresholds.json` (new — Manu-maintained reference)
+- `backend/src/OptionsEdge.API/Common/Options/LotSizeOptions.cs` — added `LastReviewedUtc?: string`
+- `backend/src/OptionsEdge.API/Features/Indicators/IndicatorService.cs` — uses `AppConstants.IndicatorThresholds.*` constants
+- `backend/src/OptionsEdge.API/Infrastructure/Email/IEmailService.cs` — added `SendWeeklyConsistencyReportAsync`
+- `backend/src/OptionsEdge.API/Infrastructure/Email/EmailService.cs` — Markdown file attachment via `BodyBuilder.Attachments.AddAsync`
+- `backend/src/OptionsEdge.API/Infrastructure/Email/DevEmailService.cs` — logs Markdown to console
+- `backend/src/OptionsEdge.API/Infrastructure/Background/ConsistencyReportMarkdownBuilder.cs` (new)
+- `backend/src/OptionsEdge.API/Infrastructure/Background/WeeklyConsistencyCheckWorker.cs` (new)
+- `backend/src/OptionsEdge.API/Program.cs` — registered `WeeklyConsistencyCheckWorker`
+- `backend/src/OptionsEdge.API/appsettings.json` — added `Ops:AlertEmail`, `ExpiryRules:LastReviewedUtc`, `LotSizes:LastReviewedUtc`
+- `backend/src/OptionsEdge.API/appsettings.Development.json` — same keys with dev values
+- `backend/tests/OptionsEdge.API.Tests/WeeklyConsistencyCheckTests.cs` (new — 4 tests)
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- `WeeklyConsistencyCheckWorker` (BackgroundService, weekly cadence) runs 4 checks and persists every run to `ConsistencyCheckRuns` / `ConsistencyFindings` tables BEFORE attempting email. Email failure never loses run data. `EmailSent` flag set true only after successful send.
+  1. **Groww symbol resolution** (automatic): downloads `growwapi-assets.groww.in/instruments/instrument.csv`, verifies INDIAVIX/NIFTY/BANKNIFTY present.
+  2. **Lot size staleness** (90-day reminder): reads `LotSizes:LastReviewedUtc` config. NEEDS_REVIEW if > 90 days or unset. **Manu must manually update this date after each NSE lot-size verification.**
+  3. **Expiry rule staleness** (90-day reminder): reads `ExpiryRules:LastReviewedUtc`. Same pattern. **This is a reminder, not live NSE API verification.**
+  4. **Indicator threshold drift** (automatic): compares `AppConstants.IndicatorThresholds.*` constants against `Common/Constants/DocumentedThresholds.json`. Flags drift as NEEDS_REVIEW.
+- `ConsistencyReportMarkdownBuilder.Build()`: NEEDS_REVIEW/CHECK_FAILED findings listed first; ends with "paste to Claude Code/Codex" instruction.
+- Email: short HTML summary body, full `.md` report as attachment. Subject: `"— {N} item(s) need review"` or `"— All clear"`.
+- Email target: `config["Ops:AlertEmail"]` only. Dev default: `manumohankvr@gmail.com`.
+
+**Manu must wire before first production deploy:**
+
+- GitHub Actions secret `OPS_ALERT_EMAIL` → inject as `Ops__AlertEmail` in `deploy-optionsedge.yml` appsettings generation (same pattern as SMTP secrets). Do NOT touch workflow YAML in Claude Code/Codex tasks.
+- Set `LotSizes:LastReviewedUtc` and `ExpiryRules:LastReviewedUtc` in production secrets after manually verifying current NSE rules.
+
+DB queries (no admin UI needed):
+
+```sql
+SELECT * FROM "ConsistencyCheckRuns" ORDER BY "RunAtUtc" DESC LIMIT 5;
+SELECT * FROM "ConsistencyFindings" WHERE "ConsistencyCheckRunId" = '<run_id>';
+```
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test` — 37 passed (3 new: markdown shape, priority ordering, temp file creation).
+- Migration `AddConsistencyCheckTables` applied to dev DB cleanly.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-17 - Codex: Notification History page and paginated alerts frontend support
 
 Files changed:
