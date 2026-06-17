@@ -1,51 +1,35 @@
-import { useEffect, useRef } from 'react'
-import * as signalR from '@microsoft/signalr'
+import { useEffect } from 'react'
+import { useSignalR } from './useSignalR'
 import { useAppStore } from '../store/appStore'
-import { alertsApi, getAccessToken } from '../services/api'
-import type { Alert } from '../types'
+import { alertsApi } from '../services/api'
 
 export function useAlerts(hubUrl: string) {
-  const addAlert  = useAppStore((s) => s.addAlert)
   const setAlerts = useAppStore((s) => s.setAlerts)
-  const connRef   = useRef<signalR.HubConnection | null>(null)
-  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { connectionState, connectionRef } = useSignalR(hubUrl)
 
   useEffect(() => {
-    // Initial load
     alertsApi.getAlerts({ unread: false, limit: 50 }).then(setAlerts).catch(() => {})
+  }, [setAlerts])
 
-    // SignalR
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        skipNegotiation: false,
-        accessTokenFactory: () => getAccessToken() ?? '',
-      })
-      .withAutomaticReconnect([0, 1000, 2000, 4000, 8000, 16000, 30000])
-      .configureLogging(signalR.LogLevel.Warning)
-      .build()
+  useEffect(() => {
+    if (connectionState !== 'connected') return
 
-    connection.on('NewAlert', (alert: Alert) => addAlert(alert))
+    connectionRef.current?.invoke('SubscribeToAlerts').catch(() => {})
+  }, [connectionState, connectionRef])
 
-    connRef.current = connection
-
-    connection
-      .start()
-      .then(() => connection.invoke('SubscribeToAlerts').catch(() => {}))
-      .catch(() => {})
-
-    // Polling fallback when SignalR is disconnected
-    timerRef.current = setInterval(() => {
-      if (connection.state !== signalR.HubConnectionState.Connected) {
+  // Polling fallback when SignalR is disconnected.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (connectionState !== 'connected') {
         alertsApi
           .getAlerts({ unread: true, limit: 20 })
-          .then((list) => list.forEach((a) => addAlert(a)))
+          .then((list) => list.forEach((alert) => useAppStore.getState().addAlert(alert)))
           .catch(() => {})
       }
     }, 30_000)
 
     return () => {
-      connection.stop()
-      if (timerRef.current) clearInterval(timerRef.current)
+      clearInterval(timer)
     }
-  }, [hubUrl, addAlert, setAlerts])
+  }, [connectionState])
 }
