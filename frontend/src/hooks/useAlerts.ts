@@ -8,7 +8,9 @@ export function useAlerts(hubUrl: string) {
   const { connectionState, connectionRef } = useSignalR(hubUrl)
 
   useEffect(() => {
-    alertsApi.getAlerts({ unread: false, limit: 50 }).then(setAlerts).catch(() => {})
+    alertsApi.getAlerts({ unread: false, page: 1, pageSize: 50 })
+      .then((res) => setAlerts(res.items))
+      .catch(() => {})
   }, [setAlerts])
 
   useEffect(() => {
@@ -22,8 +24,8 @@ export function useAlerts(hubUrl: string) {
     const timer = setInterval(() => {
       if (connectionState !== 'connected') {
         alertsApi
-          .getAlerts({ unread: true, limit: 20 })
-          .then((list) => list.forEach((alert) => useAppStore.getState().addAlert(alert)))
+          .getAlerts({ unread: true, page: 1, pageSize: 20 })
+          .then((res) => res.items.forEach((alert) => useAppStore.getState().addAlert(alert)))
           .catch(() => {})
       }
     }, 30_000)

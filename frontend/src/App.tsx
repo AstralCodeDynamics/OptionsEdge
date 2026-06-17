@@ -11,6 +11,7 @@ const Chain = lazy(() => import('./pages/Chain'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const Chat = lazy(() => import('./pages/Chat'))
 const SignalHistory = lazy(() => import('./pages/SignalHistory'))
+const NotificationHistory = lazy(() => import('./pages/NotificationHistory'))
 
 const Login = lazy(() => import('./pages/Auth/Login'))
 const Register = lazy(() => import('./pages/Auth/Register'))
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="chain" element={page(<Chain />)} />
         <Route path="backtest" element={page(<Backtest />)} />
         <Route path="signals/history" element={page(<SignalHistory />)} />
+        <Route path="notifications" element={page(<NotificationHistory />)} />
         <Route path="chat" element={page(<Chat />)} />
         <Route path="settings/security" element={page(<SecuritySettings />)} />
       </Route>

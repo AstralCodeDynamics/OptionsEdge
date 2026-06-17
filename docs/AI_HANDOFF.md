@@ -17,6 +17,39 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-17 - Codex: Notification History page and paginated alerts frontend support
+
+Files changed:
+
+- `frontend/src/services/api.ts`
+- `frontend/src/types/index.ts`
+- `frontend/src/hooks/useAlerts.ts`
+- `frontend/src/pages/NotificationHistory/index.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/components/layout/Sidebar.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Frontend `alertsApi.getAlerts` now matches the backend paginated response shape: `{ items, page, pageSize, total }`.
+- `useAlerts` now unwraps `res.items` for both the initial banner/store load and the disconnected SignalR polling fallback; it no longer passes a bare array assumption through the app.
+- `AlertBanner` was verified as store-only for alert rendering and did not need direct API changes.
+- Added `/notifications` route with `NotificationHistory`, matching the Signal History dark-card layout and Prev/Next pagination pattern.
+- Notification History supports All / Unread only filtering, page size 20, severity badges, read/unread state, optional position labels from the current positions store, and `Mark all read`.
+- Sidebar now includes a Notifications nav item near Positions, with an unread-count badge sourced from the existing alert store.
+
+Tests:
+
+- `rg -n "getAlerts\\(|limit:" frontend/src --glob "*.ts" --glob "*.tsx"` shows only paginated `getAlerts` calls; no old `limit` call sites remain.
+- `npm run build` in `frontend/` passed.
+
+Caveats:
+
+- Real live alert trigger / read-state reload verification was not completed in this turn.
+- Local Vite server started successfully, but in-app Browser smoke test was blocked because the `iab` browser surface was unavailable.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-17 - Claude Code: BREAKING — GET /api/v1/alerts paginated (page/pageSize/total), bare-array response removed
 
 Files changed:

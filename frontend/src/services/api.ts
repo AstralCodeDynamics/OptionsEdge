@@ -5,6 +5,7 @@ import type {
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
   UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse, LotSizeConfig,
+  AlertHistoryResponse,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -310,12 +311,8 @@ export const backtestApi = {
 }
 
 export const alertsApi = {
-  getAlerts: (params?: { unread?: boolean; limit?: number }) => {
-    const q = new URLSearchParams()
-    if (params?.unread != null) q.set('unread', String(params.unread))
-    if (params?.limit != null) q.set('limit', String(params.limit))
-    return api.get<Alert[]>(`/alerts?${q}`).then((r) => r.data)
-  },
+  getAlerts: (params: { unread?: boolean; page?: number; pageSize?: number } = {}) =>
+    api.get<AlertHistoryResponse>('/alerts', { params }).then((r) => r.data),
   markRead: (id: string) =>
     api.put<Alert>(`/alerts/${id}/read`).then((r) => r.data),
   markAllRead: () =>

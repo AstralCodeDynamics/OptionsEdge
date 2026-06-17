@@ -247,6 +247,13 @@ export interface Alert {
   createdAt: string
 }
 
+export interface AlertHistoryResponse {
+  items: Alert[]
+  page: number
+  pageSize: number
+  total: number
+}
+
 export interface ChatMessage {
   id: string
   userId: string

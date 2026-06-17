@@ -9,6 +9,7 @@ import { growwBadgeClass, growwBadgeLabel } from '../groww/growwBadge'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: '▦' },
   { to: '/positions', label: 'Positions', icon: '◈' },
+  { to: '/notifications', label: 'Notifications', icon: '●', badge: 'unread' },
   { to: '/chain', label: 'Chain', icon: '⊞' },
   { to: '/backtest', label: 'Backtest', icon: '◷' },
   { to: '/chat', label: 'AI Chat', icon: '◉' },
@@ -21,6 +22,7 @@ export default function Sidebar() {
   const growwStatus = useAppStore((s) => s.growwStatus)
   const setGrowwStatus = useAppStore((s) => s.setGrowwStatus)
   const user = useAppStore((s) => s.user)
+  const unreadCount = useAppStore((s) => s.unreadCount)
   const { logout } = useAuth()
   const [growwModalOpen, setGrowwModalOpen] = useState(false)
 
@@ -77,7 +79,12 @@ export default function Sidebar() {
               onClick={() => setSidebarOpen(false)}
             >
               <span className="text-base">{item.icon}</span>
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge === 'unread' && unreadCount > 0 && (
+                <span className="min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
