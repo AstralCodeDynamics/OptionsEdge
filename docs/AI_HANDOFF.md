@@ -17,6 +17,44 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-19 - Claude Code: Alert dedup now DB-backed — survives process restarts
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Data/AppDbContext.cs` — added composite index `(PositionId, AlertType, CreatedAt)` on `Alert` entity
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260619125616_AddAlertDedupIndex.cs` (new) — drops old `IX_Alerts_PositionId` single-column FK index, creates `IX_Alerts_PositionId_AlertType_CreatedAt`
+- `backend/src/OptionsEdge.API/Infrastructure/Background/PositionMonitorWorker.cs` — `ProcessPositionAsync` now accepts `AppDbContext db`; DB query runs after `IMemoryCache` fast-path miss, before setting the cache entry
+- `backend/tests/OptionsEdge.API.Tests/AlertDedupTests.cs` (new — 4 tests)
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- **Root cause fixed**: `PositionMonitorWorker` alert dedup was `IMemoryCache`-only (process memory). Any process restart (deploy, App Service recycle, crash-recovery) wiped the cache, letting the same alert re-fire if the triggering market condition persisted.
+- **Fix**: before setting the in-memory dedup key, `ProcessPositionAsync` now runs:
+  ```csharp
+  bool recentDuplicate = await db.Alerts
+      .Where(a => a.PositionId == position.Id
+               && a.AlertType == trigger.AlertType
+               && a.CreatedAt > DateTimeOffset.UtcNow.AddMinutes(-15))
+      .AnyAsync(ct);
+  if (recentDuplicate) continue;
+  ```
+- **Layered dedup**: `IMemoryCache` check runs first (fast, no DB hit for alerts already seen in this process lifetime). DB query runs only on cache miss (first tick after restart, or after the 15-min TTL expires). DB is authoritative; memory is a fast pre-filter.
+- **Index**: `IX_Alerts_PositionId_AlertType_CreatedAt` covers the three WHERE columns exactly — sub-millisecond lookup for any realistic Alerts table size.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test` — 41 passed (4 new: within-window duplicate detected, older-than-window allows re-fire, no prior alert allows fire, different AlertType not suppressed).
+- Migration `AddAlertDedupIndex` applied to dev DB cleanly.
+
+Caveats:
+
+- Each alert check that gets past the memory cache now incurs one DB query. For a typical 5–20 active positions, this is negligible; the composite index keeps it fast.
+- `DateTimeOffset.UtcNow.AddMinutes(-15)` inside EF LINQ: EF Core evaluates this as a client-side constant before building the SQL, so it translates correctly to a parameterized query.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-17 - Claude Code: Weekly consistency check job — DB-persisted findings, email with Markdown attachment
 
 Files changed:

@@ -96,6 +96,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(a => a.User).WithMany(u => u.Alerts).HasForeignKey(a => a.UserId);
             e.HasOne(a => a.Position).WithMany(p => p.Alerts).HasForeignKey(a => a.PositionId);
             e.HasIndex(a => new { a.UserId, a.IsRead });
+            e.HasIndex(a => new { a.PositionId, a.AlertType, a.CreatedAt });
         });
 
         modelBuilder.Entity<ChatMessage>(e =>

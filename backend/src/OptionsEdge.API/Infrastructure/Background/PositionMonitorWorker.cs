@@ -87,7 +87,7 @@ public class PositionMonitorWorker(
         {
             try
             {
-                await ProcessPositionAsync(position, alertService, scope, ct);
+                await ProcessPositionAsync(position, alertService, db, scope, ct);
             }
             catch (Exception ex)
             {
@@ -102,6 +102,7 @@ public class PositionMonitorWorker(
     private async Task ProcessPositionAsync(
         Domain.Entities.Position position,
         AlertService alertService,
+        AppDbContext db,
         IServiceScope scope,
         CancellationToken ct)
     {
@@ -120,6 +121,16 @@ public class PositionMonitorWorker(
         {
             string dedupKey = $"alert:{position.Id}:{trigger.AlertType}";
             if (cache.TryGetValue(dedupKey, out _))
+                continue;
+
+            // DB-backed dedup: survives process restarts; in-memory cache is authoritative only
+            // within the same process lifetime.
+            bool recentDuplicate = await db.Alerts
+                .Where(a => a.PositionId == position.Id
+                         && a.AlertType == trigger.AlertType
+                         && a.CreatedAt > DateTimeOffset.UtcNow.AddMinutes(-15))
+                .AnyAsync(ct);
+            if (recentDuplicate)
                 continue;
 
             cache.Set(dedupKey, true, AlertDeduplicationTtl);
