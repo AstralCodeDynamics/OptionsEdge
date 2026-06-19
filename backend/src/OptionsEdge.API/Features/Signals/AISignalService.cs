@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -91,10 +92,28 @@ public class AISignalService(
         if (string.IsNullOrEmpty(apiKey))
             return (null!, "No AI API key configured. Go to Settings → AI Connection to add your Anthropic key from console.anthropic.com");
 
+        // Fetch nearby-strikes premium table (ATM ±5) to anchor the AI's entry price to real premiums.
+        // Degrades to empty string on any failure — prompt falls back to ATM-only context.
+        string nearbyStrikesTable = string.Empty;
+        try
+        {
+            if (expiries.Count > 0)
+            {
+                var chain  = optionsService.GetChain(key, expiries[0]);
+                int sStep  = key == "BANKNIFTY" ? 100 : 50;
+                int sAtm   = (int)Math.Round((double)snapshot.Ltp / sStep) * sStep;
+                nearbyStrikesTable = BuildNearbyStrikesTable(chain.Rows, sAtm);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to fetch options chain for signal prompt — falling back to ATM-only context");
+        }
+
         // Build prompt
         var model  = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
         var istNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstZone);
-        var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries, istNow);
+        var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries, istNow, nearbyStrikesTable);
 
         logger.LogInformation("Calling Claude Sonnet for {Symbol} signal", key);
         var claudeResp = await claude.CompleteAsync(
@@ -116,6 +135,21 @@ public class AISignalService(
         {
             logger.LogError(ex, "Failed to parse Claude signal response: {Text}", claudeResp.Text);
             return (null!, "AI returned an invalid response. Please try again.");
+        }
+
+        // Strike sanity check: reject AI picks more than 3 steps from ATM.
+        // Root cause of Anju's 18/06/26 report: AI picked 23600 CE while ATM ~24100 (10 steps off),
+        // then gave entry 110-130 which only fits a near-ATM strike — inconsistent and unactionable.
+        // Threshold (3 steps) is a judgment call — confirm with Manu if legitimate strategy calls get blocked.
+        if (!IsStrikeWithinBounds(aiOutput.Strike, snapshot.Ltp, key))
+        {
+            int sStep    = key == "BANKNIFTY" ? 100 : 50;
+            int sAtm     = (int)Math.Round((double)snapshot.Ltp / sStep) * sStep;
+            int sFromAtm = Math.Abs(aiOutput.Strike - sAtm) / sStep;
+            logger.LogWarning(
+                "AI chose strike {Strike} ({N} steps from ATM {Atm} for {Symbol}) — exceeds the 3-step sanity bound. Rejecting signal.",
+                aiOutput.Strike, sFromAtm, sAtm, key);
+            return (null!, "The AI's strike selection failed a sanity check. Please try generating again.");
         }
 
         decimal cost = ClaudeApiClient.CalculateCost(model, claudeResp.InputTokens, claudeResp.OutputTokens);
@@ -277,11 +311,16 @@ public class AISignalService(
         Indicators.IndicatorsResponse ind,
         MarketSnapshotData snap,
         IReadOnlyList<string> expiries,
-        DateTime istNow)
+        DateTime istNow,
+        string nearbyStrikesTable = "")
     {
         var atm = symbol == "NIFTY"
             ? (int)Math.Round((double)snap.Ltp / 50) * 50
             : (int)Math.Round((double)snap.Ltp / 100) * 100;
+
+        string chainContext = string.IsNullOrEmpty(nearbyStrikesTable)
+            ? $"ATM Strike: {atm}"
+            : $"ATM Strike: {atm}\n\n{nearbyStrikesTable}";
 
         return $"""
             Current date and time (IST): {istNow:yyyy-MM-dd HH:mm:ss} IST
@@ -289,7 +328,7 @@ public class AISignalService(
             Spot: {snap.Ltp:F2} | Change: {snap.ChangePct:F2}%
             VIX: {snap.Vix:F2} | PCR: {snap.Pcr:F2}
             FII Flow: {snap.FiiFlow:F0} Cr | DII Flow: {snap.DiiFlow:F0} Cr
-            ATM Strike: {atm}
+            {chainContext}
 
             Technical Indicators:
             - RSI(14): {ind.Rsi.Value:F1} [{ind.Rsi.Signal}]
@@ -332,7 +371,12 @@ public class AISignalService(
 
         Rules:
         - signalType: ENTRY (new trade), HOLD (stay in), WATCH (not yet), EXIT (close)
-        - Strike: ATM or 1 OTM preferred
+        - Strike selection: prefer ATM or the 1-2 strikes nearest ATM. Weight your choice toward
+          whichever nearby strike has the HIGHEST open interest — high-OI strikes tend to see faster
+          premium movement on directional confirmation. Do NOT choose a strike significantly far from
+          ATM regardless of its OI.
+        - entryLow/entryHigh MUST be consistent with the live CE/PE Premium shown in the nearby-strikes
+          table above. Do not estimate or guess a premium that contradicts the table data.
         - Stop loss must be 30-40% below entry
         - Target1 must be R:R >= 1.5 from stop loss
         - confidence: realistic 55-85 range
@@ -352,6 +396,45 @@ public class AISignalService(
         severity options: INFO, WARNING, DANGER
         alertType options: SL_APPROACHING, SL_HIT, TARGET_HIT, IV_SPIKE, ADVERSE_MOVE, THETA_DECAY, ALL_CLEAR
         """;
+
+    // maxSteps: how many strike intervals from ATM the AI is allowed to pick.
+    // 3 steps = ±150 for NIFTY, ±300 for BANKNIFTY. Threshold chosen based on Anju's 18/06/26
+    // report (23600 CE vs ATM ~24100 = 10 steps). Adjust if legitimate wider strategies get blocked.
+    internal static bool IsStrikeWithinBounds(int aiStrike, decimal spot, string symbol, int maxSteps = 3)
+    {
+        int step = symbol.ToUpperInvariant() == "BANKNIFTY" ? 100 : 50;
+        int atm  = (int)Math.Round((double)spot / step) * step;
+        return Math.Abs(aiStrike - atm) / step <= maxSteps;
+    }
+
+    // Builds a compact ATM ±maxSteps strike table from chain rows for prompt injection.
+    // Returns empty string if rows is empty so callers can fall back to ATM-only context.
+    internal static string BuildNearbyStrikesTable(IReadOnlyList<Options.ChainRowResponse> rows, int atm, int maxSteps = 5)
+    {
+        if (rows.Count == 0) return string.Empty;
+        int step = rows.Count > 1 ? Math.Abs(rows[1].Strike - rows[0].Strike) : 50;
+        var nearby = rows
+            .Where(r => Math.Abs(r.Strike - atm) <= maxSteps * step)
+            .OrderBy(r => r.Strike)
+            .ToList();
+        if (nearby.Count == 0) return string.Empty;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Nearby strikes (current premiums from live chain):");
+        sb.AppendLine("  Strike | CE Premium | CE OI  | PE Premium | PE OI");
+        foreach (var row in nearby)
+        {
+            string atmMark = row.Strike == atm ? " <- ATM" : string.Empty;
+            sb.AppendLine(
+                $"  {row.Strike,6} | {row.Ce.Ltp,10:F1} | {FormatOi(row.Ce.Oi),6} | {row.Pe.Ltp,10:F1} | {FormatOi(row.Pe.Oi)}{atmMark}");
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatOi(long oi) =>
+        oi >= 1_000_000 ? $"{oi / 1_000_000.0:F1}M" :
+        oi >= 1_000     ? $"{oi / 1_000.0:F0}K" :
+        oi.ToString();
 
     private static string ExtractJson(string text)
     {

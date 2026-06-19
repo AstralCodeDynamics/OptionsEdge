@@ -17,6 +17,45 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-19 - Claude Code: AI signal strike guardrail + real premium data in prompt (Anju 18/06/26 report)
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/InternalsVisibleTo.cs` (new — exposes `internal` helpers to test project)
+- `backend/tests/OptionsEdge.API.Tests/AISignalStrikeTests.cs` (new — 8 tests)
+- `docs/AI_HANDOFF.md`
+
+Bug (confirmed real trader report, Anju, 2026-06-18):
+
+AI-generated signal picked 23600 CE (deep ITM, real premium ~400-500) but gave entry 110-130, which only makes sense for a near-ATM strike. Root cause: prompt gave only the ATM strike value — no actual per-strike premium data, so AI had to guess entry prices. No post-parse validation existed to catch a wildly wrong strike.
+
+Three-fix solution:
+
+**Fix A — Hard guardrail (`IsStrikeWithinBounds`):**
+After parsing the AI's JSON output, `GenerateEntrySignalAsync` now calls `IsStrikeWithinBounds(aiOutput.Strike, snapshot.Ltp, symbol)`. If the strike is more than 3 steps from ATM (±150 NIFTY, ±300 BANKNIFTY), signal is rejected with a `"Please try generating again"` error instead of being saved and shown. Logged at `LogWarning` with strike, ATM, and steps count. Threshold: 3 steps is a judgment call — **Manu should raise/lower this if legitimate strategy calls get blocked.**
+
+**Fix B — Real per-strike premiums in prompt (`BuildNearbyStrikesTable`):**
+Before calling Claude, `GenerateEntrySignalAsync` now calls `optionsService.GetChain(symbol, expiries[0])` and builds a compact ATM ±5 strike table with CE/PE premium (Ltp) and OI. Injected into `BuildSignalPrompt` as `nearbyStrikesTable`. Fails gracefully: any exception during chain fetch logs `LogWarning` and falls back to ATM-only context (old behaviour). System prompt updated to require: `"entryLow/entryHigh MUST be consistent with the live CE/PE Premium shown in the nearby-strikes table above"`.
+
+**Fix C — OI-weighted strike preference in system prompt:**
+System prompt now instructs: prefer ATM or 1-2 nearest strikes, but weight toward the highest-OI nearby strike — high-OI strikes tend to see faster premium movement on directional confirmation. Hard backstop remains Fix A; Fix C only guides the AI within the allowed bounds.
+
+**Threshold note for future signal-quality issues:**
+Per Anju's report: always check real trader feedback before assuming "it's just AI being AI". Check the 3-step guardrail first if a signal is rejected — may need widening for deliberate ITM/OTM strategies. Document in this file when threshold is changed.
+
+Tests:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — 0 warnings, 0 errors.
+- `dotnet test` — 49 passed (8 new: `IsStrikeWithinBounds` edge cases for NIFTY/BANKNIFTY, `BuildNearbyStrikesTable` table format/window/OI formatting/empty-graceful-fallback).
+
+Caveats:
+
+- Chain fetch in `GenerateEntrySignalAsync` calls `optionsService.GetChain()` which internally calls `marketData.GetSnapshot()` — minor duplicate snapshot read vs the one already fetched earlier in the method. Not worth optimizing for one call.
+- `InternalsVisibleTo.cs` added so test project can call `internal static` helpers directly without making them `public`.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-19 - Claude Code: Alert dedup now DB-backed — survives process restarts
 
 Files changed:
