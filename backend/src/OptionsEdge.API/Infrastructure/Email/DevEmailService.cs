@@ -23,7 +23,7 @@ public class DevEmailService(ILogger<DevEmailService> logger) : IEmailService
     }
 
     public async Task SendWeeklyConsistencyReportAsync(
-        string toEmail,
+        IReadOnlyList<string> toEmails,
         IReadOnlyList<ConsistencyFinding> findings,
         string markdownReportPath,
         CancellationToken ct = default)
@@ -36,6 +36,6 @@ public class DevEmailService(ILogger<DevEmailService> logger) : IEmailService
         string markdownContent = await File.ReadAllTextAsync(markdownReportPath, ct);
         logger.LogInformation(
             "[DevEmail] Consistency report to {ToEmail} | Subject: {Subject}{NewLine}{Content}",
-            toEmail, subject, Environment.NewLine, markdownContent);
+            string.Join(", ", toEmails), subject, Environment.NewLine, markdownContent);
     }
 }
