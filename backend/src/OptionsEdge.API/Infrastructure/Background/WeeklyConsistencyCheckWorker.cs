@@ -104,8 +104,11 @@ public class WeeklyConsistencyCheckWorker(
             "Consistency check persisted. Run {RunId}: {Total} checks, {Review} need review, {Failed} failed",
             run.Id, run.TotalChecks, run.NeedsReviewCount, run.CheckFailedCount);
 
-        var alertEmail = config["Ops:AlertEmail"];
-        if (string.IsNullOrWhiteSpace(alertEmail))
+        var alertEmails = (config["Ops:AlertEmail"] ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .ToList();
+        if (alertEmails.Count == 0)
         {
             logger.LogWarning("Ops:AlertEmail not configured — skipping consistency report email");
             return;
@@ -116,7 +119,7 @@ public class WeeklyConsistencyCheckWorker(
         {
             reportPath = await ConsistencyReportMarkdownBuilder.BuildAndWriteTempFileAsync(run, ct);
             var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-            await emailService.SendWeeklyConsistencyReportAsync(alertEmail, run.Findings, reportPath, ct);
+            await emailService.SendWeeklyConsistencyReportAsync(alertEmails, run.Findings, reportPath, ct);
 
             run.EmailSent = true;
             await db.SaveChangesAsync(ct);

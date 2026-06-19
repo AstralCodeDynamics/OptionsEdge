@@ -19,7 +19,7 @@ public class EmailService(IConfiguration config, ILogger<EmailService> logger) :
             $"<p>Hi {displayName},</p><p>Your verification code is: <strong>{code}</strong></p>", ct);
 
     public async Task SendWeeklyConsistencyReportAsync(
-        string toEmail,
+        IReadOnlyList<string> toEmails,
         IReadOnlyList<ConsistencyFinding> findings,
         string markdownReportPath,
         CancellationToken ct = default)
@@ -42,7 +42,10 @@ public class EmailService(IConfiguration config, ILogger<EmailService> logger) :
 
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(section["FromName"], section["FromAddress"] ?? "noreply@optionsedge.local"));
-        message.To.Add(new MailboxAddress("Manu", toEmail));
+        foreach (var toEmail in toEmails)
+        {
+            message.To.Add(new MailboxAddress("Manu", toEmail));
+        }
         message.Subject = subject;
 
         var bodyBuilder = new BodyBuilder { HtmlBody = htmlBody };
@@ -60,7 +63,7 @@ public class EmailService(IConfiguration config, ILogger<EmailService> logger) :
         {
             await client.DisconnectAsync(true, ct);
         }
-        logger.LogInformation("Sent consistency report email to {ToEmail}: {Subject}", toEmail, subject);
+        logger.LogInformation("Sent consistency report email to {ToEmail}: {Subject}", string.Join(", ", toEmails), subject);
     }
 
     private async Task SendAsync(string toEmail, string displayName, string subject, string htmlBody, CancellationToken ct)

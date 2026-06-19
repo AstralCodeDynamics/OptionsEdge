@@ -103,7 +103,14 @@ jobs:
             },
             "LotSizes": {
               "NIFTY": 65,
-              "BANKNIFTY": 30
+              "BANKNIFTY": 30,
+              "LastReviewedUtc": "2026-06-17T00:00:00Z"
+            },
+            "ExpiryRules": {
+              "LastReviewedUtc": "2026-06-17T00:00:00Z"
+            },
+            "Ops": {
+              "AlertEmail": "${{ secrets.OPS_ALERT_EMAIL }}"
             },
             "Encryption": {
               "Key": "${{ secrets.OPTIONS_EDGE_ENCRYPTION_KEY }}"
