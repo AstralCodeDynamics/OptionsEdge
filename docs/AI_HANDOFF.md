@@ -17,6 +17,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-19 - Codex: Comprehensive end-user functional guide
+
+Files changed:
+
+- `docs/USER_GUIDE.md` (new)
+- `docs/OptionsEdge_User_Guide.pdf` (new, generated from the Markdown guide)
+- `docs/AI_HANDOFF.md`
+
+Documentation:
+
+- Added a non-technical, source-verified user guide covering account onboarding, navigation, Anthropic and Groww setup, Dashboard, indicators, AI signals and history, positions and all seven alert conditions, Notification History, Options Chain, Strategy Builder, Backtest, AI Chat, Security, usage, auto signals, troubleshooting, glossary, and daily safety checklist.
+- Expanded guide for first-time traders with foundational explanations of indexes, options, CE/PE, strike, expiry, premium, lots, ATM/ITM/OTM, orders versus positions, P&L, trade plans, and risk management.
+- Added purpose, value, beginner examples, and a 30-second explanation to each trading module, plus a connected end-to-end trade journey and presenter guide for explaining/demoing OptionsEdge to others.
+- Clearly separates live, simulated, cached, and estimated data and documents current limits such as market-hours gating, pagination sizes, rate limits, alert cadence/deduplication, backtest retention, and expiry rules.
+- Calls out important current UI/data-model caveats: manual position picker still offers Thursday expiries, Edit SL/Target opens an unprefilled general form, Strategy Builder `Track This` loses BUY/SELL direction, local position close does not close Groww trades, live order tracking uses requested signal price rather than confirmed fill, and historical option premiums remain estimated.
+- Generated a polished 50-page A4 PDF with a cover, linked contents, print-friendly typography, running headers, footers, and page numbers. `USER_GUIDE.md` remains the maintained source for future revisions and PDF regeneration.
+
+Validation:
+
+- Cross-checked guide against current frontend routes/pages/components and backend endpoints/services/workers.
+- Verified the generated PDF contains 50 pages and extractable text, then visually inspected its cover, contents, representative beginner/interior pages, and final checklist page for clipping and layout issues.
+- `git diff --check` passed.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-19 - Claude Code: AI signal strike guardrail + real premium data in prompt (Anju 18/06/26 report)
 
 Files changed:
