@@ -6,6 +6,8 @@ import AddPositionModal from '../../components/positions/AddPositionModal'
 import { PositionCardSkeleton } from '../../components/common/Skeleton'
 import type { Position, Alert } from '../../types'
 
+const CLOSED_PAGE_SIZE = 20
+
 export default function Positions() {
   const positions    = useAppStore((s) => s.positions)
   const setPositions = useAppStore((s) => s.setPositions)
@@ -20,6 +22,8 @@ export default function Positions() {
   const [error, setError]           = useState<string | null>(null)
   const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [activeTab, setActiveTab] = useState<'active' | 'closed'>('active')
+  const [closedPage, setClosedPage] = useState(1)
 
   const refreshPositions = useCallback(
     async (showError = false) => {
@@ -57,6 +61,15 @@ export default function Positions() {
 
   const activePositions = positions.filter((p) => p.status === 'active')
   const closedPositions = positions.filter((p) => p.status !== 'active')
+  const closedTotalPages = Math.max(1, Math.ceil(closedPositions.length / CLOSED_PAGE_SIZE))
+  const pagedClosedPositions = closedPositions.slice(
+    (closedPage - 1) * CLOSED_PAGE_SIZE,
+    closedPage * CLOSED_PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    setClosedPage((current) => Math.min(current, closedTotalPages))
+  }, [closedTotalPages])
 
   const totalPnL = activePositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0)
   const lastUpdatedText = lastUpdated
@@ -159,10 +172,32 @@ export default function Positions() {
         </div>
       )}
 
-      {/* Active positions grid */}
-      {activePositions.length > 0 && (
-        <section className="mb-6">
-          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Active</h2>
+      {positions.length > 0 && (
+        <div className="flex gap-2 mb-4" role="tablist" aria-label="Position status">
+          {(['active', 'closed'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              onClick={() => {
+                setActiveTab(tab)
+                if (tab === 'closed') setClosedPage(1)
+              }}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                activeTab === tab
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {tab === 'active' ? `Active (${activePositions.length})` : `Closed (${closedPositions.length})`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'active' && activePositions.length > 0 && (
+        <section>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {activePositions.map((p) => (
               <PositionCard
@@ -180,12 +215,10 @@ export default function Positions() {
         </section>
       )}
 
-      {/* Closed positions */}
-      {closedPositions.length > 0 && (
+      {activeTab === 'closed' && closedPositions.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Closed</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {closedPositions.map((p) => (
+            {pagedClosedPositions.map((p) => (
               <PositionCard
                 key={p.id}
                 position={p}
@@ -195,7 +228,42 @@ export default function Positions() {
               />
             ))}
           </div>
+          <div className="flex items-center justify-between pt-4 text-xs text-gray-500">
+            <span>
+              {(closedPage - 1) * CLOSED_PAGE_SIZE + 1}-{Math.min(closedPage * CLOSED_PAGE_SIZE, closedPositions.length)} of {closedPositions.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setClosedPage((page) => page - 1)}
+                disabled={closedPage <= 1}
+                className="rounded border border-gray-800 bg-gray-900 px-3 py-1.5 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => setClosedPage((page) => page + 1)}
+                disabled={closedPage >= closedTotalPages}
+                className="rounded border border-gray-800 bg-gray-900 px-3 py-1.5 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </section>
+      )}
+
+      {positions.length > 0 && activeTab === 'active' && activePositions.length === 0 && (
+        <p className="rounded-xl border border-gray-800 bg-gray-900 p-4 text-center text-xs text-gray-600">
+          No active positions.
+        </p>
+      )}
+
+      {positions.length > 0 && activeTab === 'closed' && closedPositions.length === 0 && (
+        <p className="rounded-xl border border-gray-800 bg-gray-900 p-4 text-center text-xs text-gray-600">
+          No closed positions.
+        </p>
       )}
 
       {/* Empty state */}
@@ -223,7 +291,8 @@ export default function Positions() {
         open={editTarget !== null}
         onClose={() => setEditTarget(null)}
         onSubmit={handleEditSubmit}
-        prefill={null}
+        prefill={editTarget}
+        mode="edit"
       />
     </div>
   )

@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-20 - Codex: Position edit prefill, API-backed expiries, and status tabs
+
+Files changed:
+
+- `frontend/src/components/positions/AddPositionModal.tsx`
+- `frontend/src/pages/Positions/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Edit SL/Target now passes the selected `Position` into `AddPositionModal`. Position-specific field mapping uses `entryPrice` and `quantity`; signal prefill still uses `entryHigh` and one lot.
+- Added explicit add/edit modal mode. Edit mode labels the dialog and submit action appropriately, prefills every field, and visibly disables Symbol, Type, Strike, Expiry, Entry Price, and Quantity. Only Stop Loss, Target 1, and Target 2 remain editable.
+- Deleted the frontend Thursday-based `EXPIRY_OPTIONS` generator. Modal now reuses `optionsApi.getExpiries(symbol)`, fetches whenever opened or Symbol changes, selects the first backend expiry for new positions, and shows disabled loading/error/empty states rather than guessing dates.
+- Positions now use Active/Closed pill tabs matching the Chain symbol-toggle style, with live counts and per-tab empty states.
+- Closed positions preserve the backend newest-first order and paginate client-side at 20 items using the existing history Prev/Next pattern. Active positions remain unpaginated.
+
+Validation:
+
+- `npm run build` — passed (`tsc -b` and Vite), zero errors.
+- `git diff --check` — passed.
+- Static search confirms no `EXPIRY_OPTIONS`, `getDay() === 4`, or edit `prefill={null}` remains in `frontend/src`.
+- `npm run lint` could not run because the repository uses ESLint 10 but has no `eslint.config.js`/`.mjs`/`.cjs`; this is pre-existing project configuration, not a lint finding.
+- Interactive browser smoke test unavailable because the in-app browser surface was unavailable. Local backend/API smoke test also unavailable because startup timed out connecting to PostgreSQL at `ManusMac.local:5432`.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-19 - Codex: Comprehensive end-user functional guide
 
 Files changed:

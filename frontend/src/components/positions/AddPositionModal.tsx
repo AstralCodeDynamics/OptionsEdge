@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { Signal } from '../../types'
+import { optionsApi } from '../../services/api'
+import type { Position, Signal } from '../../types'
 
 interface FormData {
   symbol: string
@@ -28,21 +29,9 @@ interface Props {
     target2?: number
     signalId?: string
   }) => Promise<void>
-  prefill?: Signal | null
+  prefill?: Signal | Position | null
+  mode?: 'add' | 'edit'
 }
-
-const EXPIRY_OPTIONS = (() => {
-  const dates: string[] = []
-  const d = new Date()
-  for (let i = 1; i <= 30; i++) {
-    d.setDate(d.getDate() + 1)
-    if (d.getDay() === 4) {
-      dates.push(d.toISOString().slice(0, 10))
-      if (dates.length >= 4) break
-    }
-  }
-  return dates
-})()
 
 function validate(f: FormData, out: string[]): boolean {
   const entry = parseFloat(f.entryPrice)
@@ -61,36 +50,82 @@ function validate(f: FormData, out: string[]): boolean {
   return true
 }
 
-export default function AddPositionModal({ open, onClose, onSubmit, prefill }: Props) {
+const initialForm: FormData = {
+  symbol: 'NIFTY',
+  strike: '',
+  optionType: 'CE',
+  expiry: '',
+  entryPrice: '',
+  quantity: '1',
+  stopLoss: '',
+  target1: '',
+  target2: '',
+}
+
+export default function AddPositionModal({ open, onClose, onSubmit, prefill, mode = 'add' }: Props) {
   const [form, setForm] = useState<FormData>({
-    symbol: 'NIFTY',
-    strike: '',
-    optionType: 'CE',
-    expiry: EXPIRY_OPTIONS[0] ?? '',
-    entryPrice: '',
-    quantity: '1',
-    stopLoss: '',
-    target1: '',
-    target2: '',
+    ...initialForm,
   })
   const [errors, setErrors]   = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [expiries, setExpiries] = useState<string[]>([])
+  const [expiriesLoading, setExpiriesLoading] = useState(false)
+  const [expiriesError, setExpiriesError] = useState(false)
+  const isEdit = mode === 'edit'
 
-  // Pre-fill from signal
   useEffect(() => {
-    if (!prefill) return
+    if (!open) return
+    if (!prefill) {
+      setForm({ ...initialForm })
+      setErrors([])
+      return
+    }
+
+    const isPosition = 'entryPrice' in prefill
     setForm({
       symbol:     prefill.symbol,
       strike:     String(prefill.strike),
       optionType: prefill.optionType,
       expiry:     prefill.expiry,
-      entryPrice: String(prefill.entryHigh),
-      quantity:   '1',
+      entryPrice: String(isPosition ? prefill.entryPrice : prefill.entryHigh),
+      quantity:   String(isPosition ? prefill.quantity : 1),
       stopLoss:   String(prefill.stopLoss),
       target1:    String(prefill.target1),
       target2:    prefill.target2 != null ? String(prefill.target2) : '',
     })
-  }, [prefill])
+    setErrors([])
+  }, [open, prefill])
+
+  useEffect(() => {
+    if (!open) return
+
+    let cancelled = false
+    setExpiriesLoading(true)
+    setExpiriesError(false)
+    setExpiries([])
+
+    optionsApi.getExpiries(form.symbol)
+      .then((data) => {
+        if (cancelled) return
+        setExpiries(data)
+        if (!isEdit) {
+          setForm((current) => ({
+            ...current,
+            expiry: data.includes(current.expiry) ? current.expiry : (data[0] ?? ''),
+          }))
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setExpiriesError(true)
+        if (!isEdit) setForm((current) => ({ ...current, expiry: '' }))
+      })
+      .finally(() => {
+        if (!cancelled) setExpiriesLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [form.symbol, isEdit, open])
 
   if (!open) return null
 
@@ -114,17 +149,18 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
         stopLoss:   parseFloat(form.stopLoss),
         target1:    parseFloat(form.target1),
         target2:    form.target2 ? parseFloat(form.target2) : undefined,
-        signalId:   prefill?.id,
+        signalId:   !isEdit && prefill && 'entryHigh' in prefill ? prefill.id : undefined,
       })
       onClose()
     } catch {
-      setErrors(['Failed to add position. Please try again.'])
+      setErrors([isEdit ? 'Failed to update position. Please try again.' : 'Failed to add position. Please try again.'])
     } finally {
       setLoading(false)
     }
   }
 
   const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500'
+  const lockedInputCls = `${inputCls} disabled:cursor-not-allowed disabled:bg-gray-800/60 disabled:text-gray-500 disabled:border-gray-800`
   const labelCls = 'block text-xs text-gray-400 mb-1'
 
   return (
@@ -135,11 +171,11 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
       {/* Sheet — bottom on mobile, centered on desktop */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 rounded-t-2xl p-5 max-h-[90vh] overflow-y-auto lg:inset-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md lg:rounded-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-semibold text-base">Add Position</h2>
+          <h2 className="text-white font-semibold text-base">{isEdit ? 'Edit SL / Targets' : 'Add Position'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
 
-        {prefill && (
+        {prefill && !isEdit && (
           <div className="bg-gray-800 rounded-lg px-3 py-2 mb-4 text-xs text-emerald-400">
             Pre-filled from signal: {prefill.symbol} {prefill.strike} {prefill.optionType}
           </div>
@@ -149,14 +185,14 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Symbol</label>
-              <select value={form.symbol} onChange={set('symbol')} className={inputCls}>
+              <select value={form.symbol} onChange={set('symbol')} disabled={isEdit} className={lockedInputCls}>
                 <option>NIFTY</option>
                 <option>BANKNIFTY</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>Type</label>
-              <select value={form.optionType} onChange={set('optionType')} className={inputCls}>
+              <select value={form.optionType} onChange={set('optionType')} disabled={isEdit} className={lockedInputCls}>
                 <option value="CE">CE (Call)</option>
                 <option value="PE">PE (Put)</option>
               </select>
@@ -166,12 +202,23 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Strike</label>
-              <input type="number" value={form.strike} onChange={set('strike')} placeholder="24200" className={inputCls} />
+              <input type="number" value={form.strike} onChange={set('strike')} disabled={isEdit} placeholder="24200" className={lockedInputCls} />
             </div>
             <div>
               <label className={labelCls}>Expiry</label>
-              <select value={form.expiry} onChange={set('expiry')} className={inputCls}>
-                {EXPIRY_OPTIONS.map((d) => <option key={d}>{d}</option>)}
+              <select
+                value={form.expiry}
+                onChange={set('expiry')}
+                disabled={isEdit || expiriesLoading || expiriesError || expiries.length === 0}
+                className={lockedInputCls}
+              >
+                {expiriesLoading && <option value="">Loading expiry dates…</option>}
+                {expiriesError && <option value="">Couldn't load expiry dates</option>}
+                {!expiriesLoading && !expiriesError && expiries.length === 0 && <option value="">No expiry dates available</option>}
+                {isEdit && form.expiry && !expiries.includes(form.expiry) && (
+                  <option value={form.expiry}>{form.expiry}</option>
+                )}
+                {expiries.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
           </div>
@@ -179,11 +226,11 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Entry Price (₹)</label>
-              <input type="number" step="0.5" value={form.entryPrice} onChange={set('entryPrice')} placeholder="180" className={inputCls} />
+              <input type="number" step="0.5" value={form.entryPrice} onChange={set('entryPrice')} disabled={isEdit} placeholder="180" className={lockedInputCls} />
             </div>
             <div>
               <label className={labelCls}>Quantity (lots)</label>
-              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} placeholder="1" className={inputCls} />
+              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} disabled={isEdit} placeholder="1" className={lockedInputCls} />
             </div>
           </div>
 
@@ -213,7 +260,7 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill }: P
             disabled={loading}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded-xl py-3 mt-1 transition-colors"
           >
-            {loading ? 'Adding…' : 'Add Position'}
+            {loading ? (isEdit ? 'Saving…' : 'Adding…') : (isEdit ? 'Save Changes' : 'Add Position')}
           </button>
         </form>
       </div>
