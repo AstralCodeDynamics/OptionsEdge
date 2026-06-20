@@ -17,6 +17,32 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-20 - Claude Code: Close remaining Groww data leak — ChatService, AISignalService, GrowwDataBlocked
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Chat/ChatService.cs` — `GrowwCredentialService` injected; `BuildSystemPromptAsync` checks per-user Groww connection
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs` — `GrowwCredentialService` injected; blocks signal generation when no user Groww connection
+- `frontend/src/components/groww/GrowwDataBlocked.tsx` — replaced dead `/settings/security` link with sidebar instruction text
+- `docs/AI_HANDOFF.md`
+
+**Gaps closed:**
+
+`ChatService.BuildSystemPromptAsync` read `marketData.GetSnapshot()` / `indicatorService.GetIndicators()` from shared Groww singleton cache without checking user's own connection. Fix: when `Groww:Enabled = true` and user has no credentials, market context block in the system prompt is replaced with `"NOT AVAILABLE — user has not connected a Groww account."` Chat still answers general questions and references user's own positions — AI knows it lacks live data. `Groww:Enabled = false` (dev/mock): check skipped, behavior unchanged.
+
+`AISignalService.GenerateEntrySignalAsync` read `marketData.GetSnapshot()` from the same shared cache before the AI key check. Fix: Groww check placed immediately after market-hours gate, same hard-block pattern as "no API key":
+```
+"No Groww account connected. Connect your Groww account in Settings to generate live signals."
+```
+
+**GrowwDataBlocked link fix:** Codex's implementation linked to `/settings/security` which has no Groww UI. The `GrowwStatusModal` is local state in Sidebar/Header — not globally accessible. Replaced the button with instruction text pointing to the sidebar Groww button.
+
+**Backtest: intentionally NOT gated.** Reads historical public index candles — same for all users, no per-user account data, no privacy risk. Manu can add the gate for strict consistency if desired.
+
+Tests: `dotnet build` 0 warnings. `dotnet test` 49 passed. `npm run build` 0 errors.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-20 - Codex: Frontend Groww market-data gate and after-hours position badge
 
 Files changed:

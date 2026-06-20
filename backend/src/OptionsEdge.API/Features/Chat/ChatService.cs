@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
+using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Claude;
@@ -19,6 +20,7 @@ public class ChatService(
     AppDbContext db,
     IConfiguration config,
     UserAICredentialService aiCredentials,
+    GrowwCredentialService growwCredentials,
     ILogger<ChatService> logger)
 {
     public async Task<string?> ValidateAsync(Guid userId, CancellationToken ct = default)
@@ -186,21 +188,6 @@ public class ChatService(
             .Where(p => p.UserId == userId && p.Status == "active")
             .ToListAsync(ct);
 
-        var symbols = positions
-            .Select(p => p.Symbol)
-            .Distinct()
-            .DefaultIfEmpty("NIFTY")
-            .ToList();
-
-        var marketLines = symbols.Select(sym =>
-        {
-            var snap = marketData.GetSnapshot(sym);
-            var ind  = indicatorService.GetIndicators(sym);
-            return $"- {sym}: Spot {snap.Ltp:F2} ({snap.ChangePct:F2}%) | VIX {snap.Vix:F2} | PCR {snap.Pcr:F2} | " +
-                   $"RSI {ind.Rsi.Value:F1} [{ind.Rsi.Signal}] | MACD bullish cross: {ind.Macd.IsBullishCross} | " +
-                   $"SuperTrend: {(ind.Supertrend.IsBullish ? "bullish" : "bearish")}";
-        });
-
         var positionLines = positions.Count == 0
             ? ["No active positions."]
             : positions.Select(p =>
@@ -209,12 +196,50 @@ public class ChatService(
 
         var marketStatus = MarketHoursHelper.IsMarketOpen() ? "OPEN" : "CLOSED";
 
+        // Only read from shared market cache when user has their own Groww connection.
+        // Without it, using the cache would serve another user's live data in this user's AI context.
+        bool hasGroww = !config.GetValue<bool>("Groww:Enabled")
+                        || await growwCredentials.HasCredentialsAsync(userId, ct);
+
+        string marketContextSection;
+        if (hasGroww)
+        {
+            var symbols = positions
+                .Select(p => p.Symbol)
+                .Distinct()
+                .DefaultIfEmpty("NIFTY")
+                .ToList();
+
+            var marketLines = symbols.Select(sym =>
+            {
+                var snap = marketData.GetSnapshot(sym);
+                var ind  = indicatorService.GetIndicators(sym);
+                return $"- {sym}: Spot {snap.Ltp:F2} ({snap.ChangePct:F2}%) | VIX {snap.Vix:F2} | PCR {snap.Pcr:F2} | " +
+                       $"RSI {ind.Rsi.Value:F1} [{ind.Rsi.Signal}] | MACD bullish cross: {ind.Macd.IsBullishCross} | " +
+                       $"SuperTrend: {(ind.Supertrend.IsBullish ? "bullish" : "bearish")}";
+            });
+
+            marketContextSection = $"""
+                Live market context:
+                {string.Join("\n", marketLines)}
+                Market status: {marketStatus} (IST trading hours: 9:15–15:30)
+                """;
+        }
+        else
+        {
+            marketContextSection = $"""
+                Live market context: NOT AVAILABLE — user has not connected a Groww account.
+                Acknowledge this when asked about live prices, indicators, or market conditions.
+                You can still help with general options concepts, strategy discussion, and reviewing
+                the user's existing positions below.
+                Market status: {marketStatus} (IST trading hours: 9:15–15:30)
+                """;
+        }
+
         return $"""
             {ChatPersona}
 
-            Live market context:
-            {string.Join("\n", marketLines)}
-            Market status: {marketStatus} (IST trading hours: 9:15–15:30)
+            {marketContextSection}
 
             User's active positions:
             {string.Join("\n", positionLines)}

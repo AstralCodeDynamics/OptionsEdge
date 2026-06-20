@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
+using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Features.Indicators;
 using OptionsEdge.API.Features.Options;
 using OptionsEdge.API.Infrastructure.Background;
@@ -25,6 +26,7 @@ public class AISignalService(
     AppDbContext db,
     IConfiguration config,
     UserAICredentialService aiCredentials,
+    GrowwCredentialService growwCredentials,
     ILogger<AISignalService> logger)
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -50,6 +52,9 @@ public class AISignalService(
         bool bypass = config.GetValue<bool>("Claude:BypassMarketHours");
         if (!bypass && !MarketHoursHelper.IsMarketOpen())
             return (null!, "Market is closed. Signals can only be generated during market hours (9:15–15:30 IST).");
+
+        if (config.GetValue<bool>("Groww:Enabled") && !await growwCredentials.HasCredentialsAsync(userId, ct))
+            return (null!, "No Groww account connected. Connect your Groww account in Settings to generate live signals.");
 
         // Rate limit check (plan-based)
         var user = await db.Users.FindAsync([userId], ct);
