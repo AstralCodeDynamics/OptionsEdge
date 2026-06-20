@@ -23,6 +23,7 @@ function playBeep() {
 export default function AlertBanner() {
   const alerts   = useAppStore((s) => s.alerts)
   const markRead = useAppStore((s) => s.markRead)
+  const markAllRead = useAppStore((s) => s.markAllRead)
 
   const beepedRef  = useRef<Set<string>>(new Set())
   const warnTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -84,17 +85,44 @@ export default function AlertBanner() {
     alertsApi.markRead(id).catch(() => {})
   }
 
+  const dismissAll = () => {
+    markAllRead()
+    alertsApi.markAllRead().catch(() => {})
+  }
+
   if (!danger.length && !warnings.length && !infos.length) return null
 
   return (
     <>
-      {/* DANGER — fixed top, no dismiss, pulsing red */}
+      {/* DANGER — fixed top, persistent until read, pulsing red */}
       {danger.length > 0 && (
-        <div className="fixed top-0 left-0 right-0 z-50 animate-pulse">
+        <div className="fixed top-0 left-0 right-0 z-50 max-h-[40vh] overflow-y-auto overscroll-contain shadow-xl animate-pulse">
+          {danger.length > 1 && (
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-red-700 px-4 py-2">
+              <span className="text-xs font-semibold text-white">
+                {danger.length} danger alerts
+              </span>
+              <button
+                type="button"
+                onClick={dismissAll}
+                className="shrink-0 text-xs font-medium text-white underline underline-offset-2 hover:text-red-100"
+              >
+                Mark all read
+              </button>
+            </div>
+          )}
           {danger.map((a) => (
             <div key={a.id} className="flex items-center gap-3 bg-red-600 px-4 py-3">
               <span className="text-white font-bold text-sm shrink-0">⚠ DANGER</span>
-              <span className="text-white text-sm">{a.message}</span>
+              <span className="flex-1 text-sm text-white">{a.message}</span>
+              <button
+                type="button"
+                onClick={() => dismiss(a.id)}
+                className="shrink-0 text-lg leading-none text-white/80 hover:text-white"
+                aria-label="Dismiss alert"
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>

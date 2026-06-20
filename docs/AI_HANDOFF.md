@@ -17,6 +17,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-20 - Codex: Urgent stacked DANGER alert escape hatch
+
+Files changed:
+
+- `frontend/src/components/positions/AlertBanner.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Each unread DANGER row now has an accessible dismiss button. Dismiss updates Zustand immediately and calls `alertsApi.markRead(id)`, matching existing Warning/Info behavior; alert remains in Notification History as read.
+- When two or more DANGER alerts are pinned, banner shows a sticky count header with an always-reachable `Mark all read` action. It optimistically calls store `markAllRead()` and persists through `alertsApi.markAllRead()`.
+- Fixed banner remains `z-50` and attention-grabbing, but is capped at `max-h-[40vh]` with internal scrolling and overscroll containment. Large alert volumes can no longer expand banner toward full-screen height.
+- Confirmed `appStore.markRead` itself is local-only; backend persistence remains intentionally paired in `AlertBanner.dismiss`, avoiding a circular store/API dependency.
+
+Validation:
+
+- `npm run build` — passed (`tsc -b` and Vite), zero errors.
+- `git diff --check` — passed.
+- Static verification confirmed individual and bulk controls, backend calls, sticky bulk header, `40vh` cap, and internal scrolling.
+- Interactive 5+ alert smoke test unavailable because the in-app browser surface was unavailable; no production account was accessed.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-20 - Claude Code: Close remaining Groww data leak — ChatService, AISignalService, GrowwDataBlocked
 
 Files changed:
