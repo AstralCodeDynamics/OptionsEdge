@@ -15,6 +15,7 @@ public class Position
     public decimal? Target2 { get; set; }
     public Guid? SignalId { get; set; }
     public string Status { get; set; } = "active";
+    public bool IsAfterHoursEntry { get; set; }
     public decimal? ExitPrice { get; set; }
     public string? ExitReason { get; set; }
     public DateTimeOffset? ClosedAt { get; set; }

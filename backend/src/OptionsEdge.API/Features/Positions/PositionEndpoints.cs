@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.Options;
+using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.Data;
 
 namespace OptionsEdge.API.Features.Positions;
@@ -55,20 +56,21 @@ public static class PositionEndpoints
             var userId   = ctx.GetUserId(config);
             var position = new Position
             {
-                Id         = Guid.NewGuid(),
-                UserId     = userId,
-                Symbol     = req.Symbol.ToUpper(),
-                Strike     = req.Strike,
-                OptionType = req.OptionType.ToUpper(),
-                Expiry     = DateOnly.TryParse(req.Expiry, out var exp) ? exp : DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
-                EntryPrice = req.EntryPrice,
-                Quantity   = req.Quantity,
-                StopLoss   = req.StopLoss,
-                Target1    = req.Target1,
-                Target2    = req.Target2,
-                SignalId   = req.SignalId,
-                Status     = "active",
-                CreatedAt  = DateTimeOffset.UtcNow,
+                Id                = Guid.NewGuid(),
+                UserId            = userId,
+                Symbol            = req.Symbol.ToUpper(),
+                Strike            = req.Strike,
+                OptionType        = req.OptionType.ToUpper(),
+                Expiry            = DateOnly.TryParse(req.Expiry, out var exp) ? exp : DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+                EntryPrice        = req.EntryPrice,
+                Quantity          = req.Quantity,
+                StopLoss          = req.StopLoss,
+                Target1           = req.Target1,
+                Target2           = req.Target2,
+                SignalId          = req.SignalId,
+                Status            = "active",
+                IsAfterHoursEntry = !MarketHoursHelper.IsMarketOpen(),
+                CreatedAt         = DateTimeOffset.UtcNow,
             };
 
             db.Positions.Add(position);
@@ -264,6 +266,7 @@ public static class PositionEndpoints
             p.Target2,
             p.SignalId,
             p.Status,
+            p.IsAfterHoursEntry,
             p.ExitPrice,
             p.ExitReason,
             p.ClosedAt?.ToString("O"),

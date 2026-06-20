@@ -1,4 +1,5 @@
 using OptionsEdge.API.Common.Extensions;
+using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Infrastructure.Groww;
 
 namespace OptionsEdge.API.Features.Market;
@@ -10,23 +11,52 @@ public static class MarketEndpoints
         var group = app.MapGroup("/api/v1/market")
             .RequireAuthorization();
 
-        group.MapGet("/snapshot", async (HttpContext ctx, IConfiguration config, MarketService svc, IServiceProvider sp, CancellationToken ct) =>
+        group.MapGet("/snapshot", async (
+            HttpContext ctx, IConfiguration config,
+            MarketService svc, IServiceProvider sp,
+            GrowwCredentialService credentialSvc, CancellationToken ct) =>
         {
+            if (config.GetValue<bool>("Groww:Enabled"))
+            {
+                var userId = ctx.GetUserId(config);
+                if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+                    return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(false, null));
+            }
             await RefreshLiveDataAsync(ctx, config, sp, null, ct);
-            return Results.Ok(svc.GetSnapshots());
+            return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(true, svc.GetSnapshots()));
         }).WithName("GetMarketSnapshots");
 
-        group.MapGet("/snapshot/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, MarketService svc, IServiceProvider sp, CancellationToken ct) =>
+        group.MapGet("/snapshot/{symbol}", async (
+            string symbol, HttpContext ctx, IConfiguration config,
+            MarketService svc, IServiceProvider sp,
+            GrowwCredentialService credentialSvc, CancellationToken ct) =>
         {
+            if (config.GetValue<bool>("Groww:Enabled"))
+            {
+                var userId = ctx.GetUserId(config);
+                if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+                    return Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(false, null));
+            }
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
             var snap = svc.GetSnapshot(symbol);
-            return snap is null ? Results.NotFound() : Results.Ok(snap);
+            return snap is null
+                ? Results.NotFound()
+                : Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(true, snap));
         }).WithName("GetMarketSnapshot");
 
-        group.MapGet("/candles/{symbol}", async (string symbol, HttpContext ctx, IConfiguration config, IServiceProvider sp, MarketService svc, CancellationToken ct) =>
+        group.MapGet("/candles/{symbol}", async (
+            string symbol, HttpContext ctx, IConfiguration config,
+            IServiceProvider sp, MarketService svc,
+            GrowwCredentialService credentialSvc, CancellationToken ct) =>
         {
+            if (config.GetValue<bool>("Groww:Enabled"))
+            {
+                var userId = ctx.GetUserId(config);
+                if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+                    return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(false, null));
+            }
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
-            return Results.Ok(svc.GetCandles(symbol));
+            return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(true, svc.GetCandles(symbol)));
         }).WithName("GetMarketCandles");
 
         group.MapGet("/status", (MarketService svc) =>

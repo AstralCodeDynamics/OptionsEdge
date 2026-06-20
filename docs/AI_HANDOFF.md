@@ -17,6 +17,84 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-20 - Claude Code: Per-user Groww gating on all market data endpoints; IsAfterHoursEntry on positions
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Market/Models.cs` — added `GrowwGatedResponse<T>` record
+- `backend/src/OptionsEdge.API/Features/Market/MarketEndpoints.cs` — `/snapshot`, `/snapshot/{symbol}`, `/candles/{symbol}` now gated
+- `backend/src/OptionsEdge.API/Features/Indicators/IndicatorEndpoints.cs` — `/indicators/{symbol}` now gated
+- `backend/src/OptionsEdge.API/Features/Options/OptionsEndpoints.cs` — `/chain/{symbol}`, `/maxpain/{symbol}` now gated
+- `backend/src/OptionsEdge.API/Domain/Entities/Position.cs` — added `IsAfterHoursEntry` property
+- `backend/src/OptionsEdge.API/Features/Positions/Models.cs` — added `IsAfterHoursEntry` to `PositionResponse`
+- `backend/src/OptionsEdge.API/Features/Positions/PositionEndpoints.cs` — sets `IsAfterHoursEntry` on create, returns in response
+- `backend/src/OptionsEdge.API/Infrastructure/Data/Migrations/20260620063027_AddAfterHoursEntryFlag.cs` (new)
+- `docs/AI_HANDOFF.md`
+
+**Bug fixed (confirmed Manu):** Any user without their own Groww connection was silently receiving another user's live market data from the shared `GrowwMarketDataService` singleton cache. Now blocked per-user.
+
+**Per-user Groww gating — PATTERN (all future Groww-backed endpoints must follow this):**
+
+Every endpoint that reads from `IMarketDataService` / `GrowwMarketDataService` / `OptionsService` (singleton shared cache) MUST gate per-user when `Groww:Enabled = true`:
+
+```csharp
+if (config.GetValue<bool>("Groww:Enabled"))
+{
+    var userId = ctx.GetUserId(config);
+    if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+        return Results.Ok(new GrowwGatedResponse<T>(false, null));
+}
+return Results.Ok(new GrowwGatedResponse<T>(true, data));
+```
+
+`GrowwCredentialService` is registered Scoped — inject directly in endpoint lambdas.
+
+**Response shape change — BREAKING for Codex (frontend must update all callers):**
+
+All gated endpoints now return `GrowwGatedResponse<T> { isGrowwConnected: bool, data: T? }` instead of raw data. When `Groww:Enabled = false` (dev/mock mode), `isGrowwConnected` is always `true` (mock data always available).
+
+Endpoints changed (before → after):
+
+| Endpoint | Before | After |
+|---|---|---|
+| `GET /api/v1/market/snapshot` | `MarketSnapshotResponse[]` | `{ isGrowwConnected, data: MarketSnapshotResponse[] \| null }` |
+| `GET /api/v1/market/snapshot/{symbol}` | `MarketSnapshotResponse` | `{ isGrowwConnected, data: MarketSnapshotResponse \| null }` |
+| `GET /api/v1/market/candles/{symbol}` | `CandleResponse[]` | `{ isGrowwConnected, data: CandleResponse[] \| null }` |
+| `GET /api/v1/indicators/{symbol}` | `IndicatorsResponse` | `{ isGrowwConnected, data: IndicatorsResponse \| null }` |
+| `GET /api/v1/options/chain/{symbol}` | `OptionsChainResponse` | `{ isGrowwConnected, data: OptionsChainResponse \| null }` |
+| `GET /api/v1/options/maxpain/{symbol}` | `MaxPainResponse` | `{ isGrowwConnected, data: MaxPainResponse \| null }` |
+
+**NOT gated** (computed/non-Groww): `GET /market/status`, `GET /options/expiries/{symbol}`, `POST /options/payoff`.
+
+**Codex frontend must:**
+1. Update types for all 6 gated endpoints to `GrowwGatedResponse<T>` wrappers.
+2. All callers unwrap `.data` before use.
+3. When `isGrowwConnected = false`: show a prominent "Connect your Groww account in Settings to see live market data" message and disable all market-data-dependent controls. No partial display, no anonymized fallback.
+
+**IsAfterHoursEntry — position flag:**
+
+- New `bool` column on `Positions` table (defaultValue: false for existing rows).
+- Set to `!MarketHoursHelper.IsMarketOpen()` at create time.
+- Persisted: frontend shows a permanent badge/notice on after-hours positions — not just a one-time toast.
+- Migration: `20260620063027_AddAfterHoursEntryFlag`. Manu must run `dotnet ef database update` when DB is available.
+
+**Codex frontend must:**
+1. Add `isAfterHoursEntry: boolean` to the `PositionResponse` type.
+2. On position cards where `isAfterHoursEntry = true`, show a visible label (e.g., yellow badge "After-hours entry") so Manu can identify those positions at a glance.
+
+Tests:
+
+- `dotnet build` — 0 warnings, 0 errors.
+- `dotnet test` — 49 passed.
+- Migration generated cleanly; DB update pending (ManusMac.local:5432 unreachable from this session — apply with `dotnet ef database update` from the dev machine).
+
+Caveats:
+
+- `OptionsChainResponse` data from `OptionsService.GetChain()` may still reflect a previous connected user's cached chain until the singleton TTL expires (30s during market hours, 5min otherwise). The gate prevents non-connected users from *seeing* another user's data, but the singleton cache itself remains shared — this is inherent to the singleton design and acceptable given the TTL.
+- `GET /market/status` intentionally NOT gated — open/close status is generic, not user-specific data.
+
+Claude Code active files: none. Codex active files: all 6 gated frontend callers + `PositionResponse` type + position card UI.
+
 ### 2026-06-20 - Codex: Position edit prefill, API-backed expiries, and status tabs
 
 Files changed:

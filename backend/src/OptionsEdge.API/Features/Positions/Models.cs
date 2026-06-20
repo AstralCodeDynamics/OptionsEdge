@@ -33,6 +33,7 @@ public record PositionResponse(
     decimal? Target2,
     Guid? SignalId,
     string Status,
+    bool IsAfterHoursEntry,
     decimal? ExitPrice,
     string? ExitReason,
     string? ClosedAt,

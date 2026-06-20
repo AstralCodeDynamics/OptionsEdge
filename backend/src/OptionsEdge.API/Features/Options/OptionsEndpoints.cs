@@ -1,5 +1,6 @@
 using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Features.Groww;
+using OptionsEdge.API.Features.Market;
 
 namespace OptionsEdge.API.Features.Options;
 
@@ -13,17 +14,20 @@ public static class OptionsEndpoints
         group.MapGet("/chain/{symbol}", async (
             string symbol, string? expiry,
             HttpContext ctx, IConfiguration config, IServiceProvider sp,
-            OptionsService svc, ILogger<OptionsService> logger, CancellationToken ct) =>
+            OptionsService svc, GrowwCredentialService credentialSvc,
+            ILogger<OptionsService> logger, CancellationToken ct) =>
         {
-            var expiries = svc.GetExpiries(symbol);
-            var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
-
             if (config.GetValue<bool>("Groww:Enabled"))
             {
+                var userId = ctx.GetUserId(config);
+                if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+                    return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(false, null));
+
+                var expiries = svc.GetExpiries(symbol);
+                var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
                 try
                 {
                     var growwUserApi = sp.GetRequiredService<GrowwUserApiClient>();
-                    var userId = ctx.GetUserId(config);
                     var chain = await growwUserApi.GetOptionChainAsync(userId, symbol, selectedExpiry, ct);
                     svc.CacheGrowwChain(symbol, selectedExpiry, chain);
                 }
@@ -31,20 +35,34 @@ public static class OptionsEndpoints
                 {
                     logger.LogWarning(ex, "Groww option chain refresh failed for {Symbol}, using synthetic", symbol);
                 }
+                return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, svc.GetChain(symbol, selectedExpiry)));
             }
 
-            return Results.Ok(svc.GetChain(symbol, selectedExpiry));
+            var expiriesFallback = svc.GetExpiries(symbol);
+            var selectedExpiryFallback = expiry ?? expiriesFallback.FirstOrDefault() ?? "";
+            return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, svc.GetChain(symbol, selectedExpiryFallback)));
         }).WithName("GetOptionsChain");
 
         group.MapGet("/expiries/{symbol}", (string symbol, OptionsService svc) =>
             Results.Ok(svc.GetExpiries(symbol)))
             .WithName("GetExpiries");
 
-        group.MapGet("/maxpain/{symbol}", (string symbol, string? expiry, OptionsService svc) =>
+        group.MapGet("/maxpain/{symbol}", async (
+            string symbol, string? expiry,
+            HttpContext ctx, IConfiguration config,
+            OptionsService svc, GrowwCredentialService credentialSvc,
+            CancellationToken ct) =>
         {
+            if (config.GetValue<bool>("Groww:Enabled"))
+            {
+                var userId = ctx.GetUserId(config);
+                if (!await credentialSvc.HasCredentialsAsync(userId, ct))
+                    return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(false, null));
+            }
+
             var expiries = svc.GetExpiries(symbol);
             var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
-            return Results.Ok(svc.GetMaxPain(symbol, selectedExpiry));
+            return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(true, svc.GetMaxPain(symbol, selectedExpiry)));
         }).WithName("GetMaxPain");
 
         group.MapPost("/payoff", (PayoffRunRequest req, OptionsService svc) =>
