@@ -5,7 +5,7 @@ import type {
   RegisterRequest, LoginRequest, ResetPasswordRequest, ChangePasswordRequest,
   AuthResponse, TwoFactorRequiredResponse, MeResponse, EnableTwoFactorResponse, VerifyTwoFactorSetupResponse,
   UsageStats, SignalHistoryResponse, SignalPreferenceRequest, SignalPreferenceResponse, LotSizeConfig,
-  AlertHistoryResponse,
+  AlertHistoryResponse, GrowwGatedResponse,
 } from '../types'
 import { useAppStore } from '../store/appStore'
 
@@ -198,11 +198,11 @@ api.interceptors.response.use(
 )
 
 export const marketApi = {
-  getSnapshots: () => api.get<MarketSnapshot[]>('/market/snapshot').then((r) => r.data),
+  getSnapshots: () => api.get<GrowwGatedResponse<MarketSnapshot[]>>('/market/snapshot').then((r) => r.data),
   getSnapshot: (symbol: string) =>
-    api.get<MarketSnapshot>(`/market/snapshot/${symbol}`).then((r) => r.data),
+    api.get<GrowwGatedResponse<MarketSnapshot>>(`/market/snapshot/${symbol}`).then((r) => r.data),
   getCandles: (symbol: string) =>
-    api.get<Candle[]>(`/market/candles/${symbol}`).then((r) => r.data),
+    api.get<GrowwGatedResponse<Candle[]>>(`/market/candles/${symbol}`).then((r) => r.data),
   getStatus: () => api.get<MarketStatus>('/market/status').then((r) => r.data),
 }
 
@@ -212,19 +212,19 @@ export const configApi = {
 
 export const indicatorsApi = {
   getIndicators: (symbol: string) =>
-    api.get<IndicatorsResponse>(`/indicators/${symbol}`).then((r) => r.data),
+    api.get<GrowwGatedResponse<IndicatorsResponse>>(`/indicators/${symbol}`).then((r) => r.data),
 }
 
 export const optionsApi = {
   getChain: (symbol: string, expiry?: string) => {
     const params = expiry ? `?expiry=${expiry}` : ''
-    return api.get<OptionsChain>(`/options/chain/${symbol}${params}`).then((r) => r.data)
+    return api.get<GrowwGatedResponse<OptionsChain>>(`/options/chain/${symbol}${params}`).then((r) => r.data)
   },
   getExpiries: (symbol: string) =>
     api.get<string[]>(`/options/expiries/${symbol}`).then((r) => r.data),
   getMaxPain: (symbol: string, expiry?: string) => {
     const params = expiry ? `?expiry=${expiry}` : ''
-    return api.get<{ maxPain: number; spot: number; expiry: string }>(
+    return api.get<GrowwGatedResponse<{ maxPain: number; spot: number; expiry: string }>>(
       `/options/maxpain/${symbol}${params}`
     ).then((r) => r.data)
   },

@@ -95,6 +95,11 @@ export default function PositionCard({
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={`text-xs ${statusColor} font-medium uppercase`}>{p.status}</span>
+            {p.isAfterHoursEntry && (
+              <span className="rounded-full bg-gray-800 px-2 py-0.5 text-[10px] font-medium text-gray-400">
+                Entered after hours
+              </span>
+            )}
             <span className="text-gray-600 text-xs">·</span>
             <span className="text-gray-500 text-xs">{p.quantity} lot{p.quantity !== 1 ? 's' : ''}</span>
           </div>

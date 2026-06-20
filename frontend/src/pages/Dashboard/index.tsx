@@ -11,6 +11,7 @@ import { PivotLevels } from '../../components/market/PivotLevels'
 import { PriceChart } from '../../components/charts/PriceChart'
 import { SignalCard } from '../../components/signals/SignalCard'
 import OrderConfirmModal from '../../components/groww/OrderConfirmModal'
+import GrowwDataBlocked from '../../components/groww/GrowwDataBlocked'
 import { IndexCardSkeleton, IndicatorPanelSkeleton } from '../../components/common/Skeleton'
 import type { Candle, Signal } from '../../types'
 
@@ -18,7 +19,7 @@ const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
 type Symbol = (typeof SYMBOLS)[number]
 
 export default function Dashboard() {
-  const { connectionState } = useMarketData()
+  const { connectionState, isGrowwConnected } = useMarketData()
   const snapshots     = useAppStore((s) => s.snapshots)
   const indicators    = useAppStore((s) => s.indicators)
   const storeSignals  = useAppStore((s) => s.signals)
@@ -33,27 +34,26 @@ export default function Dashboard() {
   const [signalElapsed, setSignalElapsed] = useState(0)
   const [signalError, setSignalError]   = useState<string | null>(null)
   const [orderSignal, setOrderSignal]    = useState<Signal | null>(null)
-  const [growwPrompt, setGrowwPrompt]    = useState(false)
   const [aiKeyPrompt, setAiKeyPrompt]    = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
+    if (isGrowwConnected !== true) {
+      setCandles([])
+      return
+    }
+
+    let cancelled = false
+    setCandles([])
     marketApi.getCandles(activeSymbol)
-      .then(setCandles)
+      .then((response) => {
+        if (cancelled) return
+        useAppStore.getState().setMarketDataConnected(response.isGrowwConnected)
+        if (response.isGrowwConnected && response.data) setCandles(response.data)
+      })
       .catch(() => {})
-  }, [activeSymbol])
-
-  useEffect(() => {
-    if (sessionStorage.getItem('growwPromptDismissed')) return
-    growwApi.getStatus()
-      .then((s) => { if (s.enabled && !s.connected) setGrowwPrompt(true) })
-      .catch(() => {})
-  }, [])
-
-  function dismissGrowwPrompt() {
-    setGrowwPrompt(false)
-    sessionStorage.setItem('growwPromptDismissed', '1')
-  }
+    return () => { cancelled = true }
+  }, [activeSymbol, isGrowwConnected])
 
   function startTimer() {
     setSignalElapsed(0)
@@ -119,27 +119,24 @@ export default function Dashboard() {
   const activeSnapshot = snapshots[activeSymbol]
   const activeIndicators = indicators[activeSymbol]
 
+  if (isGrowwConnected === null) {
+    return (
+      <div className="flex min-h-64 items-center justify-center p-4 text-sm text-gray-500">
+        Checking market data access…
+      </div>
+    )
+  }
+
+  if (isGrowwConnected === false) {
+    return (
+      <div className="p-4 max-w-5xl mx-auto">
+        <GrowwDataBlocked />
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 space-y-5 max-w-5xl mx-auto">
-      {growwPrompt && (
-        <div className="rounded-lg bg-yellow-950/40 border border-yellow-700/40 p-3 flex items-start justify-between gap-3">
-          <div className="text-xs text-yellow-300">
-            <p className="font-semibold mb-1">🔗 Connect Groww for live market data</p>
-            <p>
-              Go to <strong>Settings → Security → Groww Integration</strong> to connect your account
-              and get real-time prices and alerts.
-            </p>
-          </div>
-          <button
-            onClick={dismissGrowwPrompt}
-            className="text-gray-500 hover:text-gray-300 text-lg leading-none flex-shrink-0"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {aiKeyPrompt && (
         <div className="rounded-lg bg-yellow-950/40 border border-yellow-700/40 p-3 flex items-start justify-between gap-3">
           <div className="text-xs text-yellow-300">
@@ -244,7 +241,7 @@ export default function Dashboard() {
         <div className="flex gap-2">
           <button
             onClick={handleGenerateSignal}
-            disabled={signalLoading}
+            disabled={signalLoading || isGrowwConnected !== true}
             className="flex-1 flex flex-col items-center py-2.5 px-3 bg-emerald-800 hover:bg-emerald-700 disabled:bg-gray-800 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
             <span className="text-xs font-semibold text-white">

@@ -15,6 +15,11 @@ export interface MarketSnapshot {
   dataSource: 'groww_live' | 'mock'
 }
 
+export interface GrowwGatedResponse<T> {
+  isGrowwConnected: boolean
+  data: T | null
+}
+
 export interface Candle {
   time: number
   open: number
@@ -231,6 +236,7 @@ export interface Position {
   exitReason?: string
   closedAt?: string
   createdAt: string
+  isAfterHoursEntry: boolean
   currentLtp?: number
   pnl?: number
   pnlPct?: number

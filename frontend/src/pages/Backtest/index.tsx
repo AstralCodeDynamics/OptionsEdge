@@ -3,6 +3,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ReferenceDot,
 } from 'recharts'
 import { backtestApi, marketApi } from '../../services/api'
+import GrowwDataBlocked from '../../components/groww/GrowwDataBlocked'
+import { useAppStore } from '../../store/appStore'
 import type { BacktestResult, BacktestTradeLogEntry, Candle } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY']
@@ -82,17 +84,25 @@ function TradeChartModal({
   trade: BacktestTradeLogEntry
   onClose: () => void
 }) {
+  const marketDataConnected = useAppStore((s) => s.marketDataConnected)
+  const setMarketDataConnected = useAppStore((s) => s.setMarketDataConnected)
   const [candles, setCandles] = useState<Candle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isGrowwConnected, setIsGrowwConnected] = useState<boolean | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setCandles([])
+    setIsGrowwConnected(null)
     marketApi.getCandles(result.symbol)
-      .then((rows) => {
-        if (!cancelled) setCandles(rows)
+      .then((response) => {
+        if (cancelled) return
+        setIsGrowwConnected(response.isGrowwConnected)
+        setMarketDataConnected(response.isGrowwConnected)
+        if (response.isGrowwConnected && response.data) setCandles(response.data)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load candles for this trade.')
@@ -102,7 +112,7 @@ function TradeChartModal({
       })
 
     return () => { cancelled = true }
-  }, [result.symbol])
+  }, [result.symbol, setMarketDataConnected])
 
   const entryTs = parseTradeTime(trade.entryDate)
   const exitTs = parseTradeTime(trade.exitDate)
@@ -172,7 +182,9 @@ function TradeChartModal({
         </div>
 
         <div className="px-4 pb-4">
-          <div className="h-[340px] rounded-lg border border-gray-800 bg-gray-900 p-3">
+          {isGrowwConnected === false || marketDataConnected === false ? (
+            <GrowwDataBlocked />
+          ) : <div className="h-[340px] rounded-lg border border-gray-800 bg-gray-900 p-3">
             {loading ? (
               <div className="flex h-full items-center justify-center text-xs text-gray-500">Loading chart…</div>
             ) : error ? (
@@ -216,10 +228,12 @@ function TradeChartModal({
                 No candles found around this trade window.
               </div>
             )}
-          </div>
-          <p className="mt-2 text-[11px] text-gray-600">
-            Chart shows {result.symbol} index candles around the trade. Entry/exit premiums are simulated option prices from the backtest.
-          </p>
+          </div>}
+          {isGrowwConnected !== false && marketDataConnected !== false && (
+            <p className="mt-2 text-[11px] text-gray-600">
+              Chart shows {result.symbol} index candles around the trade. Entry/exit premiums are simulated option prices from the backtest.
+            </p>
+          )}
         </div>
       </div>
     </div>

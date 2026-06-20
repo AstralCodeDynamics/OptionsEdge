@@ -17,6 +17,41 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-20 - Codex: Frontend Groww market-data gate and after-hours position badge
+
+Files changed:
+
+- `frontend/src/types/index.ts`
+- `frontend/src/services/api.ts`
+- `frontend/src/store/appStore.ts`
+- `frontend/src/hooks/useMarketData.ts`
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/components/groww/GrowwDataBlocked.tsx` (new)
+- `frontend/src/pages/Dashboard/index.tsx`
+- `frontend/src/pages/Chain/index.tsx`
+- `frontend/src/pages/Backtest/index.tsx`
+- `frontend/src/components/positions/PositionCard.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Added frontend `GrowwGatedResponse<T>` and updated all six gated API methods to match backend `{ isGrowwConnected, data }` responses.
+- Dashboard now waits for access confirmation and renders no snapshots, candles, indicators, pivots, Market Pulse, charts, or signal controls when disconnected. Replaced the old decorative/dismissible Groww banner with a centered blocked state linking to `/settings/security`.
+- Chain unwraps the gated response, clears prior chain data before each request, disables symbol/expiry controls until access is confirmed, and renders no metrics, OI chart, chain table, or Strategy Builder when disconnected.
+- Backtest trade-chart candle fetch now checks the wrapper and shows the same blocked state instead of rendering candle data when disconnected.
+- Store tracks authoritative market-data access. A false gate or disconnected per-user Groww status clears cached snapshots/indicators; logout also clears them. Reconnection resets access for a fresh fetch.
+- SignalR price and indicator updates are discarded until REST access is confirmed. Indicator refresh responses also re-check the gate before writing to store.
+- Added required `isAfterHoursEntry` to frontend `Position` type. Position cards now show a persistent neutral `Entered after hours` badge beside status when true.
+
+Validation:
+
+- `npm run build` — passed (`tsc -b` and Vite), zero errors.
+- `git diff --check` — passed.
+- Source audit found all direct `marketApi`, `indicatorsApi`, and gated `optionsApi` consumers and confirmed wrapper checks at each caller.
+- Interactive disconnected-account/weekend-position smoke test unavailable because the in-app browser surface was unavailable. Backend migration remains pending per the preceding Claude entry until PostgreSQL is reachable.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-20 - Claude Code: Per-user Groww gating on all market data endpoints; IsAfterHoursEntry on positions
 
 Files changed:

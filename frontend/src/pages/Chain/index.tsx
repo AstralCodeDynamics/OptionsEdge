@@ -5,19 +5,22 @@ import { ChainTable } from '../../components/chain/ChainTable'
 import { OIChart } from '../../components/charts/OIChart'
 import { StrategyBuilder } from '../../components/strategy/StrategyBuilder'
 import { ChainTableSkeleton } from '../../components/common/Skeleton'
+import GrowwDataBlocked from '../../components/groww/GrowwDataBlocked'
 import type { OptionsChain } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
 type Symbol = (typeof SYMBOLS)[number]
 
 export default function Chain() {
-  const snapshots = useAppStore((s) => s.snapshots)
-
+  const growwStatus = useAppStore((s) => s.growwStatus)
+  const marketDataConnected = useAppStore((s) => s.marketDataConnected)
+  const setMarketDataConnected = useAppStore((s) => s.setMarketDataConnected)
   const [symbol, setSymbol] = useState<Symbol>('NIFTY')
   const [expiries, setExpiries] = useState<string[]>([])
   const [selectedExpiry, setSelectedExpiry] = useState<string>('')
   const [chain, setChain] = useState<OptionsChain | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isGrowwConnected, setIsGrowwConnected] = useState<boolean | null>(null)
 
   // Fetch expiries when symbol changes
   useEffect(() => {
@@ -32,14 +35,31 @@ export default function Chain() {
   // Fetch chain when symbol or expiry changes
   useEffect(() => {
     if (!selectedExpiry) return
+    let cancelled = false
     setLoading(true)
+    setChain(null)
     optionsApi.getChain(symbol, selectedExpiry)
-      .then((data) => { setChain(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [symbol, selectedExpiry])
+      .then((response) => {
+        if (cancelled) return
+        setIsGrowwConnected(response.isGrowwConnected)
+        setMarketDataConnected(response.isGrowwConnected)
+        setChain(response.isGrowwConnected ? response.data : null)
+      })
+      .catch(() => {
+        if (!cancelled) setChain(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [growwStatus?.connected, selectedExpiry, setMarketDataConnected, symbol])
 
-  const spot = snapshots[symbol]?.ltp ?? chain?.spot ?? 0
+  const spot = chain?.spot ?? 0
   const atm = chain ? Math.round(spot / (symbol === 'NIFTY' ? 50 : 100)) * (symbol === 'NIFTY' ? 50 : 100) : 0
+  const isBlocked = isGrowwConnected === false
+    || marketDataConnected === false
+    || (growwStatus?.enabled === true && !growwStatus.connected)
+  const controlsEnabled = isGrowwConnected === true && !isBlocked
 
   return (
     <div className="p-4 space-y-4 max-w-6xl mx-auto">
@@ -52,11 +72,12 @@ export default function Chain() {
             <button
               key={sym}
               onClick={() => setSymbol(sym)}
+              disabled={!controlsEnabled}
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
                 symbol === sym
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-40`}
             >
               {sym}
             </button>
@@ -68,7 +89,8 @@ export default function Chain() {
           <select
             value={selectedExpiry}
             onChange={(e) => setSelectedExpiry(e.target.value)}
-            className="bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1"
+            disabled={!controlsEnabled}
+            className="bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {expiries.map((exp) => (
               <option key={exp} value={exp}>{exp}</option>
@@ -96,9 +118,11 @@ export default function Chain() {
         )}
       </div>
 
-      {loading && <ChainTableSkeleton />}
+      {loading && !isBlocked && <ChainTableSkeleton />}
 
-      {!loading && chain && (
+      {isBlocked && <GrowwDataBlocked />}
+
+      {!loading && controlsEnabled && chain && (
         <>
           {/* OI chart */}
           <OIChart rows={chain.rows} atm={atm} />

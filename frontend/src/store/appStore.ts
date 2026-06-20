@@ -6,9 +6,11 @@ interface MarketSlice {
   snapshots: Record<string, MarketSnapshot>
   marketStatus: MarketStatus | null
   indicators: Record<string, IndicatorsResponse>
+  marketDataConnected: boolean | null
   setSnapshot: (snapshot: MarketSnapshot) => void
   setMarketStatus: (status: MarketStatus) => void
   setIndicators: (symbol: string, indicators: IndicatorsResponse) => void
+  setMarketDataConnected: (connected: boolean | null) => void
 }
 
 interface SignalsSlice {
@@ -62,11 +64,16 @@ export const useAppStore = create<AppStore>((set) => ({
   snapshots: {},
   marketStatus: null,
   indicators: {},
+  marketDataConnected: null,
   setSnapshot: (snapshot) =>
     set((s) => ({ snapshots: { ...s.snapshots, [snapshot.symbol]: snapshot } })),
   setMarketStatus: (marketStatus) => set({ marketStatus }),
   setIndicators: (symbol, indicators) =>
     set((s) => ({ indicators: { ...s.indicators, [symbol]: indicators } })),
+  setMarketDataConnected: (marketDataConnected) =>
+    set(marketDataConnected === true
+      ? { marketDataConnected }
+      : { marketDataConnected, snapshots: {}, indicators: {} }),
 
   // Signals
   signals: [],
@@ -120,7 +127,13 @@ export const useAppStore = create<AppStore>((set) => ({
   setUser: (user) => set({ user }),
   setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
   setAuthLoading: (isAuthLoading) => set({ isAuthLoading }),
-  logout: () => set({ user: null, isAuthenticated: false }),
+  logout: () => set({
+    user: null,
+    isAuthenticated: false,
+    marketDataConnected: null,
+    snapshots: {},
+    indicators: {},
+  }),
 
   // UI
   sidebarOpen: false,
@@ -129,5 +142,18 @@ export const useAppStore = create<AppStore>((set) => ({
 
   // Groww
   growwStatus: null,
-  setGrowwStatus: (growwStatus) => set({ growwStatus }),
+  setGrowwStatus: (growwStatus) => set((s) => {
+    if (growwStatus?.enabled && !growwStatus.connected) {
+      return {
+        growwStatus,
+        marketDataConnected: false,
+        snapshots: {},
+        indicators: {},
+      }
+    }
+    if (growwStatus?.enabled && growwStatus.connected && s.marketDataConnected === false) {
+      return { growwStatus, marketDataConnected: null }
+    }
+    return { growwStatus }
+  }),
 }))
