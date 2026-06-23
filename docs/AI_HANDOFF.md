@@ -23,6 +23,33 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Codex: TASK-0001-CLEANUP-FIX-2 Manual Markdown physical line rewrite
+
+Files changed:
+
+- `docs/ai/README.md`
+- `docs/ai/10-REVIEW-CHECKLIST.md`
+- `docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md`
+- `docs/ai/12-COWORKER-REVIEW-TEMPLATE.md`
+- `docs/AI_HANDOFF.md`
+
+Notes:
+
+- Manually rewrote the four requested `docs/ai` Markdown files with real physical line breaks.
+- Verified `docs/ai/README.md` has many physical lines, not 5.
+- Verified `docs/ai/10-REVIEW-CHECKLIST.md` has many physical lines, not 4.
+- Verified `docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md` has a readable multi-line fenced template.
+- Verified `docs/ai/12-COWORKER-REVIEW-TEMPLATE.md` has a readable multi-line fenced template.
+- No app behavior changed.
+- No backend source, frontend source, migrations, or deployment workflow changed.
+
+Validation:
+
+- `wc -l docs/ai/README.md docs/ai/10-REVIEW-CHECKLIST.md docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md docs/ai/12-COWORKER-REVIEW-TEMPLATE.md` — 77, 77, 71, and 69 lines.
+- `git diff --check` — passed before this handoff entry was added.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-23 - Codex: TASK-0001-CLEANUP-FIX Proper Markdown physical line normalization
 
 Files changed:

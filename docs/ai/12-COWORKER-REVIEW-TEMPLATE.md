@@ -6,9 +6,11 @@ Claude Coworker / Claude AI uses this template to review Codex work.
 # Review: TASK-XXXX <title>
 
 ## Result
+
 PASS | PASS WITH NOTES | FAIL
 
 ## Scope Check
+
 - Task file used:
 
 - Files changed match scope:
@@ -18,9 +20,11 @@ PASS | PASS WITH NOTES | FAIL
 - Handoff updated:
 
 ## Findings
+
 1. <severity> <file:line> <issue>
 
 ## Checklist
+
 - Task contract:
 
 - Architecture:
@@ -34,6 +38,7 @@ PASS | PASS WITH NOTES | FAIL
 - Validation:
 
 ## Groww Safety
+
 - No silent mock fallback when Groww enabled:
 
 - Per-user credential gating preserved:
@@ -45,12 +50,15 @@ PASS | PASS WITH NOTES | FAIL
 - No AI actionable signal from stale/missing data:
 
 ## Validation Reviewed
+
 - <commands and outcomes>
 
 ## Required Fixes
+
 - <only if FAIL>
 
 ## Notes
+
 - <optional>
 ```
 
