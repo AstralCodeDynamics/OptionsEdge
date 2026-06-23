@@ -1,4 +1,4 @@
-# OptionsEdge — Claude Code Context
+# OptionsEdge — Codex Context
 
 ## Project
 NIFTY/BANKNIFTY options trading assistant. No broker API. Signals only — user trades manually on Groww. Active risk monitoring alerts user to exit dangerous positions.
@@ -49,16 +49,32 @@ OptionsEdge/
 - Frontend: components in PascalCase, hooks in camelCase with use prefix
 - API errors: ProblemDetails RFC 7807 format
 
-## Dual-Agent Protocol
+## Agent Protocol
 
-- Second agent: Codex (OpenAI)
-- Shared memory: docs/AI_HANDOFF.md
-- Read AI_HANDOFF.md BEFORE every task
-- Update AI_HANDOFF.md AFTER every task
-- Never touch files listed as "Codex active" in handoff
-- Own areas: Backend services, Infrastructure,
-  Groww integration, DB migrations, AI prompts,
-  Security layer
-- Codex owns: Backend endpoints, Tests,
-  Frontend pages, Frontend hooks, Frontend types,
-  UI components
+### Coding Agent: Codex (OpenAI)
+Codex handles ALL implementation tasks:
+- Backend services, infrastructure, migrations
+- Backend endpoints and tests
+- Frontend pages, hooks, types, components
+- AI prompts and security layer
+
+### Review & Consultation: Claude AI (Anthropic)
+Claude AI (via claude.ai) acts as architect and reviewer — NOT a coding agent. Claude:
+- Reviews code after Codex commits
+- Designs features before Codex implements
+- Writes precise Codex instructions
+- Diagnoses live production issues
+- Does NOT commit code directly
+
+### Workflow
+1. Manu describes feature/bug to Claude AI
+2. Claude AI designs the solution and writes a precise Codex instruction
+3. Codex implements and commits
+4. Claude AI reviews the committed code
+5. Manu deploys after review passes
+
+### Shared Memory: docs/AI_HANDOFF.md
+- Codex reads AI_HANDOFF.md BEFORE every task
+- Codex updates AI_HANDOFF.md AFTER every task
+- Claude AI reads AI_HANDOFF.md when reviewing
+- Never touch files listed as "active" in handoff

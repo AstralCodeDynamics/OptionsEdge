@@ -1,6 +1,12 @@
 # AI Handoff
 
-This file is the shared working memory for Claude Code and Codex. Read it before non-trivial changes and update it after changes that affect behavior, architecture, API contracts, data flow, or important debugging context.
+This file is the shared working memory for Codex and Claude AI. Read it before non-trivial changes and update it after changes that affect behavior, architecture, API contracts, data flow, or important debugging context.
+
+## Agent Roles (as of June 2026)
+
+- **Coding agent**: Codex — implements all backend and frontend changes, runs builds, commits
+- **Reviewer/Consultant**: Claude AI (claude.ai) — reviews Codex's commits, writes implementation instructions, diagnoses issues, does NOT commit code directly
+- **No Claude Code**: Claude Code has been retired from this project due to token cost. All implementation tasks go to Codex only.
 
 ## Update Protocol
 
