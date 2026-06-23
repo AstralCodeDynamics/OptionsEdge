@@ -7,7 +7,8 @@ Claude Coworker / Claude AI must use this checklist for every review.
 - Task file exists for non-trivial work.
 - Codex changed only approved scope.
 - Handoff created or updated.
-- `docs/AI_HANDOFF.md` updated when behavior, architecture, API contract, data flow, or important debugging context changed.
+- `docs/AI_HANDOFF.md` updated when behavior, architecture, API contract, data
+  flow, or important debugging context changed.
 
 ## Architecture
 
@@ -51,3 +52,7 @@ Review result must be one of:
 - PASS
 - PASS WITH NOTES
 - FAIL
+
+Store `PASS` and `PASS WITH NOTES` reviews under `docs/ai/reviews/passed/`.
+
+Store `FAIL` reviews under `docs/ai/reviews/failed/`.

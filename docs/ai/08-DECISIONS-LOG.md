@@ -1,6 +1,8 @@
 # Decisions Log
 
-Record architecture and workflow decisions newest first. Do not record secrets or private account data.
+Record architecture and workflow decisions newest first.
+
+Do not record secrets or private account data.
 
 ## 2026-06-23 - Structured AI Artefact Workflow
 
@@ -18,7 +20,8 @@ Impact:
 
 ## 2026-06-23 - Groww Freshness Is Hard Safety Gate
 
-Decision: when Groww is enabled, stale or missing live data blocks market-data-dependent UI, risk checks, and actionable AI signals.
+Decision: when Groww is enabled, stale or missing live data blocks
+market-data-dependent UI, risk checks, and actionable AI signals.
 
 Reason:
 - Silent mock fallback caused wrong ATM, option LTP, targets, and alerts.

@@ -23,6 +23,44 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Codex: TASK-0001-FIX AI workflow integration cleanup
+
+Files changed:
+
+- `CLAUDE.md`
+- `docs/AI_HANDOFF.md`
+- `docs/ai/README.md`
+- `docs/ai/00-COWORKER-PROJECT-MEMORY.md`
+- `docs/ai/01-PROJECT-CONTEXT.md`
+- `docs/ai/02-ARCHITECTURE-CONTEXT.md`
+- `docs/ai/03-FUNCTIONAL-FLOWS.md`
+- `docs/ai/05-AI-USAGE-RULES.md`
+- `docs/ai/06-DATA-SAFETY-RULES.md`
+- `docs/ai/07-CURRENT-STATE.md`
+- `docs/ai/08-DECISIONS-LOG.md`
+- `docs/ai/09-KNOWN-ISSUES.md`
+- `docs/ai/10-REVIEW-CHECKLIST.md`
+- `docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md`
+- `docs/ai/12-COWORKER-REVIEW-TEMPLATE.md`
+- `docs/ai/handoffs/README.md`
+- `docs/ai/handoffs/latest.md`
+
+Documentation:
+
+- Removed duplicate `CLAUDE.md` workflow block while keeping pointer to
+  `docs/ai/README.md`.
+- Reformatted AI artefact Markdown with normal line breaks and blank lines.
+- Clarified that `PASS WITH NOTES` reviews go under
+  `docs/ai/reviews/passed/`.
+- No app behavior changed. No backend source, frontend source, migrations,
+  or deployment workflow changed.
+
+Validation:
+
+- `git diff --check` — passed.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-23 - Codex: AI artefact workflow structure
 
 Files changed:

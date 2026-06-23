@@ -78,5 +78,5 @@ Claude AI (via claude.ai) acts as architect and reviewer — NOT a coding agent.
 - Codex reads AI_HANDOFF.md BEFORE every task
 - Codex updates AI_HANDOFF.md AFTER every task
 - Claude AI reads AI_HANDOFF.md when reviewing
-- Structured task/review/handoff artefacts live under `docs/ai/README.md`
+- Detailed AI workflow artefacts live under `docs/ai/README.md`
 - Never touch files listed as "active" in handoff

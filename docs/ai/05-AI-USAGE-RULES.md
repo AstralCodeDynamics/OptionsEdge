@@ -7,7 +7,8 @@
 
 ## Model Strategy
 
-- Use cheaper quick model tier for frequent signals, risk checks, and lightweight market status work.
+- Use cheaper quick model tier for frequent signals, risk checks, and
+  lightweight market status work.
 - Use deeper model tier only for user-triggered deep analysis.
 - Keep AI responses bounded by configured max token limits.
 - Cache AI responses aggressively when market snapshot hash is unchanged.

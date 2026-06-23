@@ -2,7 +2,11 @@
 
 ## System Shape
 
-Frontend React app calls .NET Minimal APIs over HTTPS and listens to SignalR `/hubs/market`. Backend uses feature folders, services, background workers, EF Core, PostgreSQL, and market data infrastructure.
+Frontend React app calls .NET Minimal APIs over HTTPS and listens to SignalR
+`/hubs/market`.
+
+Backend uses feature folders, services, background workers, EF Core,
+PostgreSQL, and market data infrastructure.
 
 ## Backend Rules
 
@@ -24,10 +28,13 @@ Frontend React app calls .NET Minimal APIs over HTTPS and listens to SignalR `/h
 
 ## Data Architecture Rules
 
-- Groww-backed live data is shared infrastructure and must be gated per user before display or AI use.
-- `GrowwGatedResponse<T>` shape is current safety contract for gated endpoints: `isGrowwConnected`, `isDataFresh`, `data`.
+- Groww-backed live data is shared infrastructure and must be gated per user
+  before display or AI use.
+- `GrowwGatedResponse<T>` shape is current safety contract for gated endpoints:
+  `isGrowwConnected`, `isDataFresh`, `data`.
 - Mock data is valid only when `Groww:Enabled=false`.
-- Options, indicators, AI signals, chat market context, position P&L, and risk checks must not derive actionable output from stale or missing live data.
+- Options, indicators, AI signals, chat market context, position P&L, and risk
+  checks must not derive actionable output from stale or missing live data.
 
 ## Change Discipline
 

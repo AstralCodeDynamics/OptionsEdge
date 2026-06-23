@@ -2,9 +2,13 @@
 
 ## Current
 
-- Backtest historical option premiums are estimated with Black-Scholes, not replayed from true historical option LTP.
-- Some legacy docs still mention earlier mock-data-only phase language; current Groww safety rules in `docs/AI_HANDOFF.md` and `docs/ai/06-DATA-SAFETY-RULES.md` take precedence for live data work.
-- Browser/in-app smoke tests may be unavailable in some agent sessions; record this in handoff when it happens.
+- Backtest historical option premiums are estimated with Black-Scholes, not
+  replayed from true historical option LTP.
+- Some legacy docs still mention earlier mock-data-only phase language.
+  Current Groww safety rules in `docs/AI_HANDOFF.md` and
+  `docs/ai/06-DATA-SAFETY-RULES.md` take precedence for live data work.
+- Browser/in-app smoke tests may be unavailable in some agent sessions.
+  Record this in handoff when it happens.
 
 ## Review Watchlist
 

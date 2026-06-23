@@ -43,3 +43,7 @@ PASS | PASS WITH NOTES | FAIL
 ```
 
 Reviews must reference `docs/ai/10-REVIEW-CHECKLIST.md`.
+
+Store `PASS` and `PASS WITH NOTES` reviews under `docs/ai/reviews/passed/`.
+
+Store `FAIL` reviews under `docs/ai/reviews/failed/`.

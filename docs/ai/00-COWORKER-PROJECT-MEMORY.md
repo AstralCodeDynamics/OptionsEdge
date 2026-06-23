@@ -1,6 +1,9 @@
 # Coworker Project Memory
 
-Claude Coworker / Claude AI is Architect, Consultant, and Reviewer for OptionsEdge. Codex is the coding agent.
+Claude Coworker / Claude AI is Architect, Consultant, and Reviewer for
+OptionsEdge.
+
+Codex is the coding agent.
 
 ## Durable Facts
 

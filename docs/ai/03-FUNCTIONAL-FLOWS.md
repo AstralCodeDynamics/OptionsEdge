@@ -14,7 +14,8 @@
 2. Backend checks market hours, rate limit, Groww user connection, and fresh market data.
 3. Cached signal may be returned when market snapshot hash matches valid TTL.
 4. AI response must be parsed and validated before save/display.
-5. Signal includes exact contract, entry range, stop loss, targets, confidence, rationale, and validity.
+5. Signal includes exact contract, entry range, stop loss, targets, confidence,
+   rationale, and validity.
 
 No actionable AI signal may be generated from stale, missing, or silently mocked Groww data.
 
@@ -31,12 +32,18 @@ No actionable AI signal may be generated from stale, missing, or silently mocked
 1. User selects symbol and expiry.
 2. Backend refreshes or reads Groww-backed spot/chain inputs.
 3. If Groww is disabled globally, mock mode may serve dev data.
-4. If Groww is enabled but user lacks credentials or data is stale, return gated response with no usable chain data.
+4. If Groww is enabled but user lacks credentials or data is stale, return
+   gated response with no usable chain data.
 
 ## Backtest Flow
 
-Backtest uses historical candles and currently estimates historical option premiums. It validates timing against market candles, not true historical option LTP replay.
+Backtest uses historical candles and currently estimates historical option
+premiums.
+
+It validates timing against market candles, not true historical option LTP
+replay.
 
 ## Review Flow
 
-Claude Coworker reviews Codex output against task file, architecture, safety rules, tests, and `10-REVIEW-CHECKLIST.md`.
+Claude Coworker reviews Codex output against task file, architecture, safety
+rules, tests, and `10-REVIEW-CHECKLIST.md`.

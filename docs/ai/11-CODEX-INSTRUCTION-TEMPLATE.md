@@ -45,4 +45,5 @@ Claude Coworker / Claude AI is Architect, Consultant, and Reviewer.
 - Handoff updated.
 ```
 
-For docs-only tasks, state that backend source, frontend source, migrations, and deployment workflow are out of scope.
+For docs-only tasks, state that backend source, frontend source, migrations, and
+deployment workflow are out of scope.
