@@ -19,7 +19,7 @@ const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
 type Symbol = (typeof SYMBOLS)[number]
 
 export default function Dashboard() {
-  const { connectionState, isGrowwConnected } = useMarketData()
+  const { connectionState, isGrowwConnected, isDataFresh } = useMarketData()
   const snapshots     = useAppStore((s) => s.snapshots)
   const indicators    = useAppStore((s) => s.indicators)
   const storeSignals  = useAppStore((s) => s.signals)
@@ -49,7 +49,8 @@ export default function Dashboard() {
       .then((response) => {
         if (cancelled) return
         useAppStore.getState().setMarketDataConnected(response.isGrowwConnected)
-        if (response.isGrowwConnected && response.data) setCandles(response.data)
+        useAppStore.getState().setMarketDataFresh(response.isDataFresh)
+        if (response.isGrowwConnected && response.isDataFresh && response.data) setCandles(response.data)
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -161,11 +162,18 @@ export default function Dashboard() {
 
       <MarketStatusBanner connectionState={connectionState} />
 
-      {/* Index cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {nifty ? <IndexCard snapshot={nifty} /> : <IndexCardSkeleton />}
-        {bankNifty ? <IndexCard snapshot={bankNifty} /> : <IndexCardSkeleton />}
-      </div>
+      {isGrowwConnected === true && isDataFresh === false && (
+        <div className="rounded-lg border border-amber-700/50 bg-amber-950/40 px-3 py-2 text-xs font-medium text-amber-200">
+          Live data temporarily unavailable — displayed values may be delayed. Refreshing...
+        </div>
+      )}
+
+      {isDataFresh !== false && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {nifty ? <IndexCard snapshot={nifty} /> : <IndexCardSkeleton />}
+          {bankNifty ? <IndexCard snapshot={bankNifty} /> : <IndexCardSkeleton />}
+        </div>
+      )}
 
       {/* Symbol selector */}
       <div className="flex gap-2">
@@ -185,7 +193,7 @@ export default function Dashboard() {
       </div>
 
       {/* Price chart */}
-      {candles.length > 0 && (
+      {isDataFresh !== false && candles.length > 0 && (
         <PriceChart
           candles={candles}
           ema={activeIndicators?.ema}
@@ -194,7 +202,7 @@ export default function Dashboard() {
       )}
 
       {/* Indicators + Pivots */}
-      {activeIndicators ? (
+      {isDataFresh === false ? null : activeIndicators ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -217,12 +225,14 @@ export default function Dashboard() {
       )}
 
       {/* Market pulse */}
-      <div>
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Market Pulse
-        </h2>
-        <MarketPulse />
-      </div>
+      {isDataFresh !== false && (
+        <div>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            Market Pulse
+          </h2>
+          <MarketPulse />
+        </div>
+      )}
 
       {/* Quick signal section */}
       <div className="space-y-3">
@@ -241,7 +251,7 @@ export default function Dashboard() {
         <div className="flex gap-2">
           <button
             onClick={handleGenerateSignal}
-            disabled={signalLoading || isGrowwConnected !== true}
+            disabled={signalLoading || isGrowwConnected !== true || isDataFresh === false}
             className="flex-1 flex flex-col items-center py-2.5 px-3 bg-emerald-800 hover:bg-emerald-700 disabled:bg-gray-800 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
             <span className="text-xs font-semibold text-white">
@@ -257,7 +267,7 @@ export default function Dashboard() {
           </p>
         )}
 
-        {storeSignals.filter((s) => s.symbol === activeSymbol).slice(0, 1).map((sig) => (
+        {isDataFresh !== false && storeSignals.filter((s) => s.symbol === activeSymbol).slice(0, 1).map((sig) => (
           <SignalCard
             key={sig.id}
             signal={sig}
@@ -266,7 +276,7 @@ export default function Dashboard() {
           />
         ))}
 
-        {storeSignals.filter((s) => s.symbol === activeSymbol).length === 0 && !signalLoading && (
+        {isDataFresh !== false && storeSignals.filter((s) => s.symbol === activeSymbol).length === 0 && !signalLoading && (
           <p className="text-xs text-gray-600 text-center py-3">
             No signals yet for {activeSymbol}
           </p>

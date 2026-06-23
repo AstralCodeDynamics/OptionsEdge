@@ -47,9 +47,8 @@ public class MarketDataWorker(
                 mockData.Tick();
 
             // No platform-wide Groww account exists, so the worker (no user context) can't
-            // call Groww directly — it broadcasts whatever GrowwMarketDataService has cached
-            // from recent authenticated user requests, falling back to simulated data when
-            // that cache is empty (e.g. no user has been active yet).
+            // call Groww directly — it broadcasts only whatever GrowwMarketDataService has
+            // cached from recent authenticated user requests.
             var snapshots = growwEnabled ? growwMarketData.GetSnapshots() : mockData.GetSnapshots();
 
             foreach (var snapshot in snapshots)
@@ -66,6 +65,9 @@ public class MarketDataWorker(
                     .SendAsync("PriceUpdate", priceEvent);
 
                 var indicators = indicatorService.GetIndicators(snapshot.Symbol);
+                if (indicators is null)
+                    continue;
+
                 var indicatorEvent = new IndicatorUpdateEvent(
                     snapshot.Symbol,
                     indicators.Rsi,

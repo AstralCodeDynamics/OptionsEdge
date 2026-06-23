@@ -7,10 +7,12 @@ interface MarketSlice {
   marketStatus: MarketStatus | null
   indicators: Record<string, IndicatorsResponse>
   marketDataConnected: boolean | null
+  marketDataFresh: boolean | null
   setSnapshot: (snapshot: MarketSnapshot) => void
   setMarketStatus: (status: MarketStatus) => void
   setIndicators: (symbol: string, indicators: IndicatorsResponse) => void
   setMarketDataConnected: (connected: boolean | null) => void
+  setMarketDataFresh: (fresh: boolean | null) => void
 }
 
 interface SignalsSlice {
@@ -65,6 +67,7 @@ export const useAppStore = create<AppStore>((set) => ({
   marketStatus: null,
   indicators: {},
   marketDataConnected: null,
+  marketDataFresh: null,
   setSnapshot: (snapshot) =>
     set((s) => ({ snapshots: { ...s.snapshots, [snapshot.symbol]: snapshot } })),
   setMarketStatus: (marketStatus) => set({ marketStatus }),
@@ -73,7 +76,11 @@ export const useAppStore = create<AppStore>((set) => ({
   setMarketDataConnected: (marketDataConnected) =>
     set(marketDataConnected === true
       ? { marketDataConnected }
-      : { marketDataConnected, snapshots: {}, indicators: {} }),
+      : { marketDataConnected, marketDataFresh: false, snapshots: {}, indicators: {} }),
+  setMarketDataFresh: (marketDataFresh) =>
+    set(marketDataFresh === true
+      ? { marketDataFresh }
+      : { marketDataFresh, snapshots: {}, indicators: {} }),
 
   // Signals
   signals: [],
@@ -131,6 +138,7 @@ export const useAppStore = create<AppStore>((set) => ({
     user: null,
     isAuthenticated: false,
     marketDataConnected: null,
+    marketDataFresh: null,
     snapshots: {},
     indicators: {},
   }),
@@ -147,12 +155,13 @@ export const useAppStore = create<AppStore>((set) => ({
       return {
         growwStatus,
         marketDataConnected: false,
+        marketDataFresh: false,
         snapshots: {},
         indicators: {},
       }
     }
     if (growwStatus?.enabled && growwStatus.connected && s.marketDataConnected === false) {
-      return { growwStatus, marketDataConnected: null }
+      return { growwStatus, marketDataConnected: null, marketDataFresh: null }
     }
     return { growwStatus }
   }),

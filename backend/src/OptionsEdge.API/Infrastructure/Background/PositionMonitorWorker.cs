@@ -60,6 +60,14 @@ public class PositionMonitorWorker(
         foreach (var symbol in new[] { "NIFTY", "BANKNIFTY" })
         {
             var snapshot = marketData.GetSnapshot(symbol);
+            if (snapshot is null)
+            {
+                logger.LogWarning(
+                    "GetSnapshot returned null for {Symbol} — skipping spot history update this tick. Groww cache may be stale.",
+                    symbol);
+                continue;
+            }
+
             PushHistory(_spotHistory, symbol, snapshot.Ltp);
             PushHistory(_vixHistory,  symbol, snapshot.Vix);
         }
@@ -108,14 +116,28 @@ public class PositionMonitorWorker(
     {
         var symbol   = position.Symbol.ToUpper();
         var snapshot = marketData.GetSnapshot(symbol);
+        if (snapshot is null)
+        {
+            logger.LogWarning(
+                "GetSnapshot returned null for {Symbol} — skipping alert evaluation this tick. Groww cache may be stale.",
+                symbol);
+            return;
+        }
 
-        decimal currentLtp = await GetCurrentLtpAsync(position, symbol, scope, ct);
+        decimal? currentLtp = await GetCurrentLtpAsync(position, symbol, scope, ct);
+        if (!ShouldEvaluateAlerts(snapshot, currentLtp))
+        {
+            logger.LogWarning(
+                "Option LTP unavailable for position {PositionId} ({Symbol}) — skipping alert evaluation this tick.",
+                position.Id, symbol);
+            return;
+        }
 
         decimal? spot15MinAgo = GetHistoryValue(_spotHistory, symbol, SpotLookback);
         decimal? prevVix30Min = GetHistoryValue(_vixHistory,  symbol, VixLookback);
 
         var triggers = positionService.CheckAlertConditions(
-            position, currentLtp, snapshot.Ltp, spot15MinAgo, snapshot.Vix, prevVix30Min);
+            position, currentLtp.Value, snapshot.Ltp, spot15MinAgo, snapshot.Vix, prevVix30Min);
 
         foreach (var trigger in triggers)
         {
@@ -153,13 +175,13 @@ public class PositionMonitorWorker(
     // Prefers a direct per-user Groww quote (real NSE LTP) over the shared chain
     // cache / Black-Scholes estimate from OptionsService. Falls back on any error,
     // missing credentials, or a non-positive Groww quote.
-    private async Task<decimal> GetCurrentLtpAsync(
+    private async Task<decimal?> GetCurrentLtpAsync(
         Domain.Entities.Position position,
         string symbol,
         IServiceScope scope,
         CancellationToken ct)
     {
-        decimal FallbackLtp() => optionsService.GetOptionLtp(
+        decimal? FallbackLtp() => optionsService.GetOptionLtp(
             symbol, position.Strike, position.OptionType, position.Expiry.ToString("yyyy-MM-dd"));
 
         if (!config.GetValue<bool>("Groww:Enabled"))
@@ -189,6 +211,9 @@ public class PositionMonitorWorker(
             return FallbackLtp();
         }
     }
+
+    internal static bool ShouldEvaluateAlerts(MarketSnapshotData? snapshot, decimal? currentLtp) =>
+        snapshot is not null && currentLtp.HasValue;
 
     private static void PushHistory(
         Dictionary<string, Queue<(DateTimeOffset Time, decimal Value)>> dict,

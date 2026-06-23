@@ -20,10 +20,11 @@ public static class IndicatorEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<IndicatorsResponse>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<IndicatorsResponse>(false, false, null));
             }
 
-            return Results.Ok(new GrowwGatedResponse<IndicatorsResponse>(true, svc.GetIndicators(symbol)));
+            var indicators = svc.GetIndicators(symbol);
+            return Results.Ok(new GrowwGatedResponse<IndicatorsResponse>(true, indicators is not null, indicators));
         }).WithName("GetIndicators")
           .RequireAuthorization();
     }

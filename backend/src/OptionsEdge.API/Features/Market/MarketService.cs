@@ -1,10 +1,9 @@
-using Microsoft.Extensions.Caching.Memory;
 using OptionsEdge.API.Infrastructure.Background;
 using OptionsEdge.API.Infrastructure.MockData;
 
 namespace OptionsEdge.API.Features.Market;
 
-public class MarketService(IMarketDataService marketData, IMemoryCache cache)
+public class MarketService(IMarketDataService marketData)
 {
     public IReadOnlyList<MarketSnapshotResponse> GetSnapshots() =>
         marketData.GetSnapshots().Select(ToResponse).ToList();
@@ -13,7 +12,8 @@ public class MarketService(IMarketDataService marketData, IMemoryCache cache)
     {
         var key = symbol.ToUpper();
         if (key is not ("NIFTY" or "BANKNIFTY")) return null;
-        return ToResponse(marketData.GetSnapshot(key));
+        var snapshot = marketData.GetSnapshot(key);
+        return snapshot is null ? null : ToResponse(snapshot);
     }
 
     public IReadOnlyList<CandleResponse> GetCandles(string symbol)
@@ -36,14 +36,21 @@ public class MarketService(IMarketDataService marketData, IMemoryCache cache)
         return new MarketStatusResponse(isOpen, message, nextEvent);
     }
 
+    public bool HasFreshSnapshot(string symbol) =>
+        marketData.GetSnapshot(symbol.ToUpperInvariant()) is not null;
+
+    public bool HasFreshCandles(string symbol) =>
+        marketData.GetCandles(symbol.ToUpperInvariant()).Count > 0;
+
     private MarketSnapshotResponse ToResponse(MarketSnapshotData d) =>
         new(d.Symbol, d.Ltp, d.Open, d.High, d.Low, d.PreviousClose,
             d.Change, d.ChangePct, d.Vix, d.Pcr, d.FiiFlow, d.DiiFlow, d.Timestamp,
             DataSource: HasLiveSnapshot(d.Symbol) ? "groww_live" : "mock");
 
-    // GrowwMarketDataService caches the last live snapshot it fetched on a user's behalf
-    // under this key — its presence is what distinguishes real Groww data from the
-    // simulated fallback, regardless of which IMarketDataService implementation is active.
+    // GrowwMarketDataService caches the last live snapshot it fetched on a user's behalf;
+    // mock mode is reported separately when Groww is disabled globally.
     private bool HasLiveSnapshot(string symbol) =>
-        cache.TryGetValue($"groww_snapshot:{symbol.ToUpperInvariant()}", out MarketSnapshotData? cached) && cached is not null;
+        marketData is OptionsEdge.API.Infrastructure.Groww.GrowwMarketDataService groww
+            ? groww.HasLiveSnapshot(symbol)
+            : false;
 }

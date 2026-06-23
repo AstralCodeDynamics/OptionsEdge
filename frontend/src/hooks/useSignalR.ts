@@ -79,7 +79,7 @@ function createConnection(url: string) {
 
   connection.on('priceupdate', (event: PriceUpdateEvent) => {
     const store = useAppStore.getState()
-    if (store.marketDataConnected !== true) return
+    if (store.marketDataConnected !== true || store.marketDataFresh !== true) return
     const existing = store.snapshots[event.symbol]
 
     if (existing) {
@@ -98,12 +98,13 @@ function createConnection(url: string) {
   })
 
   connection.on('indicatorupdate', (event: IndicatorUpdateEvent) => {
-    if (useAppStore.getState().marketDataConnected !== true) return
+    if (useAppStore.getState().marketDataConnected !== true || useAppStore.getState().marketDataFresh !== true) return
     indicatorsApi.getIndicators(event.symbol)
       .then((response) => {
         const store = useAppStore.getState()
         store.setMarketDataConnected(response.isGrowwConnected)
-        if (response.isGrowwConnected && response.data) {
+        store.setMarketDataFresh(response.isDataFresh)
+        if (response.isGrowwConnected && response.isDataFresh && response.data) {
           store.setIndicators(event.symbol, response.data)
         }
       })

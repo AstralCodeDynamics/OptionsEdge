@@ -86,6 +86,7 @@ function TradeChartModal({
 }) {
   const marketDataConnected = useAppStore((s) => s.marketDataConnected)
   const setMarketDataConnected = useAppStore((s) => s.setMarketDataConnected)
+  const setMarketDataFresh = useAppStore((s) => s.setMarketDataFresh)
   const [candles, setCandles] = useState<Candle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -102,7 +103,8 @@ function TradeChartModal({
         if (cancelled) return
         setIsGrowwConnected(response.isGrowwConnected)
         setMarketDataConnected(response.isGrowwConnected)
-        if (response.isGrowwConnected && response.data) setCandles(response.data)
+        setMarketDataFresh(response.isDataFresh)
+        if (response.isGrowwConnected && response.isDataFresh && response.data) setCandles(response.data)
       })
       .catch(() => {
         if (!cancelled) setError('Could not load candles for this trade.')
@@ -112,7 +114,7 @@ function TradeChartModal({
       })
 
     return () => { cancelled = true }
-  }, [result.symbol, setMarketDataConnected])
+  }, [result.symbol, setMarketDataConnected, setMarketDataFresh])
 
   const entryTs = parseTradeTime(trade.entryDate)
   const exitTs = parseTradeTime(trade.exitDate)

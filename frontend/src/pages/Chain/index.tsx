@@ -21,6 +21,7 @@ export default function Chain() {
   const [chain, setChain] = useState<OptionsChain | null>(null)
   const [loading, setLoading] = useState(false)
   const [isGrowwConnected, setIsGrowwConnected] = useState<boolean | null>(null)
+  const [isDataFresh, setIsDataFresh] = useState<boolean | null>(null)
 
   // Fetch expiries when symbol changes
   useEffect(() => {
@@ -42,8 +43,10 @@ export default function Chain() {
       .then((response) => {
         if (cancelled) return
         setIsGrowwConnected(response.isGrowwConnected)
+        setIsDataFresh(response.isDataFresh)
         setMarketDataConnected(response.isGrowwConnected)
-        setChain(response.isGrowwConnected ? response.data : null)
+        useAppStore.getState().setMarketDataFresh(response.isDataFresh)
+        setChain(response.isGrowwConnected && response.isDataFresh ? response.data : null)
       })
       .catch(() => {
         if (!cancelled) setChain(null)
@@ -59,7 +62,8 @@ export default function Chain() {
   const isBlocked = isGrowwConnected === false
     || marketDataConnected === false
     || (growwStatus?.enabled === true && !growwStatus.connected)
-  const controlsEnabled = isGrowwConnected === true && !isBlocked
+  const isStale = isGrowwConnected === true && isDataFresh === false
+  const controlsEnabled = !isBlocked
 
   return (
     <div className="p-4 space-y-4 max-w-6xl mx-auto">
@@ -122,7 +126,13 @@ export default function Chain() {
 
       {isBlocked && <GrowwDataBlocked />}
 
-      {!loading && controlsEnabled && chain && (
+      {isStale && (
+        <div className="rounded-lg border border-amber-700/50 bg-amber-950/40 px-3 py-2 text-xs font-medium text-amber-200">
+          Live data temporarily unavailable — displayed values may be delayed. Refreshing...
+        </div>
+      )}
+
+      {!loading && controlsEnabled && !isStale && chain && (
         <>
           {/* OI chart */}
           <OIChart rows={chain.rows} atm={atm} />

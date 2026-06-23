@@ -47,16 +47,16 @@ public record PositionResponse(
 public record PnLResponse(
     Guid PositionId,
     decimal EntryPrice,
-    decimal CurrentLtp,
-    decimal PnL,
-    decimal PnLPct,
-    decimal DistanceToSLRs,
-    decimal DistanceToSLPct,
-    decimal DistanceToTarget1Rs,
-    decimal DistanceToTarget1Pct,
+    decimal? CurrentLtp,
+    decimal? PnL,
+    decimal? PnLPct,
+    decimal? DistanceToSLRs,
+    decimal? DistanceToSLPct,
+    decimal? DistanceToTarget1Rs,
+    decimal? DistanceToTarget1Pct,
     decimal? DistanceToTarget2Rs,
     decimal? DistanceToTarget2Pct,
-    decimal ThetaDecayPct);
+    decimal? ThetaDecayPct);
 
 public record AlertResponse(
     Guid Id,

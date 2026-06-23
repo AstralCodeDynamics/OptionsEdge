@@ -214,6 +214,9 @@ public class ChatService(
             {
                 var snap = marketData.GetSnapshot(sym);
                 var ind  = indicatorService.GetIndicators(sym);
+                if (snap is null || ind is null)
+                    return $"- {sym}: Live market data temporarily unavailable.";
+
                 return $"- {sym}: Spot {snap.Ltp:F2} ({snap.ChangePct:F2}%) | VIX {snap.Vix:F2} | PCR {snap.Pcr:F2} | " +
                        $"RSI {ind.Rsi.Value:F1} [{ind.Rsi.Signal}] | MACD bullish cross: {ind.Macd.IsBullishCross} | " +
                        $"SuperTrend: {(ind.Supertrend.IsBullish ? "bullish" : "bearish")}";

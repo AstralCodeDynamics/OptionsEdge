@@ -2,7 +2,7 @@ namespace OptionsEdge.API.Features.Market;
 
 // Wrapper returned by every Groww-backed data endpoint. Frontend checks IsGrowwConnected
 // first; when false, Data is null and the user must connect their Groww account.
-public record GrowwGatedResponse<T>(bool IsGrowwConnected, T? Data);
+public record GrowwGatedResponse<T>(bool IsGrowwConnected, bool IsDataFresh, T? Data);
 
 public record MarketSnapshotResponse(
     string Symbol,

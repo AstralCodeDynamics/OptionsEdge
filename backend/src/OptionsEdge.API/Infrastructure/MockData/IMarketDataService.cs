@@ -7,6 +7,6 @@ namespace OptionsEdge.API.Infrastructure.MockData;
 public interface IMarketDataService
 {
     IReadOnlyList<MarketSnapshotData> GetSnapshots();
-    MarketSnapshotData GetSnapshot(string symbol);
+    MarketSnapshotData? GetSnapshot(string symbol);
     IReadOnlyList<CandleData> GetCandles(string symbol);
 }

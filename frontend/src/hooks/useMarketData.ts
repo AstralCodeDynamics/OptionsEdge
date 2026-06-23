@@ -10,7 +10,9 @@ export function useMarketData() {
   const setMarketStatus = useAppStore((s) => s.setMarketStatus)
   const setIndicators = useAppStore((s) => s.setIndicators)
   const marketDataConnected = useAppStore((s) => s.marketDataConnected)
+  const marketDataFresh = useAppStore((s) => s.marketDataFresh)
   const setMarketDataConnected = useAppStore((s) => s.setMarketDataConnected)
+  const setMarketDataFresh = useAppStore((s) => s.setMarketDataFresh)
   const growwConnected = useAppStore((s) => s.growwStatus?.connected)
   const { connectionState } = useSignalR(HUB_URL)
 
@@ -19,7 +21,8 @@ export function useMarketData() {
     marketApi.getSnapshots()
       .then((response) => {
         setMarketDataConnected(response.isGrowwConnected)
-        if (response.isGrowwConnected) {
+        setMarketDataFresh(response.isDataFresh)
+        if (response.isGrowwConnected && response.isDataFresh) {
           response.data?.forEach((snapshot) => setSnapshot(snapshot))
         }
       })
@@ -33,13 +36,14 @@ export function useMarketData() {
       indicatorsApi.getIndicators(symbol)
         .then((response) => {
           setMarketDataConnected(response.isGrowwConnected)
-          if (response.isGrowwConnected && response.data) {
+          setMarketDataFresh(response.isDataFresh)
+          if (response.isGrowwConnected && response.isDataFresh && response.data) {
             setIndicators(symbol, response.data)
           }
         })
         .catch(() => {})
     }
-  }, [growwConnected, setIndicators, setMarketDataConnected, setMarketStatus, setSnapshot])
+  }, [growwConnected, setIndicators, setMarketDataConnected, setMarketDataFresh, setMarketStatus, setSnapshot])
 
-  return { connectionState, isGrowwConnected: marketDataConnected }
+  return { connectionState, isGrowwConnected: marketDataConnected, isDataFresh: marketDataFresh }
 }

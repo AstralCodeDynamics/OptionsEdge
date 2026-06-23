@@ -8,11 +8,14 @@ public class IndicatorService(IMarketDataService marketData)
 {
     private static readonly TimeZoneInfo IstZone = GetIstZone();
 
-    public IndicatorsResponse GetIndicators(string symbol)
+    public IndicatorsResponse? GetIndicators(string symbol)
     {
         var key = symbol.ToUpper();
         var candles = marketData.GetCandles(key);
         var snapshot = marketData.GetSnapshot(key);
+        if (snapshot is null || candles.Count == 0)
+            return null;
+
         decimal price = snapshot.Ltp;
 
         var quotes = candles

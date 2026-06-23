@@ -12,10 +12,10 @@ namespace OptionsEdge.API.Infrastructure.Groww;
 // is called from market endpoints whenever an authenticated user requests a snapshot, and the
 // result is cached as the "last known" data under a shared key. GetSnapshot/GetCandles (the
 // synchronous IMarketDataService surface consumed by background workers and other features with
-// no user context) simply read that cache, falling back to simulated data when it's empty.
+// no user context) simply read that cache. Cache misses are explicit; mock data is only used
+// when Groww is disabled globally and MockMarketDataService is the active IMarketDataService.
 public class GrowwMarketDataService(
     IServiceScopeFactory scopeFactory,
-    MockMarketDataService mockData,
     IMemoryCache cache,
     ILogger<GrowwMarketDataService> logger) : IMarketDataService
 {
@@ -26,14 +26,12 @@ public class GrowwMarketDataService(
     private static string CandleCacheKey(string symbol) => $"groww_candles:{symbol}";
 
     public IReadOnlyList<MarketSnapshotData> GetSnapshots() =>
-        Symbols.Select(GetSnapshot).ToList();
+        Symbols.Select(GetSnapshot).Where(s => s is not null).Select(s => s!).ToList();
 
-    public MarketSnapshotData GetSnapshot(string symbol)
+    public MarketSnapshotData? GetSnapshot(string symbol)
     {
         var key = symbol.ToUpperInvariant();
-        return cache.TryGetValue(SnapshotCacheKey(key), out MarketSnapshotData? cached) && cached is not null
-            ? cached
-            : mockData.GetSnapshot(key);
+        return cache.TryGetValue(SnapshotCacheKey(key), out MarketSnapshotData? cached) ? cached : null;
     }
 
     public IReadOnlyList<CandleData> GetCandles(string symbol)
@@ -41,8 +39,12 @@ public class GrowwMarketDataService(
         var key = symbol.ToUpperInvariant();
         return cache.TryGetValue(CandleCacheKey(key), out IReadOnlyList<CandleData>? cached) && cached is not null
             ? cached
-            : mockData.GetCandles(key);
+            : [];
     }
+
+    public bool HasLiveSnapshot(string symbol) =>
+        cache.TryGetValue(SnapshotCacheKey(symbol.ToUpperInvariant()), out MarketSnapshotData? snapshot)
+        && snapshot is not null;
 
     // Fetches fresh live data using the requesting user's own Groww credentials and stores it
     // as the shared "last known" snapshot/candles for everyone. GrowwUserApiClient is scoped
@@ -63,7 +65,7 @@ public class GrowwMarketDataService(
             if (!await credSvc.HasCredentialsAsync(userId, ct))
             {
                 logger.LogDebug(
-                    "Groww credentials not configured for user {UserId} — using cached/mock data", userId);
+                    "Groww credentials not configured for user {UserId} — live market cache not refreshed", userId);
                 return;
             }
 

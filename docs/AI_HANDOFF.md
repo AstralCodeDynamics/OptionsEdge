@@ -17,6 +17,54 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Codex: Critical Groww cache-miss fix, no silent mock fallback
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Infrastructure/Groww/GrowwMarketDataService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/MockData/IMarketDataService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/MockData/MockMarketDataService.cs`
+- `backend/src/OptionsEdge.API/Features/Market/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Market/MarketEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Market/MarketService.cs`
+- `backend/src/OptionsEdge.API/Features/Indicators/IndicatorEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Indicators/IndicatorService.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Options/OptionsService.cs`
+- `backend/src/OptionsEdge.API/Features/Positions/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Positions/PositionEndpoints.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Features/Chat/ChatService.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Background/MarketDataWorker.cs`
+- `backend/src/OptionsEdge.API/Infrastructure/Background/PositionMonitorWorker.cs`
+- `backend/tests/OptionsEdge.API.Tests/GrowwCacheMissTests.cs`
+- `frontend/src/types/index.ts`
+- `frontend/src/store/appStore.ts`
+- `frontend/src/hooks/useMarketData.ts`
+- `frontend/src/hooks/useSignalR.ts`
+- `frontend/src/pages/Dashboard/index.tsx`
+- `frontend/src/pages/Chain/index.tsx`
+- `frontend/src/pages/Backtest/index.tsx`
+
+Behavior:
+
+- Fixed critical root cause behind wrong ATM, wrong option LTPs, false target hits, and alert spam: `GrowwMarketDataService.GetSnapshot()` no longer falls back to `MockMarketDataService` when Groww cache expires.
+- `MockMarketDataService` is ONLY used when `Groww:Enabled=false` globally. It is NEVER a silent fallback for stale Groww cache. If Groww cache is empty, callers receive `null` or empty candles and must handle that explicitly.
+- `GrowwGatedResponse<T>` now includes `IsDataFresh`. Groww-backed endpoints return `IsGrowwConnected=true, IsDataFresh=false, Data=null` when user is connected but live cache/data is unavailable.
+- Options chain/max-pain endpoints refresh the user's Groww spot cache before building derived chain data; if refresh fails or cache remains empty, no chain is built.
+- Indicators, AI signals, Chat market context, position P&L, and risk checks handle missing live data without using mock prices.
+- `PositionMonitorWorker` skips spot history updates and alert evaluation when snapshot or option LTP is unavailable; logs warning instead of evaluating SL/target/IV/adverse-move alerts from missing data.
+- Frontend store tracks `marketDataFresh`, clears cached snapshots/indicators on stale data, ignores SignalR market updates until REST confirms connected + fresh data, and shows amber degraded banners on Dashboard/Chain instead of rendering stale/mocked values.
+
+Validation:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — passed, 0 warnings.
+- `dotnet test backend/tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` — passed, 52 tests.
+- `npm run build` from `frontend/` — passed (`tsc -b` and Vite), zero errors.
+- `git diff --check` — passed.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-20 - Codex: Urgent stacked DANGER alert escape hatch
 
 Files changed:
@@ -126,34 +174,35 @@ if (config.GetValue<bool>("Groww:Enabled"))
 {
     var userId = ctx.GetUserId(config);
     if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-        return Results.Ok(new GrowwGatedResponse<T>(false, null));
+        return Results.Ok(new GrowwGatedResponse<T>(false, false, null));
 }
-return Results.Ok(new GrowwGatedResponse<T>(true, data));
+return Results.Ok(new GrowwGatedResponse<T>(true, data is not null, data));
 ```
 
 `GrowwCredentialService` is registered Scoped — inject directly in endpoint lambdas.
 
 **Response shape change — BREAKING for Codex (frontend must update all callers):**
 
-All gated endpoints now return `GrowwGatedResponse<T> { isGrowwConnected: bool, data: T? }` instead of raw data. When `Groww:Enabled = false` (dev/mock mode), `isGrowwConnected` is always `true` (mock data always available).
+All gated endpoints now return `GrowwGatedResponse<T> { isGrowwConnected: bool, isDataFresh: bool, data: T? }` instead of raw data. When `Groww:Enabled = false` (dev/mock mode), `isGrowwConnected` and `isDataFresh` are always `true` (mock data always available).
 
 Endpoints changed (before → after):
 
 | Endpoint | Before | After |
 |---|---|---|
-| `GET /api/v1/market/snapshot` | `MarketSnapshotResponse[]` | `{ isGrowwConnected, data: MarketSnapshotResponse[] \| null }` |
-| `GET /api/v1/market/snapshot/{symbol}` | `MarketSnapshotResponse` | `{ isGrowwConnected, data: MarketSnapshotResponse \| null }` |
-| `GET /api/v1/market/candles/{symbol}` | `CandleResponse[]` | `{ isGrowwConnected, data: CandleResponse[] \| null }` |
-| `GET /api/v1/indicators/{symbol}` | `IndicatorsResponse` | `{ isGrowwConnected, data: IndicatorsResponse \| null }` |
-| `GET /api/v1/options/chain/{symbol}` | `OptionsChainResponse` | `{ isGrowwConnected, data: OptionsChainResponse \| null }` |
-| `GET /api/v1/options/maxpain/{symbol}` | `MaxPainResponse` | `{ isGrowwConnected, data: MaxPainResponse \| null }` |
+| `GET /api/v1/market/snapshot` | `MarketSnapshotResponse[]` | `{ isGrowwConnected, isDataFresh, data: MarketSnapshotResponse[] \| null }` |
+| `GET /api/v1/market/snapshot/{symbol}` | `MarketSnapshotResponse` | `{ isGrowwConnected, isDataFresh, data: MarketSnapshotResponse \| null }` |
+| `GET /api/v1/market/candles/{symbol}` | `CandleResponse[]` | `{ isGrowwConnected, isDataFresh, data: CandleResponse[] \| null }` |
+| `GET /api/v1/indicators/{symbol}` | `IndicatorsResponse` | `{ isGrowwConnected, isDataFresh, data: IndicatorsResponse \| null }` |
+| `GET /api/v1/options/chain/{symbol}` | `OptionsChainResponse` | `{ isGrowwConnected, isDataFresh, data: OptionsChainResponse \| null }` |
+| `GET /api/v1/options/maxpain/{symbol}` | `MaxPainResponse` | `{ isGrowwConnected, isDataFresh, data: MaxPainResponse \| null }` |
 
 **NOT gated** (computed/non-Groww): `GET /market/status`, `GET /options/expiries/{symbol}`, `POST /options/payoff`.
 
 **Codex frontend must:**
 1. Update types for all 6 gated endpoints to `GrowwGatedResponse<T>` wrappers.
-2. All callers unwrap `.data` before use.
-3. When `isGrowwConnected = false`: show a prominent "Connect your Groww account in Settings to see live market data" message and disable all market-data-dependent controls. No partial display, no anonymized fallback.
+2. All callers check `isGrowwConnected` and `isDataFresh` before using `.data`.
+3. When `isGrowwConnected = false`: show a prominent "Connect your Groww account in Settings to see live market data" message and disable market-data-dependent actions. No partial display, no anonymized fallback.
+4. When `isDataFresh = false`: show amber degraded state and do not render live market values, options rows, or alerts from missing data.
 
 **IsAfterHoursEntry — position flag:**
 

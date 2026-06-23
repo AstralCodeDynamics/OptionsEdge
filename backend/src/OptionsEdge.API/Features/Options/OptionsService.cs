@@ -70,10 +70,13 @@ public class OptionsService(
         return expiries.Order().Select(d => d.ToString("yyyy-MM-dd")).ToList();
     }
 
-    public OptionsChainResponse GetChain(string symbol, string expiry)
+    public OptionsChainResponse? GetChain(string symbol, string expiry)
     {
         var key = symbol.ToUpper();
         var snapshot = marketData.GetSnapshot(key);
+        if (snapshot is null)
+            return null;
+
         decimal spot = snapshot.Ltp;
 
         if (!DateOnly.TryParse(expiry, out var expiryDate))
@@ -183,15 +186,18 @@ public class OptionsService(
         return new OptionsChainResponse(key, expiry, spot, pcr, maxPain, rows);
     }
 
-    public MaxPainResponse GetMaxPain(string symbol, string expiry)
+    public MaxPainResponse? GetMaxPain(string symbol, string expiry)
     {
         var chain = GetChain(symbol, expiry);
+        if (chain is null)
+            return null;
+
         return new MaxPainResponse(chain.MaxPain, chain.Spot, expiry);
     }
 
     // Used by Position P&L, SL/target alerts, and PositionMonitorWorker — prefer the latest
     // Groww chain LTP (cached by /chain/{symbol}) over the Black-Scholes estimate when available.
-    public decimal GetOptionLtp(string symbol, int strike, string optionType, string expiry)
+    public decimal? GetOptionLtp(string symbol, int strike, string optionType, string expiry)
     {
         var key = symbol.ToUpper();
         bool isCall = optionType.ToUpper() == "CE";
@@ -206,6 +212,9 @@ public class OptionsService(
         }
 
         var snapshot = marketData.GetSnapshot(key);
+        if (snapshot is null)
+            return null;
+
         double spot  = (double)snapshot.Ltp;
 
         if (!DateOnly.TryParse(expiry, out var expiryDate))

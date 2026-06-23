@@ -20,10 +20,13 @@ public static class MarketEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(false, false, null));
             }
             await RefreshLiveDataAsync(ctx, config, sp, null, ct);
-            return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(true, svc.GetSnapshots()));
+            var snapshots = svc.GetSnapshots();
+            bool isDataFresh = !config.GetValue<bool>("Groww:Enabled") || snapshots.Count == 2;
+            return Results.Ok(new GrowwGatedResponse<IEnumerable<MarketSnapshotResponse>>(
+                true, isDataFresh, isDataFresh ? snapshots : null));
         }).WithName("GetMarketSnapshots");
 
         group.MapGet("/snapshot/{symbol}", async (
@@ -35,13 +38,11 @@ public static class MarketEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(false, false, null));
             }
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
             var snap = svc.GetSnapshot(symbol);
-            return snap is null
-                ? Results.NotFound()
-                : Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(true, snap));
+            return Results.Ok(new GrowwGatedResponse<MarketSnapshotResponse>(true, snap is not null, snap));
         }).WithName("GetMarketSnapshot");
 
         group.MapGet("/candles/{symbol}", async (
@@ -53,10 +54,13 @@ public static class MarketEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(false, false, null));
             }
             await RefreshLiveDataAsync(ctx, config, sp, symbol, ct);
-            return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(true, svc.GetCandles(symbol)));
+            var candles = svc.GetCandles(symbol);
+            bool isDataFresh = !config.GetValue<bool>("Groww:Enabled") || candles.Count > 0;
+            return Results.Ok(new GrowwGatedResponse<IEnumerable<CandleResponse>>(
+                true, isDataFresh, isDataFresh ? candles : null));
         }).WithName("GetMarketCandles");
 
         group.MapGet("/status", (MarketService svc) =>
@@ -73,7 +77,7 @@ public static class MarketEndpoints
     // Live Groww data requires an authenticated user's own credentials (no platform-wide
     // account exists). When Groww is enabled and the caller is signed in, this refreshes the
     // shared "last known" snapshot/candles cache using their credentials before responding;
-    // otherwise the response simply falls back to whatever's cached, or simulated data.
+    // otherwise the response exposes whether cached live data is fresh via IsDataFresh.
     //
     // GrowwMarketDataService is only resolved here — lazily, via IServiceProvider — so that
     // when Groww is disabled, the endpoint never has to materialize it (and its dependencies)

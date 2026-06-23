@@ -33,12 +33,15 @@ public static class PositionEndpoints
 
             return Results.Ok(list.Select(p =>
             {
-                decimal ltp = optionsSvc.GetOptionLtp(p.Symbol, p.Strike, p.OptionType, p.Expiry.ToString("yyyy-MM-dd"));
-                decimal pnl    = positionSvc.CalculatePnL(p, ltp);
+                decimal? ltp = optionsSvc.GetOptionLtp(p.Symbol, p.Strike, p.OptionType, p.Expiry.ToString("yyyy-MM-dd"));
+                if (!ltp.HasValue)
+                    return ToResponse(p);
+
+                decimal pnl    = positionSvc.CalculatePnL(p, ltp.Value);
                 decimal pnlPct = positionSvc.CalculatePnLPct(p, pnl);
-                var (_, slPct) = positionSvc.CalculateDistanceToSL(ltp, p.StopLoss);
-                var (_, t1Pct) = positionSvc.CalculateDistanceToTarget(ltp, p.Target1);
-                return ToResponse(p, ltp, pnl, pnlPct, slPct, t1Pct);
+                var (_, slPct) = positionSvc.CalculateDistanceToSL(ltp.Value, p.StopLoss);
+                var (_, t1Pct) = positionSvc.CalculateDistanceToTarget(ltp.Value, p.Target1);
+                return ToResponse(p, ltp.Value, pnl, pnlPct, slPct, t1Pct);
             }));
         }).WithName("GetPositions");
 
@@ -140,17 +143,22 @@ public static class PositionEndpoints
             var position = await db.Positions.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId, ct);
             if (position is null) return Results.NotFound();
 
-            decimal ltp    = optionsSvc.GetOptionLtp(position.Symbol, position.Strike, position.OptionType, position.Expiry.ToString("yyyy-MM-dd"));
-            decimal pnl    = positionSvc.CalculatePnL(position, ltp);
+            decimal? ltp   = optionsSvc.GetOptionLtp(position.Symbol, position.Strike, position.OptionType, position.Expiry.ToString("yyyy-MM-dd"));
+            if (!ltp.HasValue)
+                return Results.Ok(new PnLResponse(
+                    position.Id, position.EntryPrice, null, null, null,
+                    null, null, null, null, null, null, null));
+
+            decimal pnl    = positionSvc.CalculatePnL(position, ltp.Value);
             decimal pnlPct = positionSvc.CalculatePnLPct(position, pnl);
-            var (slRs, slPct)   = positionSvc.CalculateDistanceToSL(ltp, position.StopLoss);
-            var (t1Rs, t1Pct)   = positionSvc.CalculateDistanceToTarget(ltp, position.Target1);
-            decimal? t2Rs       = position.Target2.HasValue ? position.Target2.Value - ltp : null;
-            decimal? t2Pct      = position.Target2.HasValue && ltp > 0 ? Math.Round((position.Target2.Value - ltp) / ltp * 100, 2) : null;
-            decimal thetaDecay  = positionSvc.GetThetaDecayPercent(position, ltp);
+            var (slRs, slPct)   = positionSvc.CalculateDistanceToSL(ltp.Value, position.StopLoss);
+            var (t1Rs, t1Pct)   = positionSvc.CalculateDistanceToTarget(ltp.Value, position.Target1);
+            decimal? t2Rs       = position.Target2.HasValue ? position.Target2.Value - ltp.Value : null;
+            decimal? t2Pct      = position.Target2.HasValue && ltp.Value > 0 ? Math.Round((position.Target2.Value - ltp.Value) / ltp.Value * 100, 2) : null;
+            decimal thetaDecay  = positionSvc.GetThetaDecayPercent(position, ltp.Value);
 
             return Results.Ok(new PnLResponse(
-                position.Id, position.EntryPrice, ltp, pnl, pnlPct,
+                position.Id, position.EntryPrice, ltp.Value, pnl, pnlPct,
                 slRs, slPct, t1Rs, t1Pct, t2Rs, t2Pct, thetaDecay));
         }).WithName("GetPositionPnL");
 

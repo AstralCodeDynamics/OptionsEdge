@@ -75,8 +75,14 @@ public class AISignalService(
         }
 
         // Gather market context
-        var indicators = indicatorService.GetIndicators(key);
         var snapshot   = marketData.GetSnapshot(key);
+        if (snapshot is null)
+            return (null!, "Live market data temporarily unavailable. Try again in a moment.");
+
+        var indicators = indicatorService.GetIndicators(key);
+        if (indicators is null)
+            return (null!, "Live indicators temporarily unavailable. Try again in a moment.");
+
         var expiries   = optionsService.GetExpiries(key);
 
         // Cache check
@@ -107,7 +113,8 @@ public class AISignalService(
                 var chain  = optionsService.GetChain(key, expiries[0]);
                 int sStep  = key == "BANKNIFTY" ? 100 : 50;
                 int sAtm   = (int)Math.Round((double)snapshot.Ltp / sStep) * sStep;
-                nearbyStrikesTable = BuildNearbyStrikesTable(chain.Rows, sAtm);
+                if (chain is not null)
+                    nearbyStrikesTable = BuildNearbyStrikesTable(chain.Rows, sAtm);
             }
         }
         catch (Exception ex)
@@ -286,6 +293,13 @@ public class AISignalService(
                 "Add your Anthropic API key in Settings → AI Connection");
 
         var snapshot = marketData.GetSnapshot(position.Symbol);
+        if (snapshot is null)
+            return new RiskCheckResponse(
+                "INFO",
+                "MARKET_DATA_UNAVAILABLE",
+                "Live market data temporarily unavailable.",
+                "Skip automated risk assessment until live data refreshes.");
+
         var model    = config["Claude:HaikuModel"] ?? AppConstants.Models.Haiku;
 
         var prompt = BuildRiskCheckPrompt(position, snapshot);

@@ -1,6 +1,7 @@
 using OptionsEdge.API.Common.Extensions;
 using OptionsEdge.API.Features.Groww;
 using OptionsEdge.API.Features.Market;
+using OptionsEdge.API.Infrastructure.Groww;
 
 namespace OptionsEdge.API.Features.Options;
 
@@ -21,26 +22,30 @@ public static class OptionsEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(false, false, null));
 
                 var expiries = svc.GetExpiries(symbol);
                 var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
+                var growwMarketData = sp.GetRequiredService<GrowwMarketDataService>();
+                await growwMarketData.RefreshForUserAsync(userId, symbol, ct);
                 try
                 {
                     var growwUserApi = sp.GetRequiredService<GrowwUserApiClient>();
-                    var chain = await growwUserApi.GetOptionChainAsync(userId, symbol, selectedExpiry, ct);
-                    svc.CacheGrowwChain(symbol, selectedExpiry, chain);
+                    var growwChain = await growwUserApi.GetOptionChainAsync(userId, symbol, selectedExpiry, ct);
+                    svc.CacheGrowwChain(symbol, selectedExpiry, growwChain);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Groww option chain refresh failed for {Symbol}, using synthetic", symbol);
+                    logger.LogWarning(ex, "Groww option chain refresh failed for {Symbol}", symbol);
                 }
-                return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, svc.GetChain(symbol, selectedExpiry)));
+                var chain = svc.GetChain(symbol, selectedExpiry);
+                return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, chain is not null, chain));
             }
 
             var expiriesFallback = svc.GetExpiries(symbol);
             var selectedExpiryFallback = expiry ?? expiriesFallback.FirstOrDefault() ?? "";
-            return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, svc.GetChain(symbol, selectedExpiryFallback)));
+            var fallbackChain = svc.GetChain(symbol, selectedExpiryFallback);
+            return Results.Ok(new GrowwGatedResponse<OptionsChainResponse>(true, fallbackChain is not null, fallbackChain));
         }).WithName("GetOptionsChain");
 
         group.MapGet("/expiries/{symbol}", (string symbol, OptionsService svc) =>
@@ -49,7 +54,7 @@ public static class OptionsEndpoints
 
         group.MapGet("/maxpain/{symbol}", async (
             string symbol, string? expiry,
-            HttpContext ctx, IConfiguration config,
+            HttpContext ctx, IConfiguration config, IServiceProvider sp,
             OptionsService svc, GrowwCredentialService credentialSvc,
             CancellationToken ct) =>
         {
@@ -57,12 +62,16 @@ public static class OptionsEndpoints
             {
                 var userId = ctx.GetUserId(config);
                 if (!await credentialSvc.HasCredentialsAsync(userId, ct))
-                    return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(false, null));
+                    return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(false, false, null));
+
+                var growwMarketData = sp.GetRequiredService<GrowwMarketDataService>();
+                await growwMarketData.RefreshForUserAsync(userId, symbol, ct);
             }
 
             var expiries = svc.GetExpiries(symbol);
             var selectedExpiry = expiry ?? expiries.FirstOrDefault() ?? "";
-            return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(true, svc.GetMaxPain(symbol, selectedExpiry)));
+            var maxPain = svc.GetMaxPain(symbol, selectedExpiry);
+            return Results.Ok(new GrowwGatedResponse<MaxPainResponse>(true, maxPain is not null, maxPain));
         }).WithName("GetMaxPain");
 
         group.MapPost("/payoff", (PayoffRunRequest req, OptionsService svc) =>

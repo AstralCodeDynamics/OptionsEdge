@@ -74,11 +74,12 @@ public class MockMarketDataService : IMarketDataService
         }
     }
 
-    public MarketSnapshotData GetSnapshot(string symbol)
+    public MarketSnapshotData? GetSnapshot(string symbol)
     {
         lock (_lock)
         {
-            return BuildSnapshot(symbol.ToUpper());
+            var key = symbol.ToUpper();
+            return Config.ContainsKey(key) ? BuildSnapshot(key) : null;
         }
     }
 

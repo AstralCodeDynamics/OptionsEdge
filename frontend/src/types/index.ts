@@ -17,6 +17,7 @@ export interface MarketSnapshot {
 
 export interface GrowwGatedResponse<T> {
   isGrowwConnected: boolean
+  isDataFresh: boolean
   data: T | null
 }
 
