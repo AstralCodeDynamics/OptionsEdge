@@ -185,7 +185,7 @@ export default function PositionCard({
               onClick={() => onEdit(p)}
               className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg py-2 transition-colors"
             >
-              Edit SL/Target
+              Edit Position
             </button>
             <button
               onClick={() => onClose(p.id)}

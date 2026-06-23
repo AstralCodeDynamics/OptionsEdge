@@ -277,6 +277,12 @@ export const positionsApi = {
     signalId?: string
   }) => api.post<Position>('/positions', data).then((r) => r.data),
   update: (id: string, data: {
+    symbol?: string
+    strike?: number
+    optionType?: string
+    expiry?: string
+    entryPrice?: number
+    quantity?: number
     stopLoss?: number
     target1?: number
     target2?: number

@@ -94,6 +94,12 @@ export default function Positions() {
   const handleEditSubmit = async (data: Parameters<typeof positionsApi.create>[0]) => {
     if (!editTarget) return
     const updated = await positionsApi.update(editTarget.id, {
+      symbol:     data.symbol,
+      strike:     data.strike,
+      optionType: data.optionType,
+      expiry:     data.expiry,
+      entryPrice: data.entryPrice,
+      quantity:   data.quantity,
       stopLoss: data.stopLoss,
       target1:  data.target1,
       target2:  data.target2,
@@ -286,7 +292,7 @@ export default function Positions() {
         onSubmit={handleAdd}
       />
 
-      {/* Edit SL/Target modal */}
+      {/* Edit modal */}
       <AddPositionModal
         open={editTarget !== null}
         onClose={() => setEditTarget(null)}

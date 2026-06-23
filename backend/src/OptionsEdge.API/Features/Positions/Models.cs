@@ -18,7 +18,13 @@ public record UpdatePositionRequest(
     decimal? Target2,
     string? Status,
     decimal? ExitPrice,
-    string? ExitReason);
+    string? ExitReason,
+    string? Symbol,
+    string? OptionType,
+    int? Strike,
+    string? Expiry,
+    decimal? EntryPrice,
+    int? Quantity);
 
 public record PositionResponse(
     Guid Id,

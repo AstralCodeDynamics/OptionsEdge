@@ -108,24 +108,21 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
       .then((data) => {
         if (cancelled) return
         setExpiries(data)
-        if (!isEdit) {
-          setForm((current) => ({
-            ...current,
-            expiry: data.includes(current.expiry) ? current.expiry : (data[0] ?? ''),
-          }))
-        }
+        setForm((current) => ({
+          ...current,
+          expiry: data.includes(current.expiry) ? current.expiry : (data[0] ?? ''),
+        }))
       })
       .catch(() => {
         if (cancelled) return
         setExpiriesError(true)
-        if (!isEdit) setForm((current) => ({ ...current, expiry: '' }))
       })
       .finally(() => {
         if (!cancelled) setExpiriesLoading(false)
       })
 
     return () => { cancelled = true }
-  }, [form.symbol, isEdit, open])
+  }, [form.symbol, open])
 
   if (!open) return null
 
@@ -160,7 +157,6 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
   }
 
   const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500'
-  const lockedInputCls = `${inputCls} disabled:cursor-not-allowed disabled:bg-gray-800/60 disabled:text-gray-500 disabled:border-gray-800`
   const labelCls = 'block text-xs text-gray-400 mb-1'
 
   return (
@@ -171,7 +167,7 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
       {/* Sheet — bottom on mobile, centered on desktop */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 rounded-t-2xl p-5 max-h-[90vh] overflow-y-auto lg:inset-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md lg:rounded-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-semibold text-base">{isEdit ? 'Edit SL / Targets' : 'Add Position'}</h2>
+          <h2 className="text-white font-semibold text-base">{isEdit ? 'Edit Position' : 'Add Position'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">×</button>
         </div>
 
@@ -185,14 +181,14 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Symbol</label>
-              <select value={form.symbol} onChange={set('symbol')} disabled={isEdit} className={lockedInputCls}>
+              <select value={form.symbol} onChange={set('symbol')} className={inputCls}>
                 <option>NIFTY</option>
                 <option>BANKNIFTY</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>Type</label>
-              <select value={form.optionType} onChange={set('optionType')} disabled={isEdit} className={lockedInputCls}>
+              <select value={form.optionType} onChange={set('optionType')} className={inputCls}>
                 <option value="CE">CE (Call)</option>
                 <option value="PE">PE (Put)</option>
               </select>
@@ -202,15 +198,15 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Strike</label>
-              <input type="number" value={form.strike} onChange={set('strike')} disabled={isEdit} placeholder="24200" className={lockedInputCls} />
+              <input type="number" value={form.strike} onChange={set('strike')} placeholder="24200" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Expiry</label>
               <select
                 value={form.expiry}
                 onChange={set('expiry')}
-                disabled={isEdit || expiriesLoading || expiriesError || expiries.length === 0}
-                className={lockedInputCls}
+                disabled={expiriesLoading || expiriesError || expiries.length === 0}
+                className={inputCls}
               >
                 {expiriesLoading && <option value="">Loading expiry dates…</option>}
                 {expiriesError && <option value="">Couldn't load expiry dates</option>}
@@ -226,11 +222,11 @@ export default function AddPositionModal({ open, onClose, onSubmit, prefill, mod
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Entry Price (₹)</label>
-              <input type="number" step="0.5" value={form.entryPrice} onChange={set('entryPrice')} disabled={isEdit} placeholder="180" className={lockedInputCls} />
+              <input type="number" step="0.5" value={form.entryPrice} onChange={set('entryPrice')} placeholder="180" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Quantity (lots)</label>
-              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} disabled={isEdit} placeholder="1" className={lockedInputCls} />
+              <input type="number" min="1" value={form.quantity} onChange={set('quantity')} placeholder="1" className={inputCls} />
             </div>
           </div>
 

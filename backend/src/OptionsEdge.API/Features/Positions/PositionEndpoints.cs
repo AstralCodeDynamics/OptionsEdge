@@ -97,6 +97,13 @@ public static class PositionEndpoints
             if (req.StopLoss.HasValue) position.StopLoss = req.StopLoss.Value;
             if (req.Target1.HasValue)  position.Target1  = req.Target1.Value;
             if (req.Target2.HasValue)  position.Target2  = req.Target2.Value;
+            if (!string.IsNullOrWhiteSpace(req.Symbol))     position.Symbol     = req.Symbol.ToUpper();
+            if (!string.IsNullOrWhiteSpace(req.OptionType)) position.OptionType = req.OptionType.ToUpper();
+            if (req.Strike.HasValue && req.Strike.Value > 0) position.Strike = req.Strike.Value;
+            if (!string.IsNullOrWhiteSpace(req.Expiry) && DateOnly.TryParse(req.Expiry, out var expiry))
+                position.Expiry = expiry;
+            if (req.EntryPrice.HasValue && req.EntryPrice.Value > 0) position.EntryPrice = req.EntryPrice.Value;
+            if (req.Quantity.HasValue && req.Quantity.Value > 0) position.Quantity = req.Quantity.Value;
 
             if (req.Status is "closed" or "expired")
             {

@@ -23,6 +23,33 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Codex: Full position edit fields
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Features/Positions/Models.cs`
+- `backend/src/OptionsEdge.API/Features/Positions/PositionEndpoints.cs`
+- `frontend/src/components/positions/AddPositionModal.tsx`
+- `frontend/src/components/positions/PositionCard.tsx`
+- `frontend/src/pages/Positions/index.tsx`
+- `frontend/src/services/api.ts`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Position edit now supports user-editable Symbol, Type, Strike, Expiry, Entry Price, Quantity, Stop Loss, Target 1, and Target 2.
+- Backend `UpdatePositionRequest` accepts optional contract/entry/quantity fields and persists valid provided values.
+- Frontend edit modal title is now `Edit Position`; previously locked fields are no longer disabled and use normal input styling.
+- `positionsApi.update()` and Positions edit submit now send all editable form fields.
+- Position card action label changed from `Edit SL/Target` to `Edit Position`.
+
+Validation:
+
+- `dotnet build backend/src/OptionsEdge.API/OptionsEdge.API.csproj` — passed, 0 warnings.
+- `npm run build` from `frontend/` — passed (`tsc -b` and Vite), zero errors.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-23 - Codex: Critical Groww cache-miss fix, no silent mock fallback
 
 Files changed:
