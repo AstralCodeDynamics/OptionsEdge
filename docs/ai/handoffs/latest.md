@@ -1,15 +1,16 @@
 # Latest Codex Handoff
 
-## TASK-0001-CLEANUP: Normalize Markdown Physical Line Breaks
+## TASK-0001-CLEANUP-FIX: Proper Markdown Physical Line Normalization
 
 Date: 2026-06-23
 
 ## Summary
 
-Normalized Markdown physical line breaks in AI artefact workflow docs.
+Previous cleanup did not fully normalize physical raw-line formatting.
 
-Preserved content meaning, Groww safety rules, role separation, and
-task/review/handoff workflow instructions.
+Reformatted `docs/ai` Markdown files for readable raw GitHub view, Git diffs, and AI review tools.
+
+Preserved content meaning, Groww safety rules, Codex/Coworker role separation, and task/review/handoff workflow instructions.
 
 ## Files Created Or Updated
 
@@ -22,7 +23,12 @@ task/review/handoff workflow instructions.
 - `docs/ai/05-AI-USAGE-RULES.md`
 - `docs/ai/06-DATA-SAFETY-RULES.md`
 - `docs/ai/07-CURRENT-STATE.md`
+- `docs/ai/08-DECISIONS-LOG.md`
 - `docs/ai/09-KNOWN-ISSUES.md`
+- `docs/ai/10-REVIEW-CHECKLIST.md`
+- `docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md`
+- `docs/ai/12-COWORKER-REVIEW-TEMPLATE.md`
+- `docs/ai/tasks/README.md`
 - `docs/ai/handoffs/README.md`
 - `docs/ai/handoffs/latest.md`
 - `docs/AI_HANDOFF.md`
@@ -30,6 +36,8 @@ task/review/handoff workflow instructions.
 ## Behavior
 
 No app behavior changed. Documentation formatting only.
+
+No backend source, frontend source, migrations, or deployment workflow changed.
 
 ## Validation
 

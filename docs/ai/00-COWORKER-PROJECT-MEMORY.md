@@ -10,8 +10,7 @@ Codex is the coding agent.
 - OptionsEdge is a NIFTY/BANKNIFTY options trading assistant.
 - It gives signals and risk alerts only. User trades manually on Groww.
 - No broker order placement is part of the trusted core workflow.
-- Active risk monitoring is critical; false alerts from stale or mocked data are
-  dangerous.
+- Active risk monitoring is critical; false alerts from stale or mocked data are dangerous.
 - Markdown artefacts in `docs/ai` are shared memory and task contract.
 - `docs/AI_HANDOFF.md` remains chronological working memory for recent changes.
 

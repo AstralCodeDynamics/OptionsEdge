@@ -10,8 +10,11 @@ PASS | PASS WITH NOTES | FAIL
 
 ## Scope Check
 - Task file used:
+
 - Files changed match scope:
+
 - App behavior changed:
+
 - Handoff updated:
 
 ## Findings
@@ -19,17 +22,26 @@ PASS | PASS WITH NOTES | FAIL
 
 ## Checklist
 - Task contract:
+
 - Architecture:
+
 - Data safety:
+
 - Backend:
+
 - Frontend:
+
 - Validation:
 
 ## Groww Safety
 - No silent mock fallback when Groww enabled:
+
 - Per-user credential gating preserved:
+
 - `isGrowwConnected` respected:
+
 - `isDataFresh` respected:
+
 - No AI actionable signal from stale/missing data:
 
 ## Validation Reviewed

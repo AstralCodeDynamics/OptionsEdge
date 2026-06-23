@@ -4,8 +4,7 @@ Codex updates handoff after every completed task.
 
 ## Purpose
 
-Handoffs tell Claude Coworker what changed, what validation ran, and what still
-needs review.
+Handoffs tell Claude Coworker what changed, what validation ran, and what still needs review.
 
 ## Required Content
 
@@ -23,5 +22,4 @@ needs review.
 - `latest.md` - most recent Codex handoff.
 - Older handoffs may be added with task IDs when useful.
 
-Do not include secrets, tokens, connection strings, Groww credentials, private
-account data, or private trading account details.
+Do not include secrets, tokens, connection strings, Groww credentials, private account data, or private trading account details.
