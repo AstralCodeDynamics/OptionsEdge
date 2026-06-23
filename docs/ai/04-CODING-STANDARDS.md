@@ -8,7 +8,8 @@ Codex is coding agent and must follow these standards on implementation tasks.
 - Keep diff scoped to requested files and behavior.
 - Preserve existing patterns before adding abstractions.
 - Do not include secrets, tokens, connection strings, or private account data.
-- Update `docs/AI_HANDOFF.md` and `docs/ai/handoffs/latest.md` after completed non-trivial task.
+- Update `docs/AI_HANDOFF.md` and `docs/ai/handoffs/latest.md` after
+  completed non-trivial task.
 
 ## Backend
 
@@ -29,7 +30,8 @@ Codex is coding agent and must follow these standards on implementation tasks.
 - Mobile-first layout.
 - Use existing API client, store, hooks, and component conventions.
 - No `console.log` in production code.
-- Do not render market-data-dependent values unless Groww access and freshness are confirmed.
+- Do not render market-data-dependent values unless Groww access and freshness
+  are confirmed.
 
 ## Validation
 

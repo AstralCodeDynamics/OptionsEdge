@@ -13,7 +13,8 @@
 ## Review Watchlist
 
 - Any endpoint reading shared Groww-backed cache without per-user credential gate.
-- Any frontend caller reading gated `data` without checking `isGrowwConnected` and `isDataFresh`.
+- Any frontend caller reading gated `data` without checking `isGrowwConnected`
+  and `isDataFresh`.
 - Any AI prompt that can receive stale, missing, mocked, or cross-user live data.
 - Any position alert generated when snapshot or option LTP is unavailable.
 - Any task that changes behavior without task file or handoff.

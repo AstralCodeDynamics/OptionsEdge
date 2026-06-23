@@ -4,7 +4,8 @@ Codex updates handoff after every completed task.
 
 ## Purpose
 
-Handoffs tell Claude Coworker what changed, what validation ran, and what still needs review.
+Handoffs tell Claude Coworker what changed, what validation ran, and what still
+needs review.
 
 ## Required Content
 

@@ -32,7 +32,8 @@ When blocked or stale, `data` must be `null` or otherwise unusable by caller.
 ## Frontend Contract
 
 - Check `isGrowwConnected` before reading `data`.
-- Check `isDataFresh` before rendering live values or enabling market-data-dependent actions.
+- Check `isDataFresh` before rendering live values or enabling
+  market-data-dependent actions.
 - Clear cached live data when gate fails or freshness fails.
 - Ignore SignalR market updates until REST confirms connected and fresh data.
 

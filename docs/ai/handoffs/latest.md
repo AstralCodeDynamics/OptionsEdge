@@ -1,16 +1,15 @@
 # Latest Codex Handoff
 
-## TASK-0001-FIX: Finalize AI Artefact Workflow Integration
+## TASK-0001-CLEANUP: Normalize Markdown Physical Line Breaks
 
 Date: 2026-06-23
 
 ## Summary
 
-Finalized AI artefact workflow integration.
+Normalized Markdown physical line breaks in AI artefact workflow docs.
 
-Kept `CLAUDE.md` pointer to `docs/ai/README.md`, added top
-`docs/AI_HANDOFF.md` entry, clarified review routing, and reformatted Markdown
-artefacts with normal line breaks and blank lines.
+Preserved content meaning, Groww safety rules, role separation, and
+task/review/handoff workflow instructions.
 
 ## Files Created Or Updated
 
@@ -19,22 +18,18 @@ artefacts with normal line breaks and blank lines.
 - `docs/ai/01-PROJECT-CONTEXT.md`
 - `docs/ai/02-ARCHITECTURE-CONTEXT.md`
 - `docs/ai/03-FUNCTIONAL-FLOWS.md`
+- `docs/ai/04-CODING-STANDARDS.md`
 - `docs/ai/05-AI-USAGE-RULES.md`
 - `docs/ai/06-DATA-SAFETY-RULES.md`
 - `docs/ai/07-CURRENT-STATE.md`
-- `docs/ai/08-DECISIONS-LOG.md`
 - `docs/ai/09-KNOWN-ISSUES.md`
-- `docs/ai/10-REVIEW-CHECKLIST.md`
-- `docs/ai/11-CODEX-INSTRUCTION-TEMPLATE.md`
-- `docs/ai/12-COWORKER-REVIEW-TEMPLATE.md`
 - `docs/ai/handoffs/README.md`
 - `docs/ai/handoffs/latest.md`
-- `CLAUDE.md`
 - `docs/AI_HANDOFF.md`
 
 ## Behavior
 
-No app behavior changed. Documentation/workflow cleanup only.
+No app behavior changed. Documentation formatting only.
 
 ## Validation
 

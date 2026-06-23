@@ -7,7 +7,9 @@ OptionsEdge is a personal NIFTY/BANKNIFTY options trading assistant.
 It monitors market data, generates AI signals, tracks manually entered
 positions, and alerts when risk changes.
 
-User trades manually on Groww. OptionsEdge is not a broker and must not silently place trades.
+User trades manually on Groww.
+
+OptionsEdge is not a broker and must not silently place trades.
 
 ## Stack
 

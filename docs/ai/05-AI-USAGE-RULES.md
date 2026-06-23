@@ -17,8 +17,10 @@
 
 - No AI actionable signal from stale or missing market data.
 - No AI actionable signal from mock data when Groww is enabled.
-- No AI market context for user who lacks per-user Groww credentials when Groww is enabled.
-- Do not send secrets, tokens, connection strings, Groww credentials, or private account data to AI.
+- No AI market context for user who lacks per-user Groww credentials when Groww
+  is enabled.
+- Do not send secrets, tokens, connection strings, Groww credentials, or private
+  account data to AI.
 - Log usage/cost metadata without private secrets.
 
 ## Prompt/Response Rules

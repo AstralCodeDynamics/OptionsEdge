@@ -11,7 +11,8 @@ PostgreSQL, and market data infrastructure.
 ## Backend Rules
 
 - Keep feature-folder structure under `backend/src/OptionsEdge.API/Features`.
-- Register services through feature or infrastructure DI extension patterns already in repo.
+- Register services through feature or infrastructure DI extension patterns
+  already in repo.
 - Use `ProblemDetails` for API errors where applicable.
 - Use `ILogger` for logging.
 - Use EF Core migrations for schema changes.

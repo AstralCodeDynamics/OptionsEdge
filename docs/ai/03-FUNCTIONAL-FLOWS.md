@@ -11,13 +11,15 @@
 ## Signal Flow
 
 1. User requests signal for NIFTY or BANKNIFTY.
-2. Backend checks market hours, rate limit, Groww user connection, and fresh market data.
+2. Backend checks market hours, rate limit, Groww user connection, and fresh
+   market data.
 3. Cached signal may be returned when market snapshot hash matches valid TTL.
 4. AI response must be parsed and validated before save/display.
 5. Signal includes exact contract, entry range, stop loss, targets, confidence,
    rationale, and validity.
 
-No actionable AI signal may be generated from stale, missing, or silently mocked Groww data.
+No actionable AI signal may be generated from stale, missing, or silently mocked
+Groww data.
 
 ## Position Flow
 

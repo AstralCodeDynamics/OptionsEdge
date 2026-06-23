@@ -27,7 +27,9 @@ This folder is shared memory and task contract for OptionsEdge AI work.
    `docs/ai/reviews/failed/`.
 8. Completed task artefact moves to `docs/ai/tasks/completed/`.
 
-Every non-trivial task must start from a task file. Every review must use the review checklist.
+Every non-trivial task must start from a task file.
+
+Every review must use the review checklist.
 
 ## Index
 

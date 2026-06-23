@@ -18,7 +18,8 @@ Backtest and Groww integration for NIFTY/BANKNIFTY options strategy testing.
 ## Current Caveats
 
 - Historical option premiums in backtest are still estimated with Black-Scholes.
-- Backtest validates signal timing against market candles, not real historical option LTP replay.
+- Backtest validates signal timing against market candles, not real historical
+  option LTP replay.
 - `GET /market/status`, expiries, and payoff endpoints are intentionally not
   Groww-gated when they do not expose user-specific live data.
 
