@@ -23,6 +23,29 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Codex: Dashboard refresh countdown labels
+
+Files changed:
+
+- `frontend/src/hooks/useMarketData.ts`
+- `frontend/src/components/market/MarketStatusBanner.tsx`
+- `frontend/src/components/charts/PriceChart.tsx`
+- `frontend/src/pages/Dashboard/index.tsx`
+- `docs/AI_HANDOFF.md`
+
+Behavior:
+
+- Dashboard now polls Groww-backed market snapshots, status, and indicators every 30 seconds via REST, keeping the live Groww cache refreshed instead of relying only on SignalR.
+- Added visible countdown labels so users can see when Live Index, Technical Indicators, Pivot Levels, and Market Pulse will refresh next.
+- Price chart now checks candles every 30 seconds and shows its own countdown label.
+- AI Signals section is labeled `Manual refresh` because signal generation remains user-triggered, not automatic.
+
+Validation:
+
+- `npm run build` from `frontend/` — passed (`tsc -b` and Vite), zero errors.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-23 - Codex: Full position edit fields
 
 Files changed:

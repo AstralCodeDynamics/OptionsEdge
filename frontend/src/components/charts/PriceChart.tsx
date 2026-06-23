@@ -15,9 +15,10 @@ interface Props {
   candles: Candle[]
   ema?: EmaIndicator
   symbol: string
+  refreshText?: string
 }
 
-export function PriceChart({ candles, ema, symbol }: Props) {
+export function PriceChart({ candles, ema, symbol, refreshText }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
@@ -117,6 +118,11 @@ export function PriceChart({ candles, ema, symbol }: Props) {
               <span className="text-gray-200">{fmtPrice(ema.ema200)}</span>
             </span>
           </div>
+        )}
+        {refreshText && (
+          <span className="text-[10px] font-medium text-gray-500">
+            {refreshText}
+          </span>
         )}
       </div>
       <div

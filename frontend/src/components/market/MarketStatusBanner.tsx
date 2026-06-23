@@ -4,9 +4,10 @@ import type { ConnectionState } from '../../hooks/useSignalR'
 
 interface Props {
   connectionState: ConnectionState
+  refreshText?: string
 }
 
-export default function MarketStatusBanner({ connectionState }: Props) {
+export default function MarketStatusBanner({ connectionState, refreshText }: Props) {
   const marketStatus = useAppStore((s) => s.marketStatus)
   const [, forceRender] = useState(0)
 
@@ -48,6 +49,12 @@ export default function MarketStatusBanner({ connectionState }: Props) {
       {/* Next event */}
       {marketStatus?.nextEvent && (
         <span className="text-xs text-gray-500">{marketStatus.nextEvent}</span>
+      )}
+
+      {refreshText && (
+        <span className="rounded-full border border-gray-700 bg-gray-900 px-2.5 py-1 text-[10px] font-medium text-gray-400">
+          {refreshText}
+        </span>
       )}
 
       {/* SignalR status */}

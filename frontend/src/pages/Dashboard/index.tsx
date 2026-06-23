@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMarketData } from '../../hooks/useMarketData'
 import { useAppStore } from '../../store/appStore'
@@ -17,9 +17,26 @@ import type { Candle, Signal } from '../../types'
 
 const SYMBOLS = ['NIFTY', 'BANKNIFTY'] as const
 type Symbol = (typeof SYMBOLS)[number]
+const CHART_REFRESH_SECONDS = 30
+
+function formatRefresh(seconds: number) {
+  if (seconds <= 0) return 'now'
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`
+}
+
+function RefreshPill({ text }: { text: string }) {
+  return (
+    <span className="rounded-full border border-gray-700 bg-gray-900 px-2.5 py-1 text-[10px] font-medium text-gray-400">
+      {text}
+    </span>
+  )
+}
 
 export default function Dashboard() {
-  const { connectionState, isGrowwConnected, isDataFresh } = useMarketData()
+  const { connectionState, isGrowwConnected, isDataFresh, refreshInSeconds } = useMarketData()
   const snapshots     = useAppStore((s) => s.snapshots)
   const indicators    = useAppStore((s) => s.indicators)
   const storeSignals  = useAppStore((s) => s.signals)
@@ -36,6 +53,24 @@ export default function Dashboard() {
   const [orderSignal, setOrderSignal]    = useState<Signal | null>(null)
   const [aiKeyPrompt, setAiKeyPrompt]    = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const chartRefreshStartedAtRef = useRef(Date.now())
+  const [chartRefreshInSeconds, setChartRefreshInSeconds] = useState(CHART_REFRESH_SECONDS)
+
+  const refreshCandles = useCallback((cancelledRef: { current: boolean }) => {
+    chartRefreshStartedAtRef.current = Date.now()
+    setChartRefreshInSeconds(CHART_REFRESH_SECONDS)
+    marketApi.getCandles(activeSymbol)
+      .then((response) => {
+        if (cancelledRef.current) return
+        if (!response.isGrowwConnected) {
+          useAppStore.getState().setMarketDataConnected(false)
+          setCandles([])
+          return
+        }
+        if (response.isDataFresh && response.data) setCandles(response.data)
+      })
+      .catch(() => {})
+  }, [activeSymbol])
 
   useEffect(() => {
     if (isGrowwConnected !== true) {
@@ -43,18 +78,22 @@ export default function Dashboard() {
       return
     }
 
-    let cancelled = false
+    const cancelledRef = { current: false }
     setCandles([])
-    marketApi.getCandles(activeSymbol)
-      .then((response) => {
-        if (cancelled) return
-        useAppStore.getState().setMarketDataConnected(response.isGrowwConnected)
-        useAppStore.getState().setMarketDataFresh(response.isDataFresh)
-        if (response.isGrowwConnected && response.isDataFresh && response.data) setCandles(response.data)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [activeSymbol, isGrowwConnected])
+    refreshCandles(cancelledRef)
+
+    const refreshId = setInterval(() => refreshCandles(cancelledRef), CHART_REFRESH_SECONDS * 1000)
+    const countdownId = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - chartRefreshStartedAtRef.current) / 1000)
+      setChartRefreshInSeconds(Math.max(CHART_REFRESH_SECONDS - elapsedSeconds, 0))
+    }, 1000)
+
+    return () => {
+      cancelledRef.current = true
+      clearInterval(refreshId)
+      clearInterval(countdownId)
+    }
+  }, [isGrowwConnected, refreshCandles])
 
   function startTimer() {
     setSignalElapsed(0)
@@ -160,7 +199,10 @@ export default function Dashboard() {
         </div>
       )}
 
-      <MarketStatusBanner connectionState={connectionState} />
+      <MarketStatusBanner
+        connectionState={connectionState}
+        refreshText={`Live data refreshes in ${formatRefresh(refreshInSeconds)}`}
+      />
 
       {isGrowwConnected === true && isDataFresh === false && (
         <div className="rounded-lg border border-amber-700/50 bg-amber-950/40 px-3 py-2 text-xs font-medium text-amber-200">
@@ -169,9 +211,17 @@ export default function Dashboard() {
       )}
 
       {isDataFresh !== false && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {nifty ? <IndexCard snapshot={nifty} /> : <IndexCardSkeleton />}
-          {bankNifty ? <IndexCard snapshot={bankNifty} /> : <IndexCardSkeleton />}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Live Index
+            </h2>
+            <RefreshPill text={`Refreshes in ${formatRefresh(refreshInSeconds)}`} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {nifty ? <IndexCard snapshot={nifty} /> : <IndexCardSkeleton />}
+            {bankNifty ? <IndexCard snapshot={bankNifty} /> : <IndexCardSkeleton />}
+          </div>
         </div>
       )}
 
@@ -198,6 +248,7 @@ export default function Dashboard() {
           candles={candles}
           ema={activeIndicators?.ema}
           symbol={activeSymbol}
+          refreshText={`Chart checks in ${formatRefresh(chartRefreshInSeconds)}`}
         />
       )}
 
@@ -205,15 +256,21 @@ export default function Dashboard() {
       {isDataFresh === false ? null : activeIndicators ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Technical Indicators
-            </h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Technical Indicators
+              </h2>
+              <RefreshPill text={`Refreshes in ${formatRefresh(refreshInSeconds)}`} />
+            </div>
             <IndicatorPanel indicators={activeIndicators} />
           </div>
           <div>
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Pivot Levels
-            </h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Pivot Levels
+              </h2>
+              <RefreshPill text={`Refreshes in ${formatRefresh(refreshInSeconds)}`} />
+            </div>
             <PivotLevels
               pivots={activeIndicators.pivots}
               spot={activeSnapshot?.ltp ?? 0}
@@ -227,9 +284,12 @@ export default function Dashboard() {
       {/* Market pulse */}
       {isDataFresh !== false && (
         <div>
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            Market Pulse
-          </h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Market Pulse
+            </h2>
+            <RefreshPill text={`Refreshes in ${formatRefresh(refreshInSeconds)}`} />
+          </div>
           <MarketPulse />
         </div>
       )}
@@ -240,12 +300,15 @@ export default function Dashboard() {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             AI Signals
           </h2>
-          <button
-            onClick={() => navigate('/signals/history')}
-            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            Full Analysis →
-          </button>
+          <div className="flex items-center gap-2">
+            <RefreshPill text="Manual refresh" />
+            <button
+              onClick={() => navigate('/signals/history')}
+              className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Full Analysis →
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2">
