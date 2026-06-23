@@ -25,6 +25,7 @@ OptionsEdge/
 
 ## Key Rules
 - Read `docs/AI_HANDOFF.md` before non-trivial changes and update it after changes so Claude/Codex stay in sync.
+- Detailed AI workflow artefacts live under `docs/ai/README.md`.
 - Responsive first: mobile → tablet → desktop
 - Cache AI responses aggressively (market data unchanged = no new API call)
 - All C# code follows Microsoft coding conventions
@@ -73,8 +74,9 @@ Claude AI (via claude.ai) acts as architect and reviewer — NOT a coding agent.
 4. Claude AI reviews the committed code
 5. Manu deploys after review passes
 
-### Shared Memory: docs/AI_HANDOFF.md
+### Shared Memory
 - Codex reads AI_HANDOFF.md BEFORE every task
 - Codex updates AI_HANDOFF.md AFTER every task
 - Claude AI reads AI_HANDOFF.md when reviewing
+- Structured task/review/handoff artefacts live under `docs/ai/README.md`
 - Never touch files listed as "active" in handoff
