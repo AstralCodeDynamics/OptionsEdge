@@ -23,6 +23,31 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-23 - Claude Coworker: TASK-0002 AI Architecture Plan
+
+Files changed:
+
+- `docs/ai/architecture/AI-ARCHITECTURE-PLAN.md` (new)
+- `docs/ai/08-DECISIONS-LOG.md` (decision entry added)
+- `docs/AI_HANDOFF.md` (this entry)
+- `docs/ai/handoffs/latest.md` (updated)
+
+Notes:
+
+- Produced target AI architecture plan covering: subsystem overview, model routing, prompt versioning, response caching, token budget, audit logging, user isolation, graceful degradation, safety disclaimers, and 5-phase roadmap.
+- Current AI entry points confirmed: `AISignalService` (signal + risk check) and `ChatService` (streaming chat).
+- No app source code changed. Documentation only.
+- All 10 required sections from TASK-0002 requirements present.
+- Key gaps identified in source: duplicated rate-limit logic, inline unversioned prompts, incomplete audit fields, no centralized budget guard, no disclaimer injection.
+- Five implementation phases defined; each requires separate approved Codex task before coding.
+
+Validation:
+
+- `git status` confirms only new docs files, no backend/frontend source modified.
+- All section headings from TASK-0002 requirements confirmed present in output file.
+
+Claude Code active files: none. Codex active files: none.
+
 ### 2026-06-23 - Codex: TASK-0001-CLEANUP-FIX-2 Manual Markdown physical line rewrite
 
 Files changed:
