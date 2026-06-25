@@ -15,7 +15,9 @@ frontend source, no migrations, no deployment workflow changes.
 
 ## Status
 
-PENDING — awaiting Manu approval.
+Completed: 2026-06-25
+Output:
+- docs/ai/architecture/AI-ARCHITECTURE-PLAN.md
 
 ## Read First
 
