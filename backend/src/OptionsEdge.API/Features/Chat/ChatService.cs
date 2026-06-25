@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OptionsEdge.API.Common.Configuration;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
@@ -19,6 +21,7 @@ public class ChatService(
     IMarketDataService marketData,
     AppDbContext db,
     IConfiguration config,
+    IOptions<AIOptions> aiOptions,
     UserAICredentialService aiCredentials,
     GrowwCredentialService growwCredentials,
     ILogger<ChatService> logger)
@@ -77,7 +80,7 @@ public class ChatService(
             yield break;
         }
 
-        var model = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
+        var model = ResolveModel(aiOptions.Value, "Chat");
         var now   = DateTimeOffset.UtcNow;
 
         var systemPrompt = await BuildSystemPromptAsync(userId, ct);
@@ -180,6 +183,17 @@ public class ChatService(
             InputTokens:  inputTokens,
             OutputTokens: outputTokens,
             CostUsd:      cost);
+    }
+
+    private static string ResolveModel(AIOptions ai, string feature)
+    {
+        var tier = ai.Features.TryGetValue(feature, out var f) ? f.ModelTier : "Default";
+        return tier switch
+        {
+            "Quick" => ai.Models.Quick,
+            "Deep" => ai.Models.Deep,
+            _ => ai.Models.Default
+        };
     }
 
     private async Task<string> BuildSystemPromptAsync(Guid userId, CancellationToken ct)

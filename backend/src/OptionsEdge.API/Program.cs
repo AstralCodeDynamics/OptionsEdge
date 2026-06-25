@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OptionsEdge.API.Common.Configuration;
 using OptionsEdge.API.Common.Options;
 using OptionsEdge.API.Common.Time;
 using OptionsEdge.API.Domain.Entities;
@@ -175,6 +176,7 @@ builder.Services.AddChatServices();
 builder.Services.AddGrowwServices();
 builder.Services.AddBacktestServices();
 builder.Services.AddUsageServices();
+builder.Services.Configure<AIOptions>(builder.Configuration.GetSection("AI"));
 builder.Services.AddAIServices();
 
 // Background workers

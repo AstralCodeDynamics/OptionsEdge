@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OptionsEdge.API.Common.Configuration;
 using OptionsEdge.API.Common.Constants;
 using OptionsEdge.API.Domain.Entities;
 using OptionsEdge.API.Features.AI;
@@ -25,6 +27,7 @@ public class AISignalService(
     IHubContext<MarketHub> hub,
     AppDbContext db,
     IConfiguration config,
+    IOptions<AIOptions> aiOptions,
     UserAICredentialService aiCredentials,
     GrowwCredentialService growwCredentials,
     ILogger<AISignalService> logger)
@@ -123,7 +126,7 @@ public class AISignalService(
         }
 
         // Build prompt
-        var model  = config["Claude:SonnetModel"] ?? AppConstants.Models.Sonnet;
+        var model  = ResolveModel(aiOptions.Value, "Signal");
         var istNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IstZone);
         var prompt = BuildSignalPrompt(key, indicators, snapshot, expiries, istNow, nearbyStrikesTable);
 
@@ -300,7 +303,7 @@ public class AISignalService(
                 "Live market data temporarily unavailable.",
                 "Skip automated risk assessment until live data refreshes.");
 
-        var model    = config["Claude:HaikuModel"] ?? AppConstants.Models.Haiku;
+        var model    = ResolveModel(aiOptions.Value, "RiskCheck");
 
         var prompt = BuildRiskCheckPrompt(position, snapshot);
         var claudeResp = await claude.CompleteAsync(
@@ -325,6 +328,17 @@ public class AISignalService(
     }
 
     // ------------------------------------------------------------------
+    private static string ResolveModel(AIOptions ai, string feature)
+    {
+        var tier = ai.Features.TryGetValue(feature, out var f) ? f.ModelTier : "Default";
+        return tier switch
+        {
+            "Quick" => ai.Models.Quick,
+            "Deep" => ai.Models.Deep,
+            _ => ai.Models.Default
+        };
+    }
+
     private static string BuildSignalPrompt(
         string symbol,
         Indicators.IndicatorsResponse ind,

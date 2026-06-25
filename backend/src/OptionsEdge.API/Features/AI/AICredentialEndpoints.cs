@@ -1,4 +1,6 @@
 using System.Net;
+using Microsoft.Extensions.Options;
+using OptionsEdge.API.Common.Configuration;
 using OptionsEdge.API.Common.Extensions;
 
 namespace OptionsEdge.API.Features.AI;
@@ -17,6 +19,7 @@ public static class AICredentialEndpoints
             UserAICredentialService aiCredentialService,
             IHttpClientFactory httpClientFactory,
             IConfiguration config,
+            IOptions<AIOptions> aiOptions,
             HttpContext ctx,
             CancellationToken ct) =>
         {
@@ -30,7 +33,7 @@ public static class AICredentialEndpoints
 
             var testBody = JsonContent.Create(new
             {
-                model = config["Claude:HaikuModel"] ?? "claude-haiku-4-5-20251001",
+                model = aiOptions.Value.Models.Quick,
                 max_tokens = 1,
                 messages = new[] { new { role = "user", content = "hi" } },
             });

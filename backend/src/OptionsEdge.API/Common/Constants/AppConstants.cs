@@ -25,6 +25,8 @@ public static class AppConstants
 
     public static class Models
     {
+        // Fallback defaults only — runtime model selection reads from AI:Models config via AIOptions.
+        // Do not read these constants directly in service classes; use IOptions<AIOptions> instead.
         public const string Haiku = "claude-haiku-4-5-20251001";
         public const string Sonnet = "claude-sonnet-4-6";
     }

@@ -23,6 +23,70 @@ Important caveat: Groww historical candles are real index candles, but historica
 
 ## Change Log
 
+### 2026-06-25 - Codex: TASK-0003 Centralize AI Configuration — Phase 1 implementation complete
+
+Status: **Codex implementation complete. Pending Claude Coworker review. Phase 1 acceptance still pending review.**
+
+Files changed:
+
+- `backend/src/OptionsEdge.API/Common/Configuration/AIOptions.cs` (new)
+- `backend/src/OptionsEdge.API/appsettings.json`
+- `backend/src/OptionsEdge.API/Program.cs`
+- `backend/src/OptionsEdge.API/Features/Signals/AISignalService.cs`
+- `backend/src/OptionsEdge.API/Features/Chat/ChatService.cs`
+- `backend/src/OptionsEdge.API/Features/AI/AICredentialEndpoints.cs`
+- `backend/src/OptionsEdge.API/Common/Constants/AppConstants.cs`
+- `docs/ai/handoffs/latest.md`
+- `docs/AI_HANDOFF.md` (this entry)
+
+Notes:
+
+- Added strongly typed `AIOptions` and bound `AI:` config in DI before `AddAIServices()`.
+- Added `AI:Models`, `AI:Features`, `AI:Budget`, and `AI:Disclaimers` to `appsettings.json`.
+- Replaced raw `config["Claude:SonnetModel"]` / `config["Claude:HaikuModel"]` model-name reads in `AISignalService`, `ChatService`, and `AICredentialEndpoints` with `IOptions<AIOptions>`.
+- Preserved current runtime model IDs: `AI:Models:Quick = claude-haiku-4-5-20251001`, `AI:Models:Deep = claude-sonnet-4-6`, `AI:Models:Default = claude-haiku-4-5-20251001`.
+- No model ID mismatch between current `Claude:` config values and `AppConstants.Models`.
+- `Claude:BypassMarketHours` config and source reads remain untouched.
+- No frontend source, migrations, deployment files, trading logic, API contracts, signal output, risk logic, or chat behavior changed.
+
+Validation:
+
+- `dotnet build src/OptionsEdge.API/OptionsEdge.API.csproj` — passed, 0 warnings, 0 errors.
+- `dotnet test tests/OptionsEdge.API.Tests/OptionsEdge.API.Tests.csproj` — passed, 52 passed, 0 failed, 0 skipped.
+- Required grep checks recorded in `docs/ai/handoffs/latest.md`.
+- `git diff --check` — passed.
+
+Claude Code active files: none. Codex active files: none.
+
+---
+
+### 2026-06-25 - Claude Coworker: TASK-0003 Centralize AI Configuration — Phase 1 task file authored
+
+Status: **Pending Codex implementation. Pending Claude Coworker review. Phase 1 NOT accepted.**
+
+Files changed:
+
+- `docs/ai/tasks/pending/TASK-0003-centralize-ai-configuration.md` (new)
+- `docs/AI_HANDOFF.md` (this entry)
+
+Notes:
+
+- TASK-0003 task file created for AI Architecture Plan Phase 1 (config consolidation only).
+- Scope: create `AIOptions.cs` with strongly-typed options; add `AI:` section to `appsettings.json`; register `Configure<AIOptions>` in `Program.cs`; replace four raw `config["Claude:SonnetModel"]` / `config["Claude:HaikuModel"]` reads in `AISignalService`, `ChatService`, and `AICredentialEndpoints` with `IOptions<AIOptions>` injection; add fallback comment to `AppConstants.Models`. No behavior change.
+- Task requires Manu approval before Codex starts. Move file to `docs/ai/tasks/approved/` to approve.
+- Phase 1 is complete only after Claude Coworker review passes and is recorded under `docs/ai/reviews/passed/`. Do not mark Phase 1 accepted before that.
+- Key constraint in task: `AI:Models:Deep` and `AI:Models:Quick` must copy the current effective runtime values from `Claude:SonnetModel` and `Claude:HaikuModel` in `appsettings.json`. No new model IDs may be introduced during this task. Any mismatch between `appsettings.json` values and `AppConstants.Models` constants must be documented in the Codex handoff.
+- `Claude:BypassMarketHours` and the existing `Claude:` config section are explicitly out of scope and must not be touched by Codex.
+- No backend source, frontend source, migrations, or deployment workflow changed in this entry.
+
+Validation:
+
+- `git diff --check` — passed.
+
+Claude Code active files: none. Codex active files: none.
+
+---
+
 ### 2026-06-25 - Claude Coworker: TASK-0002-FIX AI Architecture Plan Documentation Cleanup
 
 Files changed:
