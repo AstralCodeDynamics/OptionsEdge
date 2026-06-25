@@ -197,7 +197,7 @@ Documentation-only task. Required checks:
 
 ## Deliverable
 
-- New file: `docs/ai/architecture/AI-ARCHITECTURE.md` (primary output).
+- New file: `docs/ai/architecture/AI-ARCHITECTURE-PLAN.md` (primary output).
 - Optional supporting files under `docs/ai/architecture/` if sections are large
   enough to warrant splitting.
 - Updated `docs/ai/08-DECISIONS-LOG.md` with a decision entry for the AI
